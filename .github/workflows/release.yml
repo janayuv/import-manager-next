@@ -1,0 +1,79 @@
+name: Release Windows Installer
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails 3 CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+
+      - name: Install Frontend Dependencies & Build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run type-check
+          npm test
+          npm run build
+
+      - name: Run Go Test Suite
+        run: go test -tags "json1,sqlite_fts5,sqlite_foreign_keys" ./...
+
+      - name: Build Production Binary & NSIS Installer
+        shell: pwsh
+        run: |
+          wails3 task windows:package
+
+      - name: Sign Binary & Installer (when Authenticode secret configured)
+        if: ${{ env.SIGN_CERTIFICATE_BASE64 != '' }}
+        shell: pwsh
+        env:
+          SIGN_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGN_CERT_BASE64 }}
+          SIGN_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
+        run: |
+          $certPath = "$env:TEMP\codesign.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:SIGN_CERTIFICATE_BASE64))
+          signtool sign /f $certPath /p $env:SIGN_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "bin\import-manager.exe"
+          Get-ChildItem "bin\*-installer.exe" | ForEach-Object {
+            signtool sign /f $certPath /p $env:SIGN_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 $_.FullName
+          }
+          Remove-Item $certPath -Force
+
+      - name: Generate Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem "bin\*.exe" | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)" | Out-File -Append -Encoding utf8 "bin\SHA256SUMS.txt"
+          }
+
+      - name: Upload Windows Installer Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-manager-windows-installer
+          path: |
+            bin/*.exe
+            bin/SHA256SUMS.txt

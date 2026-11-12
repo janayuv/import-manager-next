@@ -1,0 +1,27 @@
+# Binaries and Wails build outputs
+bin/
+build/bin/
+.task/
+*.exe
+*.syso
+!build/windows/nsis/*.nsh
+build/windows/nsis/*bootstrapper*.exe
+
+# Node & Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+playwright-report/
+test-results/
+
+# Local databases, logs, secrets, and exports
+*.db
+*.db-wal
+*.db-shm
+*.imkey
+*.imbk
+*.log
+.env
+.env.local
+coverage/
