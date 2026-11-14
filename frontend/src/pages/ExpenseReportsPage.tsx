@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { BarChart3, FileDown, FileSpreadsheet, Search } from 'lucide-react';
+import { BarChart3, FileDown, FileSpreadsheet, Search, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +30,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ManageExpenseTypesDialog } from '@/components/master/ManageExpenseTypesDialog';
+import { ManageServiceProvidersDialog } from '@/components/master/ManageServiceProvidersDialog';
 import { downloadTextFile } from '@/lib/download';
 import { exportExpenseReportExcel } from '@/lib/expense-export';
 import {
@@ -64,17 +66,25 @@ export function ExpenseReportsPage() {
   const [types, setTypes] = React.useState<ExpenseType[]>([]);
   const [report, setReport] = React.useState<ExpenseReportResult | null>(null);
 
-  React.useEffect(() => {
-    void Promise.all([
-      expenseService.listServiceProviders(''),
-      expenseService.listExpenseTypes(false),
-    ])
-      .then(([sps, ets]) => {
-        setProviders(sps);
-        setTypes(ets);
-      })
-      .catch((err) => toast.error(String(err)));
+  const [manageSpOpen, setManageSpOpen] = React.useState(false);
+  const [manageEtOpen, setManageEtOpen] = React.useState(false);
+
+  const loadFilterOptions = React.useCallback(async () => {
+    try {
+      const [sps, ets] = await Promise.all([
+        expenseService.listServiceProviders(''),
+        expenseService.listExpenseTypes(false),
+      ]);
+      setProviders(sps);
+      setTypes(ets);
+    } catch (err) {
+      toast.error(String(err));
+    }
   }, []);
+
+  React.useEffect(() => {
+    void loadFilterOptions();
+  }, [loadFilterOptions]);
 
   const loadReport = React.useCallback(async () => {
     try {
@@ -183,7 +193,17 @@ export function ExpenseReportsPage() {
             <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label>Service Provider</Label>
+            <div className="flex items-center justify-between">
+              <Label>Service Provider</Label>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
+                onClick={() => setManageSpOpen(true)}
+              >
+                <Settings2 className="h-2.5 w-2.5" />
+                Manage
+              </button>
+            </div>
             <Select
               value={serviceProviderId || 'all'}
               onValueChange={(v) => setServiceProviderId(v === 'all' ? '' : v)}
@@ -202,7 +222,17 @@ export function ExpenseReportsPage() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label>Expense Type</Label>
+            <div className="flex items-center justify-between">
+              <Label>Expense Type</Label>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
+                onClick={() => setManageEtOpen(true)}
+              >
+                <Settings2 className="h-2.5 w-2.5" />
+                Manage
+              </button>
+            </div>
             <Select
               value={expenseTypeId || 'all'}
               onValueChange={(v) => setExpenseTypeId(v === 'all' ? '' : v)}
@@ -418,6 +448,30 @@ export function ExpenseReportsPage() {
           )}
         </CardContent>
       </Card>
+
+      <ManageServiceProvidersDialog
+        open={manageSpOpen}
+        onOpenChange={setManageSpOpen}
+        providers={providers}
+        selectedId={serviceProviderId}
+        onUpdated={loadFilterOptions}
+        onSelect={(id) => {
+          setServiceProviderId(id);
+          toast.success('Selected service provider');
+        }}
+      />
+
+      <ManageExpenseTypesDialog
+        open={manageEtOpen}
+        onOpenChange={setManageEtOpen}
+        types={types}
+        selectedId={expenseTypeId}
+        onUpdated={loadFilterOptions}
+        onSelect={(et) => {
+          setExpenseTypeId(et.id);
+          toast.success(`Selected expense type "${et.name}"`);
+        }}
+      />
     </div>
   );
 }

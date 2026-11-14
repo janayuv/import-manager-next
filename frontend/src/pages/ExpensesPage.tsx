@@ -5,6 +5,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings2,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -40,6 +41,8 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
+import { ManageExpenseTypesDialog } from '@/components/master/ManageExpenseTypesDialog';
+import { ManageServiceProvidersDialog } from '@/components/master/ManageServiceProvidersDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   expenseService,
@@ -138,6 +141,11 @@ export function ExpensesPage() {
     defaultTdsRateBp: 0,
     isActive: true,
   });
+
+  // Dedicated Manage Dialogs
+  const [manageSpOpen, setManageSpOpen] = React.useState(false);
+  const [manageEtOpen, setManageEtOpen] = React.useState(false);
+  const [targetLineIdx, setTargetLineIdx] = React.useState<number | null>(null);
 
   const loadAll = React.useCallback(async () => {
     try {
@@ -479,26 +487,36 @@ export function ExpensesPage() {
                 <CardTitle className="text-base">Service Providers (CHA / Forwarders)</CardTitle>
                 <CardDescription>Manage GSTIN and contact details for expense vendors.</CardDescription>
               </div>
-              {canWrite && (
+              <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  onClick={() => {
-                    setEditingSp(null);
-                    setSpForm({
-                      name: '',
-                      gstin: '',
-                      state: '',
-                      contactPerson: '',
-                      contactEmail: '',
-                      contactPhone: '',
-                    });
-                    setSpOpen(true);
-                  }}
+                  variant="outline"
+                  onClick={() => setManageSpOpen(true)}
                 >
-                  <Plus className="h-4 w-4" />
-                  Add Provider
+                  <Settings2 className="h-4 w-4 mr-1" />
+                  Manage Providers
                 </Button>
-              )}
+                {canWrite && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingSp(null);
+                      setSpForm({
+                        name: '',
+                        gstin: '',
+                        state: '',
+                        contactPerson: '',
+                        contactEmail: '',
+                        contactPhone: '',
+                      });
+                      setSpOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Provider
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -521,26 +539,44 @@ export function ExpensesPage() {
                         {p.contactPerson || p.contactEmail || p.contactPhone || '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        {canWrite && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingSp(p);
-                              setSpForm({
-                                name: p.name,
-                                gstin: p.gstin,
-                                state: p.state,
-                                contactPerson: p.contactPerson,
-                                contactEmail: p.contactEmail,
-                                contactPhone: p.contactPhone,
-                              });
-                              setSpOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="flex justify-end gap-1">
+                          {canWrite && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingSp(p);
+                                setSpForm({
+                                  name: p.name,
+                                  gstin: p.gstin,
+                                  state: p.state,
+                                  contactPerson: p.contactPerson,
+                                  contactEmail: p.contactEmail,
+                                  contactPhone: p.contactPhone,
+                                });
+                                setSpOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              aria-label={`Delete ${p.name}`}
+                              onClick={() =>
+                                void expenseService
+                                  .deleteServiceProvider(p.id)
+                                  .then(loadAll)
+                                  .then(() => toast.success(`Service provider "${p.name}" removed`))
+                                  .catch((err) => toast.error(err instanceof Error ? err.message : String(err)))
+                              }
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -557,26 +593,39 @@ export function ExpensesPage() {
                 <CardTitle className="text-base">Expense Types &amp; Statutory Tax Defaults</CardTitle>
                 <CardDescription>Default CGST/SGST/IGST/TDS rates stored in basis points (100 bp = 1%).</CardDescription>
               </div>
-              {canWrite && (
+              <div className="flex items-center gap-2">
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={() => {
-                    setEditingEt(null);
-                    setEtForm({
-                      name: '',
-                      defaultCgstRateBp: 900,
-                      defaultSgstRateBp: 900,
-                      defaultIgstRateBp: 0,
-                      defaultTdsRateBp: 200,
-                      isActive: true,
-                    });
-                    setEtOpen(true);
+                    setTargetLineIdx(null);
+                    setManageEtOpen(true);
                   }}
                 >
-                  <Plus className="h-4 w-4" />
-                  Add Expense Type
+                  <Settings2 className="h-4 w-4 mr-1" />
+                  Manage Types
                 </Button>
-              )}
+                {canWrite && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingEt(null);
+                      setEtForm({
+                        name: '',
+                        defaultCgstRateBp: 900,
+                        defaultSgstRateBp: 900,
+                        defaultIgstRateBp: 0,
+                        defaultTdsRateBp: 200,
+                        isActive: true,
+                      });
+                      setEtOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Expense Type
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -605,26 +654,44 @@ export function ExpensesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {canWrite && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingEt(t);
-                              setEtForm({
-                                name: t.name,
-                                defaultCgstRateBp: t.defaultCgstRateBp,
-                                defaultSgstRateBp: t.defaultSgstRateBp,
-                                defaultIgstRateBp: t.defaultIgstRateBp,
-                                defaultTdsRateBp: t.defaultTdsRateBp,
-                                isActive: t.isActive,
-                              });
-                              setEtOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="flex justify-end gap-1">
+                          {canWrite && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingEt(t);
+                                setEtForm({
+                                  name: t.name,
+                                  defaultCgstRateBp: t.defaultCgstRateBp,
+                                  defaultSgstRateBp: t.defaultSgstRateBp,
+                                  defaultIgstRateBp: t.defaultIgstRateBp,
+                                  defaultTdsRateBp: t.defaultTdsRateBp,
+                                  isActive: t.isActive,
+                                });
+                                setEtOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              aria-label={`Delete ${t.name}`}
+                              onClick={() =>
+                                void expenseService
+                                  .deleteExpenseType(t.id)
+                                  .then(loadAll)
+                                  .then(() => toast.success(`Expense type "${t.name}" removed`))
+                                  .catch((err) => toast.error(err instanceof Error ? err.message : String(err)))
+                              }
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -666,7 +733,17 @@ export function ExpensesPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Service Provider *</Label>
+              <div className="flex items-center justify-between">
+                <Label>Service Provider *</Label>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
+                  onClick={() => setManageSpOpen(true)}
+                >
+                  <Settings2 className="h-3 w-3" />
+                  Manage
+                </button>
+              </div>
               <Select value={serviceProviderId} onValueChange={setServiceProviderId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose provider" />
@@ -711,20 +788,50 @@ export function ExpensesPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>Expense Lines</Label>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setDraftLines((prev) => [...prev, emptyLine(types[0])])}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Line
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  className="h-8 gap-1 text-xs"
+                  onClick={() => {
+                    setTargetLineIdx(null);
+                    setManageEtOpen(true);
+                  }}
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  Manage Types
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  className="h-8 gap-1 text-xs"
+                  onClick={() => setDraftLines((prev) => [...prev, emptyLine(types[0])])}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Line
+                </Button>
+              </div>
             </div>
 
             {draftLines.map((line, idx) => (
               <div key={idx} className="grid grid-cols-12 items-end gap-2 rounded-md border p-2">
                 <div className="col-span-3 space-y-1">
-                  <Label className="text-xs">Expense Type</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Expense Type</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
+                      onClick={() => {
+                        setTargetLineIdx(idx);
+                        setManageEtOpen(true);
+                      }}
+                    >
+                      <Settings2 className="h-2.5 w-2.5" />
+                      Manage
+                    </button>
+                  </div>
                   <Select
                     value={line.expenseTypeId}
                     onValueChange={(v) => {
@@ -1019,6 +1126,42 @@ export function ExpensesPage() {
         onDownloadTemplate={() => expenseService.downloadBulkTemplateCsv()}
         onImport={(content) => expenseService.importBulkCsv(bulkShipmentId, content)}
         onCompleted={loadAll}
+      />
+
+      <ManageServiceProvidersDialog
+        open={manageSpOpen}
+        onOpenChange={setManageSpOpen}
+        providers={providers}
+        selectedId={serviceProviderId}
+        onUpdated={loadAll}
+        onSelect={(id) => {
+          setServiceProviderId(id);
+          toast.success('Selected service provider');
+        }}
+      />
+
+      <ManageExpenseTypesDialog
+        open={manageEtOpen}
+        onOpenChange={setManageEtOpen}
+        types={types}
+        selectedId={
+          targetLineIdx !== null && draftLines[targetLineIdx]
+            ? draftLines[targetLineIdx].expenseTypeId
+            : undefined
+        }
+        onUpdated={loadAll}
+        onSelect={(et) => {
+          if (targetLineIdx !== null && draftLines[targetLineIdx]) {
+            updateLine(targetLineIdx, {
+              expenseTypeId: et.id,
+              cgstPct: (et.defaultCgstRateBp / 100).toFixed(2),
+              sgstPct: (et.defaultSgstRateBp / 100).toFixed(2),
+              igstPct: (et.defaultIgstRateBp / 100).toFixed(2),
+              tdsPct: (et.defaultTdsRateBp / 100).toFixed(2),
+            });
+            toast.success(`Selected expense type "${et.name}"`);
+          }
+        }}
       />
     </div>
   );

@@ -320,4 +320,137 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
     await waitFor(() => expect(screen.getByText('PN-100')).toBeInTheDocument());
     expect(screen.getByText('12742.5000')).toBeInTheDocument();
   });
+
+  it('opens Manage Service Providers and Manage Expense Types dialogs from the multi-line invoice modal', async () => {
+    vi.mocked(expenseService.listExpenseInvoices).mockResolvedValue([]);
+    vi.mocked(expenseService.listServiceProviders).mockResolvedValue([
+      {
+        id: 'SP-1',
+        name: 'DHL Express',
+        gstin: '27AAAAA0000A1Z5',
+        state: 'Maharashtra',
+        contactPerson: 'Rahul',
+        contactEmail: 'rahul@dhl.com',
+        contactPhone: '9876543210',
+        createdAt: '2026-04-01',
+      },
+    ]);
+    vi.mocked(expenseService.listExpenseTypes).mockResolvedValue([
+      {
+        id: 'ET-1',
+        name: 'Customs Clearance',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 200,
+        isActive: true,
+        createdAt: '2026-04-01',
+      },
+    ]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'SH-1',
+          supplierId: 'SUP-1',
+          supplierName: 'Overseas Supplier Ltd',
+          invoiceNumber: 'INV-SH-1',
+          invoiceDate: '2026-04-10',
+          invoiceValue: 1000,
+          invoiceCurrency: 'USD',
+          incoterm: 'FOB',
+          shipmentMode: 'Air',
+          shipmentType: 'Air Cargo',
+          goodsCategory: 'Electronics',
+          blAwbNumber: '',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 0,
+          etd: '',
+          eta: '',
+          status: 'in-transit',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '2026-04-10',
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+    vi.mocked(expenseService.createServiceProvider).mockResolvedValue({
+      id: 'SP-2',
+      name: 'FedEx Trade Networks',
+      gstin: '27BBBBB1111B1Z6',
+      state: 'Maharashtra',
+      contactPerson: 'Amit',
+      contactEmail: 'amit@fedex.com',
+      contactPhone: '9123456789',
+      createdAt: '2026-04-15',
+    });
+    vi.mocked(expenseService.createExpenseType).mockResolvedValue({
+      id: 'ET-2',
+      name: 'Ocean Freight Surcharge',
+      defaultCgstRateBp: 0,
+      defaultSgstRateBp: 0,
+      defaultIgstRateBp: 1800,
+      defaultTdsRateBp: 200,
+      isActive: true,
+      createdAt: '2026-04-15',
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ExpensesPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /New Expense Invoice/i })).toBeInTheDocument()
+    );
+
+    // Open invoice dialog
+    fireEvent.click(screen.getByRole('button', { name: /New Expense Invoice/i }));
+    await waitFor(() =>
+      expect(screen.getByText('New Multi-Line Expense Invoice')).toBeInTheDocument()
+    );
+
+    // Click "Manage" next to Service Provider *
+    const manageButtons = screen.getAllByRole('button', { name: /Manage/i });
+    expect(manageButtons.length).toBeGreaterThanOrEqual(2);
+
+    // Open Manage Service Providers dialog
+    fireEvent.click(manageButtons[0]!);
+    await waitFor(() =>
+      expect(screen.getByText('Manage Service Providers')).toBeInTheDocument()
+    );
+
+    // Add new provider
+    fireEvent.change(screen.getByPlaceholderText(/DHL Global Forwarding/i), {
+      target: { value: 'FedEx Trade Networks' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Add Provider/i }));
+    await waitFor(() => expect(expenseService.createServiceProvider).toHaveBeenCalled());
+
+    // Close the Manage Service Providers dialog
+    fireEvent.click(screen.getByRole('button', { name: /Close/i }));
+
+    // Open Manage Expense Types dialog from invoice modal
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Manage Types/i })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Manage Types/i }));
+    await waitFor(() =>
+      expect(screen.getByText('Manage Expense Types')).toBeInTheDocument()
+    );
+
+    // Add new expense type
+    fireEvent.change(screen.getByPlaceholderText(/Ocean Freight \/ Customs Clearance/i), {
+      target: { value: 'Ocean Freight Surcharge' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Add Expense Type/i }));
+    await waitFor(() => expect(expenseService.createExpenseType).toHaveBeenCalled());
+  });
 });
