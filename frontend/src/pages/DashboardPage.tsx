@@ -140,6 +140,15 @@ export function DashboardPage() {
         </Card>
       )}
 
+      {loading && !overview && (
+        <Card className="p-8">
+          <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-sm font-medium">Loading executive operational metrics...</p>
+          </div>
+        </Card>
+      )}
+
       {overview && k && (
         <>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

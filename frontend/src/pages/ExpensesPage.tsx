@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Receipt,
+  RefreshCw,
   Search,
   Settings2,
   Trash2,
@@ -105,6 +106,7 @@ export function ExpensesPage() {
   const [providers, setProviders] = React.useState<ServiceProvider[]>([]);
   const [types, setTypes] = React.useState<ExpenseType[]>([]);
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState('');
   const [shipmentFilter, setShipmentFilter] = React.useState('');
 
@@ -167,6 +169,7 @@ export function ExpensesPage() {
   const [itemizedShipmentFilter, setItemizedShipmentFilter] = React.useState('all');
 
   const loadAll = React.useCallback(async () => {
+    setLoading(true);
     try {
       const [invs, sps, ets, shPage] = await Promise.all([
         expenseService.listExpenseInvoices(shipmentFilter, search),
@@ -189,6 +192,8 @@ export function ExpensesPage() {
       setShipments(shPage.items ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
     }
   }, [search, shipmentFilter]);
 
@@ -645,7 +650,16 @@ export function ExpensesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.length === 0 ? (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                        <div className="flex items-center justify-center gap-2">
+                          <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                          <span>Loading expense ledger...</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : invoices.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                         No expense invoices recorded yet.

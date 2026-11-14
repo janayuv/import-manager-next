@@ -423,7 +423,6 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var out []models.ExpenseInvoice
 	for rows.Next() {
@@ -436,21 +435,31 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 			&inv.TotalIGSTPaise, &inv.TotalTDSPaise, &inv.NetAmountPaise,
 			&inv.Remarks, &inv.IdempotencyKey, &inv.Version, &inv.CreatedAt, &inv.UpdatedAt,
 		); err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
-		lines, err := s.loadInvoiceLines(inv.ID)
+		inv.Lines = make([]models.ExpenseLine, 0)
+		out = append(out, inv)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	_ = rows.Close()
+
+	for i := range out {
+		lines, err := s.loadInvoiceLines(out[i].ID)
 		if err != nil {
 			return nil, err
 		}
-		inv.Lines = lines
+		out[i].Lines = lines
 		var base int64
 		for _, l := range lines {
 			base += l.AmountPaise
 		}
-		inv.BaseAmountPaise = base
-		out = append(out, inv)
+		out[i].BaseAmountPaise = base
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // GetExpenseInvoice fetches a single expense invoice along with all its lines.
@@ -522,7 +531,7 @@ func (s *Service) loadInvoiceLines(invoiceID string) ([]models.ExpenseLine, erro
 	}
 	defer rows.Close()
 
-	var out []models.ExpenseLine
+	out := make([]models.ExpenseLine, 0)
 	for rows.Next() {
 		var l models.ExpenseLine
 		if err := rows.Scan(

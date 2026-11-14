@@ -198,6 +198,15 @@ func TestExpensesIdempotencyOptimisticLockReportsAndLandedCost(t *testing.T) {
 		t.Fatalf("idempotency or merge failed: first=%+v second=%+v", first, second)
 	}
 
+	// 3b. Verify listing expense invoices with lines does not hang or deadlock
+	list, err := rt.Expenses.ListExpenseInvoices("", "")
+	if err != nil {
+		t.Fatalf("ListExpenseInvoices failed: %v", err)
+	}
+	if len(list) != 1 || len(list[0].Lines) != 1 {
+		t.Fatalf("unexpected list: %+v", list)
+	}
+
 	// 4. Optimistic locking + UpdateExpenseInvoice
 	stale := req
 	stale.ID = first.ID
@@ -224,6 +233,14 @@ func TestExpensesIdempotencyOptimisticLockReportsAndLandedCost(t *testing.T) {
 	}
 	if updated.Version != 2 || updated.BaseAmountPaise != 900000 {
 		t.Fatalf("unexpected updated version/base: %+v", updated)
+	}
+
+	listAfterUpdate, err := rt.Expenses.ListExpenseInvoices(sh.ID, "DHL-9001")
+	if err != nil {
+		t.Fatalf("ListExpenseInvoices with filter failed: %v", err)
+	}
+	if len(listAfterUpdate) != 1 || len(listAfterUpdate[0].Lines) != 2 {
+		t.Fatalf("expected 2 lines after update, got %+v", listAfterUpdate)
 	}
 
 	// 5. All 5 Expense Report views

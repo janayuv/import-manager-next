@@ -180,7 +180,7 @@ func (s *Service) computeLive(fy, startDate, endDate string) (models.DashboardOv
 
 	// Shipments + counts
 	shipRows, err := s.db.Query(`
-		SELECT s.id, s.supplier_id, COALESCE(sup.supplier_name,''), s.invoice_date,
+		SELECT s.id, s.supplier_id, COALESCE(sup.supplier_name,''), COALESCE(s.invoice_date,''),
 		       LOWER(COALESCE(s.status,'docs-rcvd')), COALESCE(s.eta,''),
 		       EXISTS(SELECT 1 FROM boe_calculations bc WHERE bc.shipment_id = s.id AND bc.deleted_at IS NULL),
 		       EXISTS(SELECT 1 FROM expense_invoices ei WHERE ei.shipment_id = s.id AND ei.deleted_at IS NULL)
@@ -248,6 +248,7 @@ func (s *Service) computeLive(fy, startDate, endDate string) (models.DashboardOv
 	if err := shipRows.Err(); err != nil {
 		return models.DashboardOverview{}, err
 	}
+	_ = shipRows.Close()
 
 	// Invoices
 	invFilter, invArgs := buildDateFilter("s.invoice_date", startDate, endDate)
@@ -297,13 +298,14 @@ func (s *Service) computeLive(fy, startDate, endDate string) (models.DashboardOv
 	if err := boeRows.Err(); err != nil {
 		return models.DashboardOverview{}, err
 	}
+	_ = boeRows.Close()
 
 	// Expenses (basic & gross INR via exact paise columns)
 	expFilter, expArgs := buildDateFilter("e.invoice_date", startDate, endDate)
 	expRows, err := s.db.Query(`
-		SELECT e.invoice_date,
-		       COALESCE(NULLIF(e.amount_paise,0), CAST(ROUND(e.amount*100) AS INTEGER)),
-		       COALESCE(NULLIF(e.total_amount_paise,0), CAST(ROUND(e.amount*100) AS INTEGER))
+		SELECT COALESCE(e.invoice_date, ''),
+		       COALESCE(NULLIF(e.amount_paise,0), CAST(ROUND(COALESCE(e.amount,0)*100) AS INTEGER), 0),
+		       COALESCE(NULLIF(e.total_amount_paise,0), CAST(ROUND(COALESCE(e.total_amount, e.amount, 0)*100) AS INTEGER), 0)
 		FROM expenses e
 		JOIN expense_invoices ei ON ei.id = e.expense_invoice_id AND ei.deleted_at IS NULL
 		WHERE e.deleted_at IS NULL`+expFilter, expArgs...)
@@ -334,6 +336,7 @@ func (s *Service) computeLive(fy, startDate, endDate string) (models.DashboardOv
 	if err := expRows.Err(); err != nil {
 		return models.DashboardOverview{}, err
 	}
+	_ = expRows.Close()
 	kpis.TotalBasicExpensesINR = float64(totalBasicPaise) / 100.0
 	kpis.TotalGrossExpensesINR = float64(totalGrossPaise) / 100.0
 
