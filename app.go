@@ -8,6 +8,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/database/connection"
 	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/database/migrations"
+	"github.com/janayuv/import-manager-next/backend/services/updater"
 	winpaths "github.com/janayuv/import-manager-next/backend/windows"
 )
 
@@ -68,4 +69,24 @@ func (s *AppService) CheckDatabaseHealth() (connection.HealthInfo, error) {
 // ListSchemaMigrations returns applied migration history with SHA-256 checksums and execution timings.
 func (s *AppService) ListSchemaMigrations() ([]migrations.AppliedRecord, error) {
 	return migrations.ListApplied(context.Background(), s.rt.DB.DB())
+}
+
+// CheckForUpdate queries GitHub for client updates.
+func (s *AppService) CheckForUpdate() (updater.UpdateCheckResult, error) {
+	return s.rt.Updater.CheckForUpdate(context.Background())
+}
+
+// DownloadUpdate downloads the update binary/installer from GitHub.
+func (s *AppService) DownloadUpdate(downloadURL, assetName string) (string, error) {
+	return s.rt.Updater.DownloadUpdate(context.Background(), downloadURL, assetName)
+}
+
+// ApplyUpdate launches the downloaded installer.
+func (s *AppService) ApplyUpdate(installerPath string) error {
+	return s.rt.Updater.ApplyUpdate(installerPath)
+}
+
+// OpenExternalURL opens a URL in the user's default browser.
+func (s *AppService) OpenExternalURL(url string) error {
+	return s.rt.Updater.OpenURL(url)
 }

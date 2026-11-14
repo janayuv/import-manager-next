@@ -17,6 +17,7 @@ import {
   Settings2,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -119,6 +120,7 @@ export function SuppliersPage() {
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Supplier | null>(null);
   const [duplicateWarning, setDuplicateWarning] = React.useState<string | null>(null);
+  const formCardRef = React.useRef<HTMLDivElement | null>(null);
 
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [historySupplier, setHistorySupplier] = React.useState<Supplier | null>(null);
@@ -169,11 +171,18 @@ export function SuppliersPage() {
     void loadCountries();
   }, [loadCountries]);
 
+  const scrollToForm = () => {
+    requestAnimationFrame(() => {
+      formCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    });
+  };
+
   const openCreate = () => {
     setEditing(null);
     setDuplicateWarning(null);
     form.reset(EMPTY_FORM);
     setFormOpen(true);
+    scrollToForm();
   };
 
   const openEdit = (sup: Supplier) => {
@@ -195,6 +204,7 @@ export function SuppliersPage() {
       isActive: sup.isActive,
     });
     setFormOpen(true);
+    scrollToForm();
   };
 
   const checkDupBlur = async () => {
@@ -376,6 +386,166 @@ export function SuppliersPage() {
         </div>
       </div>
 
+      {formOpen && (
+        <div ref={formCardRef}>
+          <Card className="border-primary/40">
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">
+                  {editing ? `Edit Supplier (${editing.id})` : 'Add New Supplier'}
+                </CardTitle>
+                <CardDescription>
+                  Required: Supplier Name and Country. Banking fields are persisted for remittance exports.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                aria-label="Close supplier form"
+                onClick={() => setFormOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {duplicateWarning && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                {duplicateWarning}
+              </div>
+            )}
+
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+            >
+              <div className="space-y-1">
+                <Label htmlFor="supplierName">Supplier Name *</Label>
+                <Input
+                  id="supplierName"
+                  {...form.register('supplierName')}
+                  onBlur={() => void checkDupBlur()}
+                />
+                {form.formState.errors.supplierName && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.supplierName.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="shortName">Short Name</Label>
+                <Input id="shortName" {...form.register('shortName')} />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="country">Country *</Label>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    onClick={() => setCountryDialogOpen(true)}
+                  >
+                    <Settings2 className="h-3 w-3" />
+                    Manage
+                  </button>
+                </div>
+                <Input
+                  id="country"
+                  list="supplier-country-list"
+                  {...form.register('country')}
+                  placeholder="Select or type country"
+                />
+                <datalist id="supplier-country-list">
+                  {countries.map((c) => (
+                    <option key={c.value} value={c.label}>
+                      {c.label !== c.value ? c.value : undefined}
+                    </option>
+                  ))}
+                </datalist>
+                {form.formState.errors.country && (
+                  <p className="text-xs text-destructive">{form.formState.errors.country.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" {...form.register('email')} onBlur={() => void checkDupBlur()} />
+                {form.formState.errors.email && (
+                  <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="phone">Phone</Label>
+                <Input id="phone" {...form.register('phone')} />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="beneficiaryName">Beneficiary Name</Label>
+                <Input id="beneficiaryName" {...form.register('beneficiaryName')} />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="bankName">Bank Name</Label>
+                <Input id="bankName" {...form.register('bankName')} />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="branch">Branch</Label>
+                <Input id="branch" {...form.register('branch')} />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="accountNo">Account No</Label>
+                <Input id="accountNo" {...form.register('accountNo')} />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <Label htmlFor="bankAddress">Bank Address</Label>
+                <Input id="bankAddress" {...form.register('bankAddress')} />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="iban">IBAN</Label>
+                <Input id="iban" {...form.register('iban')} />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="swiftCode">SWIFT Code</Label>
+                <Input id="swiftCode" {...form.register('swiftCode')} />
+              </div>
+
+              <div className="flex items-center justify-between pt-6">
+                <Label htmlFor="supplier-active">Active Supplier</Label>
+                <Switch
+                  id="supplier-active"
+                  checked={form.watch('isActive')}
+                  onCheckedChange={(v) => form.setValue('isActive', v)}
+                />
+              </div>
+
+              <div className="col-span-full flex justify-end gap-2 border-t border-border pt-4">
+                <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting
+                    ? 'Saving...'
+                    : editing
+                      ? 'Save Changes'
+                      : 'Create Supplier'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -498,136 +668,6 @@ export function SuppliersPage() {
           </div>
         </CardContent>
       </Card>
-
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? `Edit Supplier (${editing.id})` : 'Add New Supplier'}</DialogTitle>
-            <DialogDescription>
-              Required: Supplier Name and Country. Banking fields are persisted for remittance exports.
-            </DialogDescription>
-          </DialogHeader>
-
-          {duplicateWarning && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-              {duplicateWarning}
-            </div>
-          )}
-
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="supplierName">Supplier Name *</Label>
-              <Input
-                id="supplierName"
-                {...form.register('supplierName')}
-                onBlur={() => void checkDupBlur()}
-              />
-              {form.formState.errors.supplierName && (
-                <p className="text-xs text-destructive">{form.formState.errors.supplierName.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="shortName">Short Name</Label>
-              <Input id="shortName" {...form.register('shortName')} />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="country">Country *</Label>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                  onClick={() => setCountryDialogOpen(true)}
-                >
-                  <Settings2 className="h-3 w-3" />
-                  Manage
-                </button>
-              </div>
-              <Input
-                id="country"
-                list="supplier-country-list"
-                {...form.register('country')}
-                placeholder="Select or type country"
-              />
-              <datalist id="supplier-country-list">
-                {countries.map((c) => (
-                  <option key={c.value} value={c.label} />
-                ))}
-              </datalist>
-              {form.formState.errors.country && (
-                <p className="text-xs text-destructive">{form.formState.errors.country.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" {...form.register('email')} onBlur={() => void checkDupBlur()} />
-              {form.formState.errors.email && (
-                <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" {...form.register('phone')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="beneficiaryName">Beneficiary Name</Label>
-              <Input id="beneficiaryName" {...form.register('beneficiaryName')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="bankName">Bank Name</Label>
-              <Input id="bankName" {...form.register('bankName')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="branch">Branch</Label>
-              <Input id="branch" {...form.register('branch')} />
-            </div>
-
-            <div className="col-span-2 space-y-1">
-              <Label htmlFor="bankAddress">Bank Address</Label>
-              <Input id="bankAddress" {...form.register('bankAddress')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="accountNo">Account No</Label>
-              <Input id="accountNo" {...form.register('accountNo')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="iban">IBAN</Label>
-              <Input id="iban" {...form.register('iban')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="swiftCode">SWIFT Code</Label>
-              <Input id="swiftCode" {...form.register('swiftCode')} />
-            </div>
-
-            <div className="flex items-center justify-between pt-6">
-              <Label htmlFor="supplier-active">Active Supplier</Label>
-              <Switch
-                id="supplier-active"
-                checked={form.watch('isActive')}
-                onCheckedChange={(v) => form.setValue('isActive', v)}
-              />
-            </div>
-
-            <DialogFooter className="col-span-2">
-              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? 'Saving...' : editing ? 'Save Changes' : 'Create Supplier'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent className="max-w-2xl">

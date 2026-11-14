@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { BOEEntryPage } from '@/pages/BOEEntryPage';
 import { BOERegistryPage } from '@/pages/BOERegistryPage';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -203,8 +204,10 @@ function AuthenticatedRoutes() {
 export function App() {
   return (
     <AuthProvider>
-      <AuthenticatedRoutes />
-      <Toaster richColors position="top-right" />
+      <ThemeProvider>
+        <AuthenticatedRoutes />
+        <Toaster richColors position="top-right" />
+      </ThemeProvider>
     </AuthProvider>
   );
 }

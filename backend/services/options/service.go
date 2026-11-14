@@ -17,10 +17,12 @@ type Service struct {
 	audit *audit.Service
 }
 
-// NewService constructs an options Service.
+// NewService constructs an options Service and seeds empty lookup tables with defaults.
 func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Service {
+	repo := repositories.NewOptionsRepository(db)
+	_ = repo.SeedDefaultsIfEmpty()
 	return &Service{
-		repo:  repositories.NewOptionsRepository(db),
+		repo:  repo,
 		sec:   sec,
 		audit: auditSvc,
 	}

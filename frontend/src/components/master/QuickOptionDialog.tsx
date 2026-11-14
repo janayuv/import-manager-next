@@ -13,6 +13,80 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { optionsService, type LookupOption } from '@/services/master-service';
 
+interface TableOptionMeta {
+  valuePlaceholder: string;
+  labelPlaceholder: string;
+  helperText: string;
+}
+
+const OPTION_TABLE_META: Record<string, TableOptionMeta> = {
+  countries: {
+    valuePlaceholder: 'e.g. India',
+    labelPlaceholder: 'e.g. India',
+    helperText: 'Enter the country name (or code in Value and full country name in Label).',
+  },
+  currencies: {
+    valuePlaceholder: 'e.g. USD',
+    labelPlaceholder: 'e.g. US Dollar',
+    helperText: 'Value should be the 3-letter currency code (e.g. USD, EUR, INR); Label is its name.',
+  },
+  incoterms: {
+    valuePlaceholder: 'e.g. CIF',
+    labelPlaceholder: 'e.g. Cost, Insurance & Freight',
+    helperText: 'Value should be the trade term code (e.g. CIF, FOB, EXW); Label is its description.',
+  },
+  shipment_modes: {
+    valuePlaceholder: 'e.g. Sea',
+    labelPlaceholder: 'e.g. Sea Freight',
+    helperText: 'Value is the mode (e.g. Sea, Air, Road); Label is the display name.',
+  },
+  shipment_types: {
+    valuePlaceholder: 'e.g. FCL',
+    labelPlaceholder: 'e.g. Full Container Load',
+    helperText: 'Value is the cargo type code (e.g. FCL, LCL, Air Cargo); Label is its description.',
+  },
+  shipment_statuses: {
+    valuePlaceholder: 'e.g. in-transit',
+    labelPlaceholder: 'e.g. In Transit',
+    helperText: 'Value is the workflow status key; Label is the human-readable status.',
+  },
+  categories: {
+    valuePlaceholder: 'e.g. Electronics',
+    labelPlaceholder: 'e.g. Electronics',
+    helperText: 'Enter the goods or material category name for items and shipments.',
+  },
+  end_uses: {
+    valuePlaceholder: 'e.g. Manufacturing',
+    labelPlaceholder: 'e.g. Manufacturing',
+    helperText: 'Enter the customs end-use classification (e.g. Manufacturing, Industrial, Trading).',
+  },
+  units: {
+    valuePlaceholder: 'e.g. PCS',
+    labelPlaceholder: 'e.g. Pieces',
+    helperText: 'Value is the UQC/unit code (e.g. PCS, KGS, SET); Label is the full unit name.',
+  },
+  purchase_uoms: {
+    valuePlaceholder: 'e.g. BOX',
+    labelPlaceholder: 'e.g. Box',
+    helperText: 'Value is the purchase UOM code (e.g. BOX, CTN, PCS); Label is the full name.',
+  },
+  bcd_rates: {
+    valuePlaceholder: 'e.g. 7.5',
+    labelPlaceholder: 'e.g. 7.5%',
+    helperText: 'Value must be the numeric BCD % without "%" (e.g. 7.5); Label is the display text (e.g. 7.5%).',
+  },
+  sws_rates: {
+    valuePlaceholder: 'e.g. 10',
+    labelPlaceholder: 'e.g. 10%',
+    helperText: 'Value must be the numeric SWS % without "%" (e.g. 10); Label is the display text (e.g. 10%).',
+  },
+  igst_rates: {
+    valuePlaceholder: 'e.g. 18',
+    labelPlaceholder: 'e.g. 18%',
+    helperText: 'Value must be the numeric IGST % without "%" (e.g. 18); Label is the display text (e.g. 18%).',
+  },
+};
+
 interface QuickOptionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,10 +108,24 @@ export function QuickOptionDialog({
   const [label, setLabel] = React.useState('');
   const [saving, setSaving] = React.useState(false);
 
+  React.useEffect(() => {
+    setValue('');
+    setLabel('');
+  }, [open, table]);
+
+  const meta = OPTION_TABLE_META[table] ?? {
+    valuePlaceholder: 'Enter value',
+    labelPlaceholder: 'Enter label',
+    helperText: `Manage standardized values in lookup table ${table}.`,
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const v = value.trim() || label.trim();
-    const l = label.trim() || value.trim();
+    const isRateTable = table.endsWith('_rates');
+    const rawV = value.trim() || label.trim();
+    const v = isRateTable ? rawV.replace(/%$/, '').trim() : rawV;
+    const rawL = label.trim();
+    const l = rawL || (isRateTable && v ? `${v}%` : v);
     if (!v) return;
     setSaving(true);
     try {
@@ -68,9 +156,7 @@ export function QuickOptionDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Manage standardized values in lookup table <code className="font-mono text-xs">{table}</code>.
-          </DialogDescription>
+          <DialogDescription>{meta.helperText}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={(e) => void handleAdd(e)} className="grid grid-cols-5 items-end gap-2">
@@ -80,7 +166,7 @@ export function QuickOptionDialog({
               id={`opt-val-${table}`}
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="e.g. PCS"
+              placeholder={meta.valuePlaceholder}
             />
           </div>
           <div className="col-span-2 space-y-1">
@@ -89,7 +175,7 @@ export function QuickOptionDialog({
               id={`opt-lbl-${table}`}
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="Pieces"
+              placeholder={meta.labelPlaceholder}
             />
           </div>
           <Button type="submit" disabled={saving}>

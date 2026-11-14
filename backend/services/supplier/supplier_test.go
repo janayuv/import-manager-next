@@ -2,6 +2,7 @@ package supplier_test
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,7 +15,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/supplier"
 )
 
-func setupSupplierSvc(t *testing.T) (*supplier.Service, *security.Service) {
+func setupSupplierSvc(t *testing.T) (*supplier.Service, *security.Service, *sql.DB) {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "sup_test.db")
 	mgr, err := connection.OpenEncrypted(dbPath, "test-key-32-chars-minimum-123456")
@@ -33,11 +34,11 @@ func setupSupplierSvc(t *testing.T) (*supplier.Service, *security.Service) {
 	if _, err := secSvc.CompleteAdminSetup("admin", "StrongPass1!"); err != nil {
 		t.Fatalf("admin setup: %v", err)
 	}
-	return supplier.NewService(db, secSvc, auditSvc), secSvc
+	return supplier.NewService(db, secSvc, auditSvc), secSvc, db
 }
 
 func TestSupplierCRUDDuplicateAndCSV(t *testing.T) {
-	svc, _ := setupSupplierSvc(t)
+	svc, _, _ := setupSupplierSvc(t)
 
 	created, err := svc.Create(models.SupplierInput{
 		SupplierName: "Nordic Precision GmbH",
@@ -97,5 +98,44 @@ func TestSupplierCRUDDuplicateAndCSV(t *testing.T) {
 	}
 	if pageAfter.TotalCount != 0 {
 		t.Fatalf("expected deleted supplier hidden from list, got %d", pageAfter.TotalCount)
+	}
+}
+
+func TestSupplierGetHistoryJoinsShipmentsForInvoices(t *testing.T) {
+	svc, _, db := setupSupplierSvc(t)
+
+	sup, err := svc.Create(models.SupplierInput{
+		SupplierName: "History Test Vendor GmbH",
+		ShortName:    "HTV",
+		Country:      "Germany",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("create supplier: %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO shipments (id, supplier_id, invoice_number, invoice_date, goods_category, invoice_value, invoice_currency, incoterm, status)
+		VALUES ('SHP-HIST-1', ?, 'INV-HIST-01', '2026-11-10', 'Filters', 12500.50, 'USD', 'CIF', 'in-transit')`,
+		sup.ID,
+	); err != nil {
+		t.Fatalf("insert shipment: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO invoices (id, shipment_id, status)
+		VALUES ('INV-HIST-1', 'SHP-HIST-1', 'finalized')`,
+	); err != nil {
+		t.Fatalf("insert invoice: %v", err)
+	}
+
+	hist, err := svc.GetHistory(sup.ID)
+	if err != nil {
+		t.Fatalf("GetHistory failed: %v", err)
+	}
+	if hist.ShipmentCount != 1 || hist.InvoiceCount != 1 || hist.TotalValue != 12500.50 {
+		t.Fatalf("unexpected supplier history summary: %+v", hist)
+	}
+	if len(hist.RecentRecords) != 1 || hist.RecentRecords[0].ShipmentID != "SHP-HIST-1" {
+		t.Fatalf("unexpected recent records: %+v", hist.RecentRecords)
 	}
 }

@@ -307,8 +307,9 @@ func (r *SupplierRepository) GetHistory(supplierID string) (models.SupplierHisto
 
 	if err := r.db.QueryRow(`
 		SELECT COUNT(*)
-		FROM invoices
-		WHERE supplier_id = ? AND deleted_at IS NULL`, sid).Scan(&summary.InvoiceCount); err != nil {
+		FROM invoices i
+		JOIN shipments s ON s.id = i.shipment_id AND s.deleted_at IS NULL
+		WHERE s.supplier_id = ? AND i.deleted_at IS NULL`, sid).Scan(&summary.InvoiceCount); err != nil {
 		return summary, fmt.Errorf("supplier invoice summary: %w", err)
 	}
 

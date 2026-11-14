@@ -16,10 +16,20 @@ import * as connection$0 from "./backend/database/connection/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as migrations$0 from "./backend/database/migrations/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as updater$0 from "./backend/services/updater/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
+
+/**
+ * ApplyUpdate launches the downloaded installer.
+ */
+export function ApplyUpdate(installerPath: string): $CancellablePromise<void> {
+    return $Call.ByID(833371355, installerPath);
+}
 
 /**
  * CheckDatabaseHealth executes a live SQLCipher cipher/WAL/FK/integrity probe.
@@ -31,11 +41,27 @@ export function CheckDatabaseHealth(): $CancellablePromise<connection$0.HealthIn
 }
 
 /**
+ * CheckForUpdate queries GitHub for client updates.
+ */
+export function CheckForUpdate(): $CancellablePromise<updater$0.UpdateCheckResult> {
+    return $Call.ByID(2651044200).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
+ * DownloadUpdate downloads the update binary/installer from GitHub.
+ */
+export function DownloadUpdate(downloadURL: string, assetName: string): $CancellablePromise<string> {
+    return $Call.ByID(1964267315, downloadURL, assetName);
+}
+
+/**
  * GetBootstrapInfo returns verified startup configuration, migration version, and SQLCipher health status.
  */
 export function GetBootstrapInfo(): $CancellablePromise<$models.BootstrapInfo> {
     return $Call.ByID(2420869800).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -44,12 +70,20 @@ export function GetBootstrapInfo(): $CancellablePromise<$models.BootstrapInfo> {
  */
 export function ListSchemaMigrations(): $CancellablePromise<migrations$0.AppliedRecord[]> {
     return $Call.ByID(2397509292).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
+}
+
+/**
+ * OpenExternalURL opens a URL in the user's default browser.
+ */
+export function OpenExternalURL(url: string): $CancellablePromise<void> {
+    return $Call.ByID(1691046826, url);
 }
 
 // Private type creation functions
 const $$createType0 = connection$0.HealthInfo.createFrom;
-const $$createType1 = $models.BootstrapInfo.createFrom;
-const $$createType2 = migrations$0.AppliedRecord.createFrom;
-const $$createType3 = $Create.Array($$createType2);
+const $$createType1 = updater$0.UpdateCheckResult.createFrom;
+const $$createType2 = $models.BootstrapInfo.createFrom;
+const $$createType3 = migrations$0.AppliedRecord.createFrom;
+const $$createType4 = $Create.Array($$createType3);

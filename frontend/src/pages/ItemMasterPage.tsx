@@ -8,7 +8,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table';
-import { Download, Pencil, Plus, Search, Settings2, Trash2, Upload } from 'lucide-react';
+import { Download, Pencil, Plus, Search, Settings2, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -122,6 +122,7 @@ export function ItemMasterPage() {
   const [dupWarning, setDupWarning] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Item | null>(null);
   const [importOpen, setImportOpen] = React.useState(false);
+  const formCardRef = React.useRef<HTMLDivElement | null>(null);
 
   const form = useForm<ItemFormValues>({
     resolver: zodResolver(itemSchema),
@@ -170,11 +171,18 @@ export function ItemMasterPage() {
     void loadOptions();
   }, [loadOptions]);
 
+  const scrollToForm = () => {
+    requestAnimationFrame(() => {
+      formCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    });
+  };
+
   const openCreate = () => {
     setEditing(null);
     setDupWarning(null);
     form.reset(EMPTY_ITEM);
     setFormOpen(true);
+    scrollToForm();
   };
 
   const openEdit = (item: Item) => {
@@ -202,6 +210,7 @@ export function ItemMasterPage() {
       isActive: item.isActive,
     });
     setFormOpen(true);
+    scrollToForm();
   };
 
   const checkPartNumberBlur = async () => {
@@ -376,6 +385,361 @@ export function ItemMasterPage() {
         </div>
       </div>
 
+      {formOpen && (
+        <div ref={formCardRef}>
+          <Card className="border-primary/40">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">
+                    {editing ? `Edit Item (${editing.id})` : 'Create Item Master Entry'}
+                  </CardTitle>
+                  <CardDescription>
+                    All 20 item fields are preserved with duplicate part-number blocking.
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  aria-label="Close item form"
+                  onClick={() => setFormOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {dupWarning && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {dupWarning}
+                </div>
+              )}
+
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+              >
+                <div className="space-y-1">
+                  <Label htmlFor="partNumber">Part Number *</Label>
+                  <Input
+                    id="partNumber"
+                    {...form.register('partNumber')}
+                    onBlur={() => void checkPartNumberBlur()}
+                  />
+                  {form.formState.errors.partNumber && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.partNumber.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1 lg:col-span-2">
+                  <Label htmlFor="itemDescription">Item Description *</Label>
+                  <Input id="itemDescription" {...form.register('itemDescription')} />
+                  {form.formState.errors.itemDescription && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.itemDescription.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="unit">Unit *</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() => setOptionEditor({ table: 'units', title: 'Manage Units' })}
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input id="unit" list="item-units-list" {...form.register('unit')} />
+                  <datalist id="item-units-list">
+                    {(allOptions['units'] ?? []).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label !== o.value ? o.label : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="currency">Currency *</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'currencies', title: 'Manage Currencies' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input id="currency" list="item-currencies-list" {...form.register('currency')} />
+                  <datalist id="item-currencies-list">
+                    {(allOptions['currencies'] ?? []).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label !== o.value ? o.label : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="unitPrice">Unit Price *</Label>
+                  <Input id="unitPrice" type="number" step="0.0001" {...form.register('unitPrice')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="hsnCode">HSN Code</Label>
+                  <Input id="hsnCode" {...form.register('hsnCode')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Supplier</Label>
+                  <Select
+                    value={form.watch('supplierId') || 'none'}
+                    onValueChange={(v) => form.setValue('supplierId', v === 'none' ? '' : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select supplier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Unlinked</SelectItem>
+                      {suppliers.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.supplierName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="countryOfOrigin">Country of Origin</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'countries', title: 'Manage Countries' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input
+                    id="countryOfOrigin"
+                    list="item-countries-list"
+                    {...form.register('countryOfOrigin')}
+                  />
+                  <datalist id="item-countries-list">
+                    {(allOptions['countries'] ?? []).map((o) => (
+                      <option key={o.value} value={o.label}>
+                        {o.label !== o.value ? o.value : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="bcd">BCD %</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'bcd_rates', title: 'Manage BCD Rates' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input id="bcd" list="item-bcd-list" {...form.register('bcd')} />
+                  <datalist id="item-bcd-list">
+                    {(allOptions['bcd_rates'] ?? []).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label !== o.value ? o.label : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="sws">SWS %</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'sws_rates', title: 'Manage SWS Rates' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input id="sws" list="item-sws-list" {...form.register('sws')} />
+                  <datalist id="item-sws-list">
+                    {(allOptions['sws_rates'] ?? []).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label !== o.value ? o.label : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="igst">IGST %</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'igst_rates', title: 'Manage IGST Rates' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input id="igst" list="item-igst-list" {...form.register('igst')} />
+                  <datalist id="item-igst-list">
+                    {(allOptions['igst_rates'] ?? []).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label !== o.value ? o.label : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="category">Category</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'categories', title: 'Manage Categories' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input id="category" list="item-cat-list" {...form.register('category')} />
+                  <datalist id="item-cat-list">
+                    {(allOptions['categories'] ?? []).map((o) => (
+                      <option key={o.value} value={o.label}>
+                        {o.label !== o.value ? o.value : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="endUse">End Use</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'end_uses', title: 'Manage End Uses' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input id="endUse" list="item-enduse-list" {...form.register('endUse')} />
+                  <datalist id="item-enduse-list">
+                    {(allOptions['end_uses'] ?? []).map((o) => (
+                      <option key={o.value} value={o.label}>
+                        {o.label !== o.value ? o.value : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="purchaseUom">Purchase UOM</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'purchase_uoms', title: 'Manage Purchase UOMs' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Input id="purchaseUom" list="item-puom-list" {...form.register('purchaseUom')} />
+                  <datalist id="item-puom-list">
+                    {(allOptions['purchase_uoms'] ?? []).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label !== o.value ? o.label : undefined}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="netWeightKg">Net Weight (kg)</Label>
+                  <Input id="netWeightKg" type="number" step="0.001" {...form.register('netWeightKg')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="grossWeightPerUomKg">Gross Wt / UOM (kg)</Label>
+                  <Input
+                    id="grossWeightPerUomKg"
+                    type="number"
+                    step="0.001"
+                    {...form.register('grossWeightPerUomKg')}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-6">
+                  <Label htmlFor="item-active">Active Item</Label>
+                  <Switch
+                    id="item-active"
+                    checked={form.watch('isActive')}
+                    onCheckedChange={(v) => form.setValue('isActive', v)}
+                  />
+                </div>
+
+                <div className="col-span-full space-y-1">
+                  <Label htmlFor="technicalWriteUp">Technical Write-Up</Label>
+                  <Textarea id="technicalWriteUp" rows={2} {...form.register('technicalWriteUp')} />
+                </div>
+
+                <div className="col-span-full flex justify-end gap-2 border-t border-border pt-4">
+                  <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting
+                      ? 'Saving...'
+                      : editing
+                        ? 'Save Changes'
+                        : 'Create Item'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -483,233 +847,6 @@ export function ItemMasterPage() {
           </div>
         </CardContent>
       </Card>
-
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? `Edit Item (${editing.id})` : 'Create Item Master Entry'}</DialogTitle>
-            <DialogDescription>
-              All 20 item fields are preserved with duplicate part-number blocking.
-            </DialogDescription>
-          </DialogHeader>
-
-          {dupWarning && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {dupWarning}
-            </div>
-          )}
-
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="partNumber">Part Number *</Label>
-              <Input
-                id="partNumber"
-                {...form.register('partNumber')}
-                onBlur={() => void checkPartNumberBlur()}
-              />
-              {form.formState.errors.partNumber && (
-                <p className="text-xs text-destructive">{form.formState.errors.partNumber.message}</p>
-              )}
-            </div>
-
-            <div className="col-span-2 space-y-1">
-              <Label htmlFor="itemDescription">Item Description *</Label>
-              <Input id="itemDescription" {...form.register('itemDescription')} />
-              {form.formState.errors.itemDescription && (
-                <p className="text-xs text-destructive">{form.formState.errors.itemDescription.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="unit">Unit *</Label>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                  onClick={() => setOptionEditor({ table: 'units', title: 'Manage Units' })}
-                >
-                  <Settings2 className="h-3 w-3" />
-                  Edit
-                </button>
-              </div>
-              <Input id="unit" list="item-units-list" {...form.register('unit')} />
-              <datalist id="item-units-list">
-                {(allOptions['units'] ?? []).map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="currency">Currency *</Label>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                  onClick={() => setOptionEditor({ table: 'currencies', title: 'Manage Currencies' })}
-                >
-                  <Settings2 className="h-3 w-3" />
-                  Edit
-                </button>
-              </div>
-              <Input id="currency" list="item-currencies-list" {...form.register('currency')} />
-              <datalist id="item-currencies-list">
-                {(allOptions['currencies'] ?? []).map((o) => (
-                  <option key={o.value} value={o.value} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="unitPrice">Unit Price *</Label>
-              <Input id="unitPrice" type="number" step="0.0001" {...form.register('unitPrice')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="hsnCode">HSN Code</Label>
-              <Input id="hsnCode" {...form.register('hsnCode')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label>Supplier</Label>
-              <Select
-                value={form.watch('supplierId') || 'none'}
-                onValueChange={(v) => form.setValue('supplierId', v === 'none' ? '' : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Unlinked</SelectItem>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.supplierName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="countryOfOrigin">Country of Origin</Label>
-              <Input id="countryOfOrigin" {...form.register('countryOfOrigin')} />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="bcd">BCD %</Label>
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() => setOptionEditor({ table: 'bcd_rates', title: 'Manage BCD Rates' })}
-                >
-                  Edit
-                </button>
-              </div>
-              <Input id="bcd" list="item-bcd-list" {...form.register('bcd')} />
-              <datalist id="item-bcd-list">
-                {(allOptions['bcd_rates'] ?? []).map((o) => (
-                  <option key={o.value} value={o.value} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="sws">SWS %</Label>
-              <Input id="sws" list="item-sws-list" {...form.register('sws')} />
-              <datalist id="item-sws-list">
-                {(allOptions['sws_rates'] ?? []).map((o) => (
-                  <option key={o.value} value={o.value} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="igst">IGST %</Label>
-              <Input id="igst" list="item-igst-list" {...form.register('igst')} />
-              <datalist id="item-igst-list">
-                {(allOptions['igst_rates'] ?? []).map((o) => (
-                  <option key={o.value} value={o.value} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="category">Category</Label>
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() => setOptionEditor({ table: 'categories', title: 'Manage Categories' })}
-                >
-                  Edit
-                </button>
-              </div>
-              <Input id="category" list="item-cat-list" {...form.register('category')} />
-              <datalist id="item-cat-list">
-                {(allOptions['categories'] ?? []).map((o) => (
-                  <option key={o.value} value={o.label} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="endUse">End Use</Label>
-              <Input id="endUse" list="item-enduse-list" {...form.register('endUse')} />
-              <datalist id="item-enduse-list">
-                {(allOptions['end_uses'] ?? []).map((o) => (
-                  <option key={o.value} value={o.label} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="purchaseUom">Purchase UOM</Label>
-              <Input id="purchaseUom" {...form.register('purchaseUom')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="netWeightKg">Net Weight (kg)</Label>
-              <Input id="netWeightKg" type="number" step="0.001" {...form.register('netWeightKg')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="grossWeightPerUomKg">Gross Wt / UOM (kg)</Label>
-              <Input
-                id="grossWeightPerUomKg"
-                type="number"
-                step="0.001"
-                {...form.register('grossWeightPerUomKg')}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-6">
-              <Label htmlFor="item-active">Active Item</Label>
-              <Switch
-                id="item-active"
-                checked={form.watch('isActive')}
-                onCheckedChange={(v) => form.setValue('isActive', v)}
-              />
-            </div>
-
-            <div className="col-span-3 space-y-1">
-              <Label htmlFor="technicalWriteUp">Technical Write-Up</Label>
-              <Textarea id="technicalWriteUp" rows={2} {...form.register('technicalWriteUp')} />
-            </div>
-
-            <DialogFooter className="col-span-3">
-              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? 'Saving...' : editing ? 'Save Changes' : 'Create Item'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent className="max-w-md">

@@ -53,6 +53,7 @@ func main() {
 			application.NewService(rt.RecycleBin),
 			application.NewService(rt.DatabaseManagement),
 			application.NewService(rt.Workflow),
+			application.NewService(rt.Updater),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

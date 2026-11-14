@@ -86,6 +86,13 @@ describe('Stage 4 Master Data UI', () => {
     vi.mocked(optionsService.listAll).mockResolvedValue({
       units: [{ value: 'PCS', label: 'Pieces' }],
       currencies: [{ value: 'USD', label: 'USD' }],
+      countries: [{ value: 'Germany', label: 'Germany' }],
+      bcd_rates: [{ value: '7.5', label: '7.5%' }],
+      sws_rates: [{ value: '10', label: '10%' }],
+      igst_rates: [{ value: '18', label: '18%' }],
+      categories: [{ value: 'Electronics', label: 'Electronics' }],
+      end_uses: [{ value: 'Industrial', label: 'Industrial' }],
+      purchase_uoms: [{ value: 'PCS', label: 'Pieces' }],
     });
   });
 
@@ -143,6 +150,21 @@ describe('Stage 4 Master Data UI', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /Add Supplier/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Add New Supplier')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Manage/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('Manage Countries')).toBeInTheDocument();
+      expect(screen.getAllByPlaceholderText('e.g. India').length).toBeGreaterThan(0);
+      expect(screen.queryByPlaceholderText('e.g. PCS')).not.toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
     fireEvent.change(screen.getByLabelText(/Supplier Name/i), { target: { value: 'Kuka Robotics' } });
     fireEvent.change(screen.getByLabelText(/Country/i), { target: { value: 'Germany' } });
     fireEvent.click(screen.getByRole('button', { name: /Create Supplier/i }));
@@ -198,6 +220,18 @@ describe('Stage 4 Master Data UI', () => {
     await waitFor(() => {
       expect(screen.getByText('PN-900')).toBeInTheDocument();
       expect(screen.getByText('Servo Drive')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Add Item/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Create Item Master Entry')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Manage$/i }).length).toBe(9);
+
+    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+    await waitFor(() => {
+      expect(screen.queryByText('Create Item Master Entry')).not.toBeInTheDocument();
     });
   });
 });

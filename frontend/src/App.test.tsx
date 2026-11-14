@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { applyThemeProfile, settingsService } from '@/services/dashboard-settings-service';
 import { securityService } from '@/services/security-service';
 
 vi.mock('@/services/dashboard-settings-service', () => ({
@@ -193,6 +194,65 @@ describe('Stage 3 Auth & Shell', () => {
     await waitFor(() => {
       expect(securityService.authenticate).toHaveBeenCalledWith('admin', 'StrongPass1', false);
       expect(screen.getByText('Security Center')).toBeInTheDocument();
+    });
+  });
+
+  it('toggles sidebar hide/unhide and switches Light/System/Dark mode', async () => {
+    window.localStorage.clear();
+    vi.mocked(securityService.getAuthSetupStatus).mockResolvedValue({
+      needsSetup: false,
+      adminUsername: 'admin',
+      recoveryMode: false,
+    });
+    vi.mocked(securityService.getMySession).mockResolvedValue({
+      sessionId: 'sess-3',
+      userId: 'admin',
+      username: 'admin',
+      role: 'administrator',
+      permissions: ['data.read', 'data.write'],
+      rememberMe: false,
+      createdAt: '',
+      lastActive: '',
+      expiresAt: '',
+    });
+    vi.mocked(settingsService.getProfile).mockResolvedValue({
+      schemaVersion: 1,
+      theme: 'default',
+      mode: 'system',
+      lineTotalDecimals: 2,
+      invoiceTotalDecimals: 2,
+      numberFormat: 'en-IN',
+      dateFormat: 'DD/MM/YYYY',
+      textFormat: 'preserve',
+      modules: {},
+      updatedAt: '',
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Hide sidebar' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide sidebar' }));
+    expect(screen.getByRole('complementary', { name: 'Sidebar' })).toHaveAttribute('data-collapsed', 'true');
+    expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Shipments' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show sidebar' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show sidebar' }));
+    expect(screen.getByRole('complementary', { name: 'Sidebar' })).toHaveAttribute('data-collapsed', 'false');
+    expect(screen.getByText('Core Operations')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dark mode' }));
+    await waitFor(() => {
+      expect(applyThemeProfile).toHaveBeenCalledWith({ theme: 'default', mode: 'dark' });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Light mode' }));
+    await waitFor(() => {
+      expect(applyThemeProfile).toHaveBeenCalledWith({ theme: 'default', mode: 'light' });
     });
   });
 });

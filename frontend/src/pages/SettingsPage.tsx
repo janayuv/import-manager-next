@@ -1,5 +1,18 @@
 import * as React from 'react';
-import { Palette, RotateCcw, Save, Settings2 } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowUpCircle,
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  Loader2,
+  Palette,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Settings2,
+  Sparkles,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,11 +27,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOptionalTheme } from '@/contexts/ThemeContext';
 import {
   applyThemeProfile,
   settingsService,
   type AppSettingsProfile,
 } from '@/services/dashboard-settings-service';
+import {
+  applyUpdate,
+  checkForUpdate,
+  downloadUpdate,
+  fetchBootstrapInfo,
+  openExternalURL,
+  type UpdateCheckResult,
+} from '@/services/app-service';
 
 const MODULE_LABELS: Record<string, string> = {
   shipment: 'Shipments',
@@ -32,11 +54,81 @@ const MODULE_LABELS: Record<string, string> = {
 
 export function SettingsPage() {
   const { hasPermission } = useAuth();
+  const themeCtx = useOptionalTheme();
+  const syncTheme = themeCtx?.syncTheme;
   const canWrite = hasPermission('data.write');
 
   const [profile, setProfile] = React.useState<AppSettingsProfile | null>(null);
   const [selectedModule, setSelectedModule] = React.useState('shipment');
   const [saving, setSaving] = React.useState(false);
+
+  const [appVersion, setAppVersion] = React.useState('1.0.0');
+  const [checkingUpdate, setCheckingUpdate] = React.useState(false);
+  const [downloadingUpdate, setDownloadingUpdate] = React.useState(false);
+  const [downloadedUpdatePath, setDownloadedUpdatePath] = React.useState<string | null>(null);
+  const [updateResult, setUpdateResult] = React.useState<UpdateCheckResult | null>(null);
+
+  React.useEffect(() => {
+    void fetchBootstrapInfo()
+      .then((info) => {
+        if (info.appVersion) setAppVersion(info.appVersion);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setDownloadedUpdatePath(null);
+    try {
+      const res = await checkForUpdate();
+      setUpdateResult(res);
+      if (res.error) {
+        toast.error(`Update check: ${res.error}`);
+      } else if (res.updateAvailable) {
+        toast.info(`New version v${res.latestVersion} is available!`);
+      } else {
+        toast.success(`You are on the latest version (v${res.currentVersion}).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const handleApplyUpdate = async () => {
+    if (!updateResult?.downloadURL) return;
+    if (downloadedUpdatePath) {
+      try {
+        await applyUpdate(downloadedUpdatePath);
+        toast.success('Update installer launched. Follow the installer prompts to complete update.');
+      } catch (err) {
+        toast.error(`Failed to launch installer: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return;
+    }
+    setDownloadingUpdate(true);
+    try {
+      toast.info(`Downloading update from GitHub (${updateResult.assetName})...`);
+      const filePath = await downloadUpdate(updateResult.downloadURL, updateResult.assetName);
+      setDownloadedUpdatePath(filePath);
+      toast.success('Download complete! Launching installer...');
+      await applyUpdate(filePath);
+    } catch (err) {
+      toast.error(`Download error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDownloadingUpdate(false);
+    }
+  };
+
+  const handleOpenRelease = async () => {
+    const url = updateResult?.releaseURL || 'https://github.com/janayuv/import-manager-next/releases';
+    try {
+      await openExternalURL(url);
+    } catch {
+      window.open(url, '_blank');
+    }
+  };
 
   React.useEffect(() => {
     void settingsService
@@ -44,9 +136,10 @@ export function SettingsPage() {
       .then((p) => {
         setProfile(p);
         applyThemeProfile(p);
+        syncTheme?.(p);
       })
       .catch((err) => toast.error(err instanceof Error ? err.message : String(err)));
-  }, []);
+  }, [syncTheme]);
 
   const handleSave = async () => {
     if (!profile) return;
@@ -55,6 +148,7 @@ export function SettingsPage() {
       const saved = await settingsService.saveProfile(profile);
       setProfile(saved);
       applyThemeProfile(saved);
+      themeCtx?.syncTheme(saved);
       toast.success('Application settings saved');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -125,6 +219,7 @@ export function SettingsPage() {
                   const next = { ...profile, theme: v };
                   setProfile(next);
                   applyThemeProfile(next);
+                  themeCtx?.syncTheme(next);
                 }}
               >
                 <SelectTrigger aria-label="Theme Preset">
@@ -144,6 +239,7 @@ export function SettingsPage() {
                   const next = { ...profile, mode: v };
                   setProfile(next);
                   applyThemeProfile(next);
+                  themeCtx?.syncTheme(next);
                 }}
               >
                 <SelectTrigger aria-label="Color Mode">
@@ -298,6 +394,145 @@ export function SettingsPage() {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ArrowUpCircle className="h-5 w-5 text-primary" />
+                In-App Updates (GitHub Releases)
+              </CardTitle>
+              <CardDescription>
+                Check for new releases, view release notes, and install desktop updates directly from GitHub.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">Current: v{appVersion}</Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={checkingUpdate || downloadingUpdate}
+                onClick={() => void handleCheckUpdate()}
+                className="gap-1.5"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${checkingUpdate ? 'animate-spin' : ''}`} />
+                {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {checkingUpdate ? (
+            <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span>Querying GitHub Releases API...</span>
+            </div>
+          ) : updateResult?.updateAvailable ? (
+            <div className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      New Release Available: v{updateResult.latestVersion}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {updateResult.releaseName || `Release v${updateResult.latestVersion}`}
+                      {updateResult.assetSize > 0 &&
+                        ` • ${(updateResult.assetSize / (1024 * 1024)).toFixed(1)} MB`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleOpenRelease()}
+                    className="gap-1"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    GitHub Release
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={downloadingUpdate}
+                    onClick={() => void handleApplyUpdate()}
+                    className="gap-1.5"
+                  >
+                    {downloadingUpdate ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : downloadedUpdatePath ? (
+                      <>
+                        <ArrowUpCircle className="h-3.5 w-3.5" />
+                        Install Now
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-3.5 w-3.5" />
+                        Update from GitHub
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {updateResult.releaseNotes && (
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">Release Notes:</span>
+                  <div className="max-h-48 overflow-y-auto rounded border bg-card p-3 text-xs leading-relaxed">
+                    <pre className="font-sans whitespace-pre-wrap">{updateResult.releaseNotes}</pre>
+                  </div>
+                </div>
+              )}
+
+              {downloadedUpdatePath && (
+                <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Update downloaded to {downloadedUpdatePath}. Ready to launch installer.</span>
+                </div>
+              )}
+            </div>
+          ) : updateResult && !updateResult.error ? (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <div>
+                  <p className="text-sm font-medium">Application is up to date</p>
+                  <p className="text-xs text-muted-foreground">
+                    You are running the latest version of Import Manager (v{appVersion}).
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleOpenRelease()}
+                className="gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Releases
+              </Button>
+            </div>
+          ) : updateResult?.error ? (
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">GitHub Update Notice</p>
+                <p className="mt-0.5">{updateResult.error}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
+              <span>Repository target: janayuv/import-manager-next</span>
+              <span>Click "Check for Updates" to fetch the latest GitHub releases.</span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

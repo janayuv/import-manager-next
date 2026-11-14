@@ -15,9 +15,11 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings2,
   Trash2,
   Unlock,
   Upload,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +51,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
+import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   optionsService,
@@ -119,8 +122,60 @@ const DEFAULT_STATUSES = [
   'completed',
 ];
 
+const DEFAULT_CURRENCIES: LookupOption[] = [
+  { value: 'USD', label: 'US Dollar (USD)' },
+  { value: 'EUR', label: 'Euro (EUR)' },
+  { value: 'INR', label: 'Indian Rupee (INR)' },
+  { value: 'GBP', label: 'British Pound (GBP)' },
+  { value: 'JPY', label: 'Japanese Yen (JPY)' },
+  { value: 'CNY', label: 'Chinese Yuan (CNY)' },
+  { value: 'KRW', label: 'South Korean Won (KRW)' },
+  { value: 'SGD', label: 'Singapore Dollar (SGD)' },
+  { value: 'AED', label: 'UAE Dirham (AED)' },
+  { value: 'CHF', label: 'Swiss Franc (CHF)' },
+];
+
+const DEFAULT_INCOTERMS: LookupOption[] = [
+  { value: 'CIF', label: 'Cost, Insurance & Freight (CIF)' },
+  { value: 'FOB', label: 'Free On Board (FOB)' },
+  { value: 'CFR', label: 'Cost & Freight (CFR)' },
+  { value: 'EXW', label: 'Ex Works (EXW)' },
+  { value: 'DAP', label: 'Delivered at Place (DAP)' },
+  { value: 'DDP', label: 'Delivered Duty Paid (DDP)' },
+  { value: 'FCA', label: 'Free Carrier (FCA)' },
+  { value: 'CPT', label: 'Carriage Paid To (CPT)' },
+  { value: 'CIP', label: 'Carriage & Insurance Paid (CIP)' },
+];
+
+const DEFAULT_CATEGORIES: LookupOption[] = [
+  { value: 'General', label: 'General' },
+  { value: 'Raw Materials', label: 'Raw Materials' },
+  { value: 'Capital Goods', label: 'Capital Goods' },
+  { value: 'Spares & Components', label: 'Spares & Components' },
+  { value: 'Consumables', label: 'Consumables' },
+  { value: 'Finished Goods', label: 'Finished Goods' },
+  { value: 'Electronics', label: 'Electronics' },
+  { value: 'Machinery', label: 'Machinery' },
+];
+
+const DEFAULT_SHIPMENT_MODES: LookupOption[] = [
+  { value: 'Sea', label: 'Sea Freight' },
+  { value: 'Air', label: 'Air Freight' },
+  { value: 'Road', label: 'Road Transport' },
+  { value: 'Rail', label: 'Rail Freight' },
+  { value: 'Courier', label: 'Express Courier' },
+];
+
+const DEFAULT_SHIPMENT_TYPES: LookupOption[] = [
+  { value: 'FCL', label: 'Full Container Load (FCL)' },
+  { value: 'LCL', label: 'Less than Container Load (LCL)' },
+  { value: 'Air Cargo', label: 'Air Cargo' },
+  { value: 'Courier', label: 'Courier Parcel' },
+  { value: 'Breakbulk', label: 'Breakbulk' },
+];
+
 export function ShipmentsPage() {
-  const { hasPermission } = useAuth();
+  const { session, hasPermission } = useAuth();
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
   const canUnfreeze = hasPermission('role.write');
@@ -136,16 +191,64 @@ export function ShipmentsPage() {
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [opts, setOpts] = React.useState<Record<string, LookupOption[]>>({});
 
+  const formCardRef = React.useRef<HTMLDivElement | null>(null);
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Shipment | null>(null);
   const [detail, setDetail] = React.useState<ShipmentDetail | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Shipment | null>(null);
   const [importOpen, setImportOpen] = React.useState(false);
+  const [optionEditor, setOptionEditor] = React.useState<{ table: string; title: string } | null>(null);
 
   const form = useForm<ShipmentFormValues>({
     resolver: zodResolver(shipmentSchema),
     defaultValues: EMPTY_SHIPMENT,
   });
+
+  const currencyValue = form.watch('invoiceCurrency');
+  const incotermValue = form.watch('incoterm');
+  const categoryValue = form.watch('goodsCategory');
+  const modeValue = form.watch('shipmentMode');
+  const typeValue = form.watch('shipmentType');
+
+  const currencyOptions = React.useMemo(() => {
+    const fromApi = opts['currencies'] && opts['currencies'].length > 0 ? opts['currencies'] : DEFAULT_CURRENCIES;
+    if (currencyValue && !fromApi.some((o) => o.value.toLowerCase() === currencyValue.toLowerCase())) {
+      return [{ value: currencyValue, label: currencyValue }, ...fromApi];
+    }
+    return fromApi;
+  }, [opts, currencyValue]);
+
+  const incotermOptions = React.useMemo(() => {
+    const fromApi = opts['incoterms'] && opts['incoterms'].length > 0 ? opts['incoterms'] : DEFAULT_INCOTERMS;
+    if (incotermValue && !fromApi.some((o) => o.value.toLowerCase() === incotermValue.toLowerCase())) {
+      return [{ value: incotermValue, label: incotermValue }, ...fromApi];
+    }
+    return fromApi;
+  }, [opts, incotermValue]);
+
+  const categoryOptions = React.useMemo(() => {
+    const fromApi = opts['categories'] && opts['categories'].length > 0 ? opts['categories'] : DEFAULT_CATEGORIES;
+    if (categoryValue && !fromApi.some((o) => o.value.toLowerCase() === categoryValue.toLowerCase())) {
+      return [{ value: categoryValue, label: categoryValue }, ...fromApi];
+    }
+    return fromApi;
+  }, [opts, categoryValue]);
+
+  const modeOptions = React.useMemo(() => {
+    const fromApi = opts['shipment_modes'] && opts['shipment_modes'].length > 0 ? opts['shipment_modes'] : DEFAULT_SHIPMENT_MODES;
+    if (modeValue && !fromApi.some((o) => o.value.toLowerCase() === modeValue.toLowerCase())) {
+      return [{ value: modeValue, label: modeValue }, ...fromApi];
+    }
+    return fromApi;
+  }, [opts, modeValue]);
+
+  const typeOptions = React.useMemo(() => {
+    const fromApi = opts['shipment_types'] && opts['shipment_types'].length > 0 ? opts['shipment_types'] : DEFAULT_SHIPMENT_TYPES;
+    if (typeValue && !fromApi.some((o) => o.value.toLowerCase() === typeValue.toLowerCase())) {
+      return [{ value: typeValue, label: typeValue }, ...fromApi];
+    }
+    return fromApi;
+  }, [opts, typeValue]);
 
   const loadLookups = React.useCallback(async () => {
     try {
@@ -154,7 +257,7 @@ export function ShipmentsPage() {
         optionsService.listAll(),
       ]);
       setSuppliers(supPage.items ?? []);
-      setOpts(optMap);
+      setOpts(optMap ?? {});
     } catch {
       // ignore if initial mount is unauthorized
     }
@@ -188,18 +291,27 @@ export function ShipmentsPage() {
 
   React.useEffect(() => {
     void loadLookups();
-  }, [loadLookups]);
+  }, [loadLookups, session]);
+
+  const scrollToForm = () => {
+    window.requestAnimationFrame(() => {
+      formCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   const openCreate = () => {
+    void loadLookups();
     setEditing(null);
     form.reset({
       ...EMPTY_SHIPMENT,
       supplierId: suppliers[0]?.id ?? '',
     });
     setFormOpen(true);
+    scrollToForm();
   };
 
   const openEdit = (sh: Shipment) => {
+    void loadLookups();
     setEditing(sh);
     form.reset({
       supplierId: sh.supplierId,
@@ -222,6 +334,7 @@ export function ShipmentsPage() {
       dateOfDelivery: sh.dateOfDelivery,
     });
     setFormOpen(true);
+    scrollToForm();
   };
 
   const onSubmit = async (values: ShipmentFormValues) => {
@@ -413,6 +526,298 @@ export function ShipmentsPage() {
         </div>
       </div>
 
+      {formOpen && (
+        <div ref={formCardRef}>
+          <Card className="border-primary/40">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <div>
+                <CardTitle>{editing ? `Edit Shipment (${editing.id})` : 'Create Shipment'}</CardTitle>
+                <CardDescription>Dates are normalized to YYYY-MM-DD.</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setFormOpen(false)}
+                aria-label="Close shipment form"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+              >
+                <div className="space-y-1">
+                  <Label>Supplier *</Label>
+                  <Select
+                    value={form.watch('supplierId')}
+                    onValueChange={(v) => form.setValue('supplierId', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select supplier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.supplierName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="invoiceNumber">Invoice Number *</Label>
+                  <Input id="invoiceNumber" {...form.register('invoiceNumber')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="invoiceDate">Invoice Date *</Label>
+                  <Input id="invoiceDate" type="date" {...form.register('invoiceDate')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="invoiceValue">Invoice Value *</Label>
+                  <Input id="invoiceValue" type="number" step="0.01" {...form.register('invoiceValue')} />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="invoiceCurrency">Currency *</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'currencies', title: 'Manage Currencies' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Select
+                    value={form.watch('invoiceCurrency')}
+                    onValueChange={(v) => form.setValue('invoiceCurrency', v, { shouldValidate: true, shouldDirty: true })}
+                  >
+                    <SelectTrigger id="invoiceCurrency" aria-label="Currency">
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currencyOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label && o.label !== o.value ? `${o.value} — ${o.label}` : o.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.invoiceCurrency && (
+                    <p className="text-xs text-destructive">{form.formState.errors.invoiceCurrency.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="incoterm">Incoterm *</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'incoterms', title: 'Manage Incoterms' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Select
+                    value={form.watch('incoterm')}
+                    onValueChange={(v) => form.setValue('incoterm', v, { shouldValidate: true, shouldDirty: true })}
+                  >
+                    <SelectTrigger id="incoterm" aria-label="Incoterm">
+                      <SelectValue placeholder="Select incoterm" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {incotermOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label && o.label !== o.value ? `${o.value} — ${o.label}` : o.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.incoterm && (
+                    <p className="text-xs text-destructive">{form.formState.errors.incoterm.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="goodsCategory">Category *</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'categories', title: 'Manage Categories' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Select
+                    value={form.watch('goodsCategory')}
+                    onValueChange={(v) => form.setValue('goodsCategory', v, { shouldValidate: true, shouldDirty: true })}
+                  >
+                    <SelectTrigger id="goodsCategory" aria-label="Goods Category">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label || o.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.goodsCategory && (
+                    <p className="text-xs text-destructive">{form.formState.errors.goodsCategory.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="shipmentMode">Mode</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'shipment_modes', title: 'Manage Shipment Modes' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Select
+                    value={form.watch('shipmentMode')}
+                    onValueChange={(v) => form.setValue('shipmentMode', v, { shouldValidate: true, shouldDirty: true })}
+                  >
+                    <SelectTrigger id="shipmentMode" aria-label="Shipment Mode">
+                      <SelectValue placeholder="Select mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {modeOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label && o.label !== o.value ? `${o.value} (${o.label})` : o.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="shipmentType">Type</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setOptionEditor({ table: 'shipment_types', title: 'Manage Shipment Types' })
+                      }
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Select
+                    value={form.watch('shipmentType')}
+                    onValueChange={(v) => form.setValue('shipmentType', v, { shouldValidate: true, shouldDirty: true })}
+                  >
+                    <SelectTrigger id="shipmentType" aria-label="Shipment Type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {typeOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label && o.label !== o.value ? `${o.value} (${o.label})` : o.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="blAwbNumber">BL / AWB No</Label>
+                  <Input id="blAwbNumber" {...form.register('blAwbNumber')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="blAwbDate">BL / AWB Date</Label>
+                  <Input id="blAwbDate" type="date" {...form.register('blAwbDate')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="grossWeightKg">Gross Weight (kg)</Label>
+                  <Input id="grossWeightKg" type="number" step="0.01" {...form.register('grossWeightKg')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="vesselName">Vessel / Flight</Label>
+                  <Input id="vesselName" {...form.register('vesselName')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="containerNumber">Container No</Label>
+                  <Input id="containerNumber" {...form.register('containerNumber')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Status</Label>
+                  <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEFAULT_STATUSES.map((st) => (
+                        <SelectItem key={st} value={st}>
+                          {st}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="etd">ETD</Label>
+                  <Input id="etd" type="date" {...form.register('etd')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="eta">ETA</Label>
+                  <Input id="eta" type="date" {...form.register('eta')} />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="dateOfDelivery">Delivery Date</Label>
+                  <Input id="dateOfDelivery" type="date" {...form.register('dateOfDelivery')} />
+                </div>
+
+                <div className="col-span-full flex justify-end gap-2 border-t border-border pt-4">
+                  <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting ? 'Saving...' : editing ? 'Save Shipment' : 'Create Shipment'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -511,150 +916,6 @@ export function ShipmentsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? `Edit Shipment (${editing.id})` : 'Create Shipment'}</DialogTitle>
-            <DialogDescription>Dates are normalized to YYYY-MM-DD.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <Label>Supplier *</Label>
-              <Select
-                value={form.watch('supplierId')}
-                onValueChange={(v) => form.setValue('supplierId', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.supplierName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="invoiceNumber">Invoice Number *</Label>
-              <Input id="invoiceNumber" {...form.register('invoiceNumber')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="invoiceDate">Invoice Date *</Label>
-              <Input id="invoiceDate" type="date" {...form.register('invoiceDate')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="invoiceValue">Invoice Value *</Label>
-              <Input id="invoiceValue" type="number" step="0.01" {...form.register('invoiceValue')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="invoiceCurrency">Currency *</Label>
-              <Input id="invoiceCurrency" list="shp-curr-list" {...form.register('invoiceCurrency')} />
-              <datalist id="shp-curr-list">
-                {(opts['currencies'] ?? []).map((o) => (
-                  <option key={o.value} value={o.value} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="incoterm">Incoterm *</Label>
-              <Input id="incoterm" list="shp-inco-list" {...form.register('incoterm')} />
-              <datalist id="shp-inco-list">
-                {(opts['incoterms'] ?? []).map((o) => (
-                  <option key={o.value} value={o.value} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="goodsCategory">Category *</Label>
-              <Input id="goodsCategory" {...form.register('goodsCategory')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="shipmentMode">Mode</Label>
-              <Input id="shipmentMode" {...form.register('shipmentMode')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="shipmentType">Type</Label>
-              <Input id="shipmentType" {...form.register('shipmentType')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="blAwbNumber">BL / AWB No</Label>
-              <Input id="blAwbNumber" {...form.register('blAwbNumber')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="blAwbDate">BL / AWB Date</Label>
-              <Input id="blAwbDate" type="date" {...form.register('blAwbDate')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="grossWeightKg">Gross Weight (kg)</Label>
-              <Input id="grossWeightKg" type="number" step="0.01" {...form.register('grossWeightKg')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="vesselName">Vessel / Flight</Label>
-              <Input id="vesselName" {...form.register('vesselName')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="containerNumber">Container No</Label>
-              <Input id="containerNumber" {...form.register('containerNumber')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label>Status</Label>
-              <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEFAULT_STATUSES.map((st) => (
-                    <SelectItem key={st} value={st}>
-                      {st}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="etd">ETD</Label>
-              <Input id="etd" type="date" {...form.register('etd')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="eta">ETA</Label>
-              <Input id="eta" type="date" {...form.register('eta')} />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="dateOfDelivery">Delivery Date</Label>
-              <Input id="dateOfDelivery" type="date" {...form.register('dateOfDelivery')} />
-            </div>
-
-            <DialogFooter className="col-span-3">
-              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? 'Saving...' : editing ? 'Save Shipment' : 'Create Shipment'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={Boolean(detail)} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -749,6 +1010,17 @@ export function ShipmentsPage() {
         onImport={(content) => shipmentService.importCsv('shipments-upload.csv', content)}
         onCompleted={loadShipments}
       />
+
+      {optionEditor && (
+        <QuickOptionDialog
+          open={Boolean(optionEditor)}
+          onOpenChange={(o) => !o && setOptionEditor(null)}
+          table={optionEditor.table}
+          title={optionEditor.title}
+          options={opts[optionEditor.table] ?? []}
+          onUpdated={loadLookups}
+        />
+      )}
     </div>
   );
 }

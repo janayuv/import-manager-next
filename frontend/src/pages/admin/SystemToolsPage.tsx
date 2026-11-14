@@ -1,10 +1,11 @@
 import * as React from 'react';
 import { toast } from 'sonner';
-import { Archive, Play, RefreshCw, Sparkles } from 'lucide-react';
+import { Archive, ArrowUpCircle, Play, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { UpdateDialog } from '@/components/system/UpdateDialog';
 import { workflowService, type DiagnosticsExportResult } from '@/services/workflow-service';
 
 export function SystemToolsPage() {
@@ -12,6 +13,7 @@ export function SystemToolsPage() {
   const [retentionDays, setRetentionDays] = React.useState('30');
   const [lastExport, setLastExport] = React.useState<DiagnosticsExportResult | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [updateOpen, setUpdateOpen] = React.useState(false);
 
   const handleExportDiagnostics = async () => {
     setBusy(true);
@@ -130,7 +132,30 @@ export function SystemToolsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ArrowUpCircle className="h-5 w-5 text-primary" />
+              Software Updates (GitHub Releases)
+            </CardTitle>
+            <CardDescription>
+              Check for new client releases, view release notes, and install in-app updates directly from GitHub.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              Sync with official GitHub releases from repository <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">janayuv/import-manager-next</code>.
+            </p>
+            <Button onClick={() => setUpdateOpen(true)}>
+              <ArrowUpCircle className="mr-2 h-4 w-4" />
+              Check &amp; Install Updates
+            </Button>
+          </CardContent>
+        </Card>
       </div>
+
+      <UpdateDialog open={updateOpen} onOpenChange={setUpdateOpen} />
     </div>
   );
 }

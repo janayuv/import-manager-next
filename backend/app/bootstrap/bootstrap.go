@@ -33,6 +33,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/settings"
 	"github.com/janayuv/import-manager-next/backend/services/shipment"
 	"github.com/janayuv/import-manager-next/backend/services/supplier"
+	"github.com/janayuv/import-manager-next/backend/services/updater"
 	"github.com/janayuv/import-manager-next/backend/services/workflow"
 )
 
@@ -66,6 +67,7 @@ type Runtime struct {
 	RecycleBin         *recycle_bin.Service
 	DatabaseManagement *database_management.Service
 	Workflow           *workflow.Service
+	Updater            *updater.Service
 	Scheduler          *scheduler.Scheduler
 }
 
@@ -165,6 +167,8 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		sched.Start()
 	}
 
+	updaterSvc := updater.NewService(cfg, securitySvc, auditSvc)
+
 	logger.Info("runtime initialized",
 		"app", cfg.AppName,
 		"version", cfg.AppVersion,
@@ -209,6 +213,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		RecycleBin:         recycleSvc,
 		DatabaseManagement: dbAdminSvc,
 		Workflow:           workflowSvc,
+		Updater:            updaterSvc,
 		Scheduler:          sched,
 	}, nil
 }
