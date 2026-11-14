@@ -86,6 +86,15 @@ func NewService(cfg config.Config, sec *security.Service, auditSvc *audit.Servic
 		audit: auditSvc,
 		httpClient: &http.Client{
 			Timeout: DefaultTimeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return errors.New("stopped after 10 redirects")
+				}
+				if len(via) > 0 && req.URL.Host != via[0].URL.Host {
+					req.Header.Del("Authorization")
+				}
+				return nil
+			},
 		},
 		apiBaseURL: "https://api.github.com",
 		repo:       repo,
@@ -107,6 +116,23 @@ func (s *Service) SetRepository(repo string) {
 	if strings.TrimSpace(repo) != "" {
 		s.repo = strings.TrimSpace(repo)
 	}
+}
+
+// resolveToken retrieves any available GitHub token from environment variables or gh CLI.
+func (s *Service) resolveToken() string {
+	if t := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); t != "" {
+		return t
+	}
+	if t := strings.TrimSpace(os.Getenv("GH_TOKEN")); t != "" {
+		return t
+	}
+	// Try gh CLI token if available in the host environment
+	if out, err := exec.Command("gh", "auth", "token").Output(); err == nil {
+		if t := strings.TrimSpace(string(out)); t != "" && !strings.Contains(t, " ") {
+			return t
+		}
+	}
+	return ""
 }
 
 // GetCurrentVersion returns the running app version.
@@ -138,7 +164,7 @@ func (s *Service) CheckForUpdate(ctx context.Context) (UpdateCheckResult, error)
 
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", fmt.Sprintf("ImportManager-Desktop/%s", currentVer))
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+	if token := s.resolveToken(); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
@@ -231,7 +257,7 @@ func (s *Service) DownloadUpdate(ctx context.Context, downloadURL, assetName str
 		return "", fmt.Errorf("create download request: %w", err)
 	}
 	req.Header.Set("User-Agent", fmt.Sprintf("ImportManager-Desktop/%s", s.GetCurrentVersion()))
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+	if token := s.resolveToken(); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
