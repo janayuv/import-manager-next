@@ -36,21 +36,21 @@ func (s *Service) GetExpenseReport(filter models.ExpenseReportFilter) (models.Ex
 
 	q := `SELECT e.id, e.expense_invoice_id, e.shipment_id, COALESCE(sh.invoice_number,''),
 	             e.service_provider_id, COALESCE(sp.name,''),
-	             e.expense_type_id, COALESCE(et.name,''),
+	             e.expense_type_id, COALESCE(NULLIF(et.name,''), e.expense_type_id, 'Expense Item'),
 	             e.invoice_no, e.invoice_date,
-	             COALESCE(NULLIF(e.amount_paise,0), CAST(ROUND(e.amount*100) AS INTEGER)) AS amt_p,
+	             COALESCE(NULLIF(e.amount_paise,0), CAST(ROUND(COALESCE(e.amount,0)*100) AS INTEGER), 0) AS amt_p,
 	             COALESCE(e.cgst_amount_paise, 0) AS cgst_p,
 	             COALESCE(e.sgst_amount_paise, 0) AS sgst_p,
 	             COALESCE(e.igst_amount_paise, 0) AS igst_p,
 	             COALESCE(e.tds_amount_paise, 0) AS tds_p,
-	             COALESCE(NULLIF(e.total_amount_paise,0), CAST(ROUND(e.amount*100) AS INTEGER)) AS tot_p,
-	             COALESCE(NULLIF(e.net_amount_paise,0), CAST(ROUND(e.amount*100) AS INTEGER)) AS net_p,
+	             COALESCE(NULLIF(e.total_amount_paise,0), CAST(ROUND(COALESCE(e.total_amount, e.amount, 0)*100) AS INTEGER), 0) AS tot_p,
+	             COALESCE(NULLIF(e.net_amount_paise,0), CAST(ROUND(COALESCE(e.total_amount, e.amount, 0)*100) AS INTEGER), 0) AS net_p,
 	             COALESCE(e.remarks,'')
 	      FROM expenses e
 	      JOIN expense_invoices ei ON ei.id = e.expense_invoice_id AND ei.deleted_at IS NULL
-	      JOIN shipments sh ON sh.id = e.shipment_id AND sh.deleted_at IS NULL
-	      JOIN service_providers sp ON sp.id = e.service_provider_id AND sp.deleted_at IS NULL
-	      JOIN expense_types et ON et.id = e.expense_type_id AND et.deleted_at IS NULL
+	      LEFT JOIN shipments sh ON sh.id = e.shipment_id
+	      LEFT JOIN service_providers sp ON sp.id = e.service_provider_id
+	      LEFT JOIN expense_types et ON et.id = e.expense_type_id
 	      WHERE e.deleted_at IS NULL`
 
 	var args []any

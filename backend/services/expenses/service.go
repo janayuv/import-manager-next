@@ -404,8 +404,8 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 	             COALESCE(ei.remarks,''), COALESCE(ei.idempotency_key,''), COALESCE(ei.version, 1),
 	             COALESCE(ei.created_at,''), COALESCE(ei.updated_at,'')
 	      FROM expense_invoices ei
-	      JOIN shipments sh ON sh.id = ei.shipment_id AND sh.deleted_at IS NULL
-	      JOIN service_providers sp ON sp.id = ei.service_provider_id AND sp.deleted_at IS NULL
+	      LEFT JOIN shipments sh ON sh.id = ei.shipment_id
+	      LEFT JOIN service_providers sp ON sp.id = ei.service_provider_id
 	      WHERE ei.deleted_at IS NULL`
 	var args []any
 	if sid := strings.TrimSpace(shipmentID); sid != "" {
@@ -472,8 +472,8 @@ func (s *Service) GetExpenseInvoice(id string) (models.ExpenseInvoice, error) {
 		       COALESCE(ei.remarks,''), COALESCE(ei.idempotency_key,''), COALESCE(ei.version, 1),
 		       COALESCE(ei.created_at,''), COALESCE(ei.updated_at,'')
 		FROM expense_invoices ei
-		JOIN shipments sh ON sh.id = ei.shipment_id AND sh.deleted_at IS NULL
-		JOIN service_providers sp ON sp.id = ei.service_provider_id AND sp.deleted_at IS NULL
+		LEFT JOIN shipments sh ON sh.id = ei.shipment_id
+		LEFT JOIN service_providers sp ON sp.id = ei.service_provider_id
 		WHERE ei.id = ? AND ei.deleted_at IS NULL`, id,
 	).Scan(
 		&inv.ID, &inv.ShipmentID, &inv.ShipmentInvoiceNo,
@@ -500,8 +500,8 @@ func (s *Service) GetExpenseInvoice(id string) (models.ExpenseInvoice, error) {
 func (s *Service) loadInvoiceLines(invoiceID string) ([]models.ExpenseLine, error) {
 	rows, err := s.db.Query(`
 		SELECT e.id, e.expense_invoice_id, e.shipment_id, e.service_provider_id,
-		       e.expense_type_id, COALESCE(et.name,''),
-		       COALESCE(NULLIF(e.amount_paise,0), CAST(ROUND(e.amount*100) AS INTEGER)),
+		       e.expense_type_id, COALESCE(NULLIF(et.name,''), e.expense_type_id, 'Expense Item'),
+		       COALESCE(NULLIF(e.amount_paise,0), CAST(ROUND(COALESCE(e.amount,0)*100) AS INTEGER), 0),
 		       CAST(ROUND(COALESCE(e.cgst_rate,0)*100) AS INTEGER),
 		       CAST(ROUND(COALESCE(e.sgst_rate,0)*100) AS INTEGER),
 		       CAST(ROUND(COALESCE(e.igst_rate,0)*100) AS INTEGER),
@@ -510,11 +510,11 @@ func (s *Service) loadInvoiceLines(invoiceID string) ([]models.ExpenseLine, erro
 		       COALESCE(e.sgst_amount_paise, 0),
 		       COALESCE(e.igst_amount_paise, 0),
 		       COALESCE(e.tds_amount_paise, 0),
-		       COALESCE(e.total_amount_paise, CAST(ROUND(e.amount*100) AS INTEGER)),
-		       COALESCE(e.net_amount_paise, CAST(ROUND(e.amount*100) AS INTEGER)),
+		       COALESCE(NULLIF(e.total_amount_paise,0), CAST(ROUND(COALESCE(e.total_amount, e.amount, 0)*100) AS INTEGER), 0),
+		       COALESCE(NULLIF(e.net_amount_paise,0), CAST(ROUND(COALESCE(e.total_amount, e.amount, 0)*100) AS INTEGER), 0),
 		       COALESCE(e.remarks,'')
 		FROM expenses e
-		JOIN expense_types et ON et.id = e.expense_type_id
+		LEFT JOIN expense_types et ON et.id = e.expense_type_id
 		WHERE e.expense_invoice_id = ? AND e.deleted_at IS NULL
 		ORDER BY e.created_at ASC, e.id ASC`, invoiceID)
 	if err != nil {

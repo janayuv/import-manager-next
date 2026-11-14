@@ -1,9 +1,15 @@
 import * as React from 'react';
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  FileSpreadsheet,
+  Layers,
   Merge,
   Pencil,
   Plus,
+  Receipt,
   Search,
   Settings2,
   Trash2,
@@ -44,6 +50,7 @@ import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { ManageExpenseTypesDialog } from '@/components/master/ManageExpenseTypesDialog';
 import { ManageServiceProvidersDialog } from '@/components/master/ManageServiceProvidersDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { downloadTextFile } from '@/lib/download';
 import {
   expenseService,
   formatPaiseINR,
@@ -147,6 +154,18 @@ export function ExpensesPage() {
   const [manageEtOpen, setManageEtOpen] = React.useState(false);
   const [targetLineIdx, setTargetLineIdx] = React.useState<number | null>(null);
 
+  // Tab state
+  const [activeTab, setActiveTab] = React.useState('invoices');
+
+  // Expandable invoice rows in Ledger
+  const [expandedInvoices, setExpandedInvoices] = React.useState<Set<string>>(new Set());
+
+  // Itemized Ledger Filter states
+  const [itemizedSearch, setItemizedSearch] = React.useState('');
+  const [itemizedTypeFilter, setItemizedTypeFilter] = React.useState('all');
+  const [itemizedProviderFilter, setItemizedProviderFilter] = React.useState('all');
+  const [itemizedShipmentFilter, setItemizedShipmentFilter] = React.useState('all');
+
   const loadAll = React.useCallback(async () => {
     try {
       const [invs, sps, ets, shPage] = await Promise.all([
@@ -196,6 +215,182 @@ export function ExpensesPage() {
     return new Set(ids).size !== ids.length;
   }, [draftLines]);
 
+  const toggleInvoiceExpand = (id: string) => {
+    setExpandedInvoices((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const allInvoicesExpanded =
+    invoices.length > 0 && invoices.every((inv) => expandedInvoices.has(inv.id));
+
+  const toggleAllInvoicesExpand = () => {
+    if (allInvoicesExpanded) {
+      setExpandedInvoices(new Set());
+    } else {
+      setExpandedInvoices(new Set(invoices.map((inv) => inv.id)));
+    }
+  };
+
+  const allItemizedLines = React.useMemo(() => {
+    const list: Array<{
+      lineId: string;
+      invoiceId: string;
+      invoiceNo: string;
+      invoiceDate: string;
+      shipmentId: string;
+      shipmentInvoiceNo: string;
+      serviceProviderId: string;
+      serviceProviderName: string;
+      expenseTypeId: string;
+      expenseTypeName: string;
+      amountPaise: number;
+      cgstRateBp: number;
+      sgstRateBp: number;
+      igstRateBp: number;
+      tdsRateBp: number;
+      cgstPaise: number;
+      sgstPaise: number;
+      igstPaise: number;
+      tdsPaise: number;
+      totalPaise: number;
+      netPaise: number;
+      remarks: string;
+      parentInvoice: ExpenseInvoice;
+    }> = [];
+
+    for (const inv of invoices) {
+      if (Array.isArray(inv.lines) && inv.lines.length > 0) {
+        for (const line of inv.lines) {
+          list.push({
+            lineId: line.id || `${inv.id}-${line.expenseTypeId}`,
+            invoiceId: inv.id,
+            invoiceNo: inv.invoiceNo,
+            invoiceDate: inv.invoiceDate,
+            shipmentId: inv.shipmentId,
+            shipmentInvoiceNo: inv.shipmentInvoiceNo,
+            serviceProviderId: inv.serviceProviderId,
+            serviceProviderName: inv.serviceProviderName,
+            expenseTypeId: line.expenseTypeId,
+            expenseTypeName: line.expenseTypeName || 'Expense Item',
+            amountPaise: line.amountPaise,
+            cgstRateBp: line.cgstRateBp,
+            sgstRateBp: line.sgstRateBp,
+            igstRateBp: line.igstRateBp,
+            tdsRateBp: line.tdsRateBp,
+            cgstPaise: line.cgstPaise,
+            sgstPaise: line.sgstPaise,
+            igstPaise: line.igstPaise,
+            tdsPaise: line.tdsPaise,
+            totalPaise: line.totalPaise,
+            netPaise: line.netPaise,
+            remarks: line.remarks || '',
+            parentInvoice: inv,
+          });
+        }
+      }
+    }
+    return list;
+  }, [invoices]);
+
+  const filteredItemizedLines = React.useMemo(() => {
+    return allItemizedLines.filter((l) => {
+      if (itemizedTypeFilter !== 'all' && l.expenseTypeId !== itemizedTypeFilter) {
+        return false;
+      }
+      if (itemizedProviderFilter !== 'all' && l.serviceProviderId !== itemizedProviderFilter) {
+        return false;
+      }
+      if (itemizedShipmentFilter !== 'all' && l.shipmentId !== itemizedShipmentFilter) {
+        return false;
+      }
+      if (itemizedSearch.trim()) {
+        const query = itemizedSearch.toLowerCase().trim();
+        const matches =
+          l.invoiceNo.toLowerCase().includes(query) ||
+          l.serviceProviderName.toLowerCase().includes(query) ||
+          l.expenseTypeName.toLowerCase().includes(query) ||
+          l.shipmentInvoiceNo.toLowerCase().includes(query) ||
+          l.remarks.toLowerCase().includes(query);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [allItemizedLines, itemizedTypeFilter, itemizedProviderFilter, itemizedShipmentFilter, itemizedSearch]);
+
+  const itemizedSummary = React.useMemo(() => {
+    let basic = 0;
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+    let tds = 0;
+    let net = 0;
+    for (const l of filteredItemizedLines) {
+      basic += l.amountPaise;
+      cgst += l.cgstPaise;
+      sgst += l.sgstPaise;
+      igst += l.igstPaise;
+      tds += l.tdsPaise;
+      net += l.netPaise;
+    }
+    return {
+      count: filteredItemizedLines.length,
+      basicPaise: basic,
+      gstPaise: cgst + sgst + igst,
+      tdsPaise: tds,
+      netPaise: net,
+    };
+  }, [filteredItemizedLines]);
+
+  const exportItemizedCsv = () => {
+    const headers = [
+      'Invoice Date',
+      'Invoice No',
+      'Service Provider',
+      'Shipment Invoice',
+      'Expense Type',
+      'Basic (INR)',
+      'CGST %',
+      'CGST (INR)',
+      'SGST %',
+      'SGST (INR)',
+      'IGST %',
+      'IGST (INR)',
+      'TDS %',
+      'TDS (INR)',
+      'Net Payable (INR)',
+      'Remarks',
+    ];
+    const rows = filteredItemizedLines.map((l) => [
+      l.invoiceDate,
+      `"${l.invoiceNo.replaceAll('"', '""')}"`,
+      `"${l.serviceProviderName.replaceAll('"', '""')}"`,
+      `"${l.shipmentInvoiceNo.replaceAll('"', '""')}"`,
+      `"${l.expenseTypeName.replaceAll('"', '""')}"`,
+      (l.amountPaise / 100).toFixed(2),
+      (l.cgstRateBp / 100).toFixed(2),
+      (l.cgstPaise / 100).toFixed(2),
+      (l.sgstRateBp / 100).toFixed(2),
+      (l.sgstPaise / 100).toFixed(2),
+      (l.igstRateBp / 100).toFixed(2),
+      (l.igstPaise / 100).toFixed(2),
+      (l.tdsRateBp / 100).toFixed(2),
+      (l.tdsPaise / 100).toFixed(2),
+      (l.netPaise / 100).toFixed(2),
+      `"${(l.remarks || '').replaceAll('"', '""')}"`,
+    ]);
+    downloadTextFile(
+      `expenses_itemized_ledger_${new Date().toISOString().slice(0, 10)}.csv`,
+      [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n'),
+    );
+  };
+
   const openCreateInvoice = () => {
     setEditingInv(null);
     const activeSh = shipments.find((s) => !s.isFrozen);
@@ -219,7 +414,7 @@ export function ExpensesPage() {
     setInvoiceDate(inv.invoiceDate);
     setRemarks(inv.remarks);
     setIdempotencyKey(inv.idempotencyKey);
-    const lines = inv.lines.map((l) => ({
+    const lines = (inv.lines || []).map((l) => ({
       expenseTypeId: l.expenseTypeId,
       amountInr: (l.amountPaise / 100).toFixed(2),
       cgstPct: (l.cgstRateBp / 100).toFixed(2),
@@ -352,40 +547,70 @@ export function ExpensesPage() {
         )}
       </div>
 
-      <Tabs defaultValue="invoices">
-        <TabsList>
-          <TabsTrigger value="invoices">Expense Invoices ({invoices.length})</TabsTrigger>
-          <TabsTrigger value="providers">Service Providers ({providers.length})</TabsTrigger>
-          <TabsTrigger value="types">Expense Types ({types.length})</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto h-auto">
+          <TabsTrigger value="invoices" className="gap-2" onClick={() => setActiveTab('invoices')}>
+            <Layers className="h-4 w-4" />
+            <span>Expense Invoices ({invoices.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="itemized" className="gap-2" onClick={() => setActiveTab('itemized')}>
+            <Receipt className="h-4 w-4" />
+            <span>Itemized Expense Details ({allItemizedLines.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="providers" onClick={() => setActiveTab('providers')}>Service Providers ({providers.length})</TabsTrigger>
+          <TabsTrigger value="types" onClick={() => setActiveTab('types')}>Expense Types ({types.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="invoices" className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative w-72">
-              <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder="Search provider, invoice no..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative w-72">
+                <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-8"
+                  placeholder="Search provider, invoice no..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <Select
+                value={shipmentFilter || 'all'}
+                onValueChange={(v) => setShipmentFilter(v === 'all' ? '' : v)}
+              >
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="All shipments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Shipments</SelectItem>
+                  {shipments.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.invoiceNumber} — {s.supplierName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select
-              value={shipmentFilter || 'all'}
-              onValueChange={(v) => setShipmentFilter(v === 'all' ? '' : v)}
-            >
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="All shipments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Shipments</SelectItem>
-                {shipments.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.invoiceNumber} — {s.supplierName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {invoices.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleAllInvoicesExpand}
+                className="gap-1.5"
+              >
+                {allInvoicesExpanded ? (
+                  <>
+                    <ChevronsDownUp className="h-4 w-4" />
+                    <span>Collapse All Details</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4" />
+                    <span>Expand All Details</span>
+                  </>
+                )}
+              </Button>
+            )}
           </div>
 
           <Card>
@@ -393,6 +618,21 @@ export function ExpensesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10 text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-muted"
+                        onClick={toggleAllInvoicesExpand}
+                        title={allInvoicesExpanded ? 'Collapse All' : 'Expand All'}
+                      >
+                        {allInvoicesExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-primary" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </TableHead>
                     <TableHead>Invoice No / Date</TableHead>
                     <TableHead>Service Provider</TableHead>
                     <TableHead>Shipment</TableHead>
@@ -407,68 +647,402 @@ export function ExpensesPage() {
                 <TableBody>
                   {invoices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                         No expense invoices recorded yet.
                       </TableCell>
                     </TableRow>
                   ) : (
                     invoices.map((inv) => {
+                      const isExpanded = expandedInvoices.has(inv.id);
                       const gstPaise =
                         inv.totalCgstPaise + inv.totalSgstPaise + inv.totalIgstPaise;
+                      const lineCount = inv.lines?.length ?? 0;
                       return (
-                        <TableRow key={inv.id}>
+                        <React.Fragment key={inv.id}>
+                          <TableRow className={isExpanded ? 'bg-muted/20 border-b-0' : undefined}>
+                            <TableCell className="text-center p-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground p-0"
+                                aria-label={isExpanded ? `Collapse details for ${inv.invoiceNo}` : `Expand details for ${inv.invoiceNo}`}
+                                onClick={() => toggleInvoiceExpand(inv.id)}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium flex items-center gap-1.5">
+                                <span>{inv.invoiceNo}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {inv.invoiceDate} · v{inv.version}
+                              </div>
+                            </TableCell>
+                            <TableCell>{inv.serviceProviderName || '—'}</TableCell>
+                            <TableCell className="font-mono text-xs">{inv.shipmentInvoiceNo || '—'}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 font-normal text-xs gap-1 border border-border/60 hover:bg-muted"
+                                onClick={() => toggleInvoiceExpand(inv.id)}
+                                title="Click to view detailed line items"
+                              >
+                                <Badge variant="secondary" className="px-1.5 py-0 text-xs">
+                                  {lineCount}
+                                </Badge>
+                                <span>{lineCount === 1 ? 'line' : 'lines'}</span>
+                                {isExpanded ? (
+                                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                )}
+                              </Button>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatPaiseINR(inv.baseAmountPaise)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatPaiseINR(gstPaise)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatPaiseINR(inv.totalTdsPaise)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-semibold">
+                              {formatPaiseINR(inv.netAmountPaise)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                {canWrite && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label={`Edit ${inv.invoiceNo}`}
+                                    onClick={() => openEditInvoice(inv)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {canDelete && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label={`Delete ${inv.invoiceNo}`}
+                                    onClick={() =>
+                                      void expenseService
+                                        .deleteExpenseInvoice(inv.id)
+                                        .then(loadAll)
+                                        .then(() => toast.success('Expense invoice moved to Recycle Bin'))
+                                        .catch((err) => toast.error(String(err)))
+                                    }
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Expanded Line Items Breakdown */}
+                          {isExpanded && (
+                            <TableRow className="bg-muted/10 hover:bg-muted/10 border-t-0">
+                              <TableCell colSpan={10} className="p-0">
+                                <div className="p-4 pl-10 pr-4 border-b border-border/60 bg-slate-950/30 dark:bg-slate-900/40 space-y-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <div className="flex items-center gap-2 font-medium text-foreground">
+                                      <Receipt className="h-4 w-4 text-primary" />
+                                      <span className="font-semibold">
+                                        Expense Line Details for Invoice {inv.invoiceNo}
+                                      </span>
+                                      <Badge variant="outline" className="text-[11px]">
+                                        {lineCount} line item{lineCount === 1 ? '' : 's'}
+                                      </Badge>
+                                      {inv.remarks && (
+                                        <span className="text-muted-foreground italic">
+                                          &ldquo;{inv.remarks}&rdquo;
+                                        </span>
+                                      )}
+                                    </div>
+                                    {canWrite && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 text-xs gap-1.5"
+                                        onClick={() => openEditInvoice(inv)}
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                        Edit / Add Lines
+                                      </Button>
+                                    )}
+                                  </div>
+
+                                  {!inv.lines || inv.lines.length === 0 ? (
+                                    <div className="p-4 text-xs text-muted-foreground bg-muted/20 rounded border border-dashed text-center">
+                                      No individual line items found for this invoice.
+                                    </div>
+                                  ) : (
+                                    <div className="rounded-md border border-border/70 overflow-hidden bg-background">
+                                      <Table>
+                                        <TableHeader className="bg-muted/50">
+                                          <TableRow className="hover:bg-transparent text-xs">
+                                            <TableHead className="w-10 text-center py-2">#</TableHead>
+                                            <TableHead className="py-2">Expense Type</TableHead>
+                                            <TableHead className="text-right py-2">Basic (INR)</TableHead>
+                                            <TableHead className="text-right py-2">CGST</TableHead>
+                                            <TableHead className="text-right py-2">SGST</TableHead>
+                                            <TableHead className="text-right py-2">IGST</TableHead>
+                                            <TableHead className="text-right py-2">TDS</TableHead>
+                                            <TableHead className="text-right py-2 font-semibold">Net Payable (INR)</TableHead>
+                                            <TableHead className="py-2">Remarks</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {inv.lines.map((line, idx) => (
+                                            <TableRow key={line.id || `line-${idx}`} className="text-xs hover:bg-muted/30">
+                                              <TableCell className="text-center font-mono text-muted-foreground py-2">
+                                                {idx + 1}
+                                              </TableCell>
+                                              <TableCell className="font-medium py-2">
+                                                <Badge variant="secondary" className="font-medium">
+                                                  {line.expenseTypeName || 'Expense'}
+                                                </Badge>
+                                              </TableCell>
+                                              <TableCell className="text-right font-mono py-2 font-medium">
+                                                {formatPaiseINR(line.amountPaise)}
+                                              </TableCell>
+                                              <TableCell className="text-right font-mono text-muted-foreground py-2">
+                                                {line.cgstRateBp > 0 ? (
+                                                  <span>
+                                                    {(line.cgstRateBp / 100).toFixed(1)}% ·{' '}
+                                                    <span className="text-foreground">{formatPaiseINR(line.cgstPaise)}</span>
+                                                  </span>
+                                                ) : (
+                                                  '—'
+                                                )}
+                                              </TableCell>
+                                              <TableCell className="text-right font-mono text-muted-foreground py-2">
+                                                {line.sgstRateBp > 0 ? (
+                                                  <span>
+                                                    {(line.sgstRateBp / 100).toFixed(1)}% ·{' '}
+                                                    <span className="text-foreground">{formatPaiseINR(line.sgstPaise)}</span>
+                                                  </span>
+                                                ) : (
+                                                  '—'
+                                                )}
+                                              </TableCell>
+                                              <TableCell className="text-right font-mono text-muted-foreground py-2">
+                                                {line.igstRateBp > 0 ? (
+                                                  <span>
+                                                    {(line.igstRateBp / 100).toFixed(1)}% ·{' '}
+                                                    <span className="text-foreground">{formatPaiseINR(line.igstPaise)}</span>
+                                                  </span>
+                                                ) : (
+                                                  '—'
+                                                )}
+                                              </TableCell>
+                                              <TableCell className="text-right font-mono text-amber-500 py-2">
+                                                {line.tdsRateBp > 0 ? (
+                                                  <span>
+                                                    -{(line.tdsRateBp / 100).toFixed(1)}% ·{' '}
+                                                    <span>{formatPaiseINR(line.tdsPaise)}</span>
+                                                  </span>
+                                                ) : (
+                                                  '—'
+                                                )}
+                                              </TableCell>
+                                              <TableCell className="text-right font-mono font-semibold py-2">
+                                                {formatPaiseINR(line.netPaise)}
+                                              </TableCell>
+                                              <TableCell className="text-muted-foreground max-w-xs truncate py-2" title={line.remarks}>
+                                                {line.remarks || '—'}
+                                              </TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="itemized" className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="p-3">
+              <div className="text-xs text-muted-foreground">Total Line Items</div>
+              <div className="text-xl font-bold">{itemizedSummary.count}</div>
+            </Card>
+            <Card className="p-3">
+              <div className="text-xs text-muted-foreground">Total Basic (INR)</div>
+              <div className="text-xl font-bold font-mono">{formatPaiseINR(itemizedSummary.basicPaise)}</div>
+            </Card>
+            <Card className="p-3">
+              <div className="text-xs text-muted-foreground">Total GST (INR)</div>
+              <div className="text-xl font-bold font-mono text-blue-500">{formatPaiseINR(itemizedSummary.gstPaise)}</div>
+            </Card>
+            <Card className="p-3">
+              <div className="text-xs text-muted-foreground">Total Net Payable (INR)</div>
+              <div className="text-xl font-bold font-mono text-green-500">{formatPaiseINR(itemizedSummary.netPaise)}</div>
+            </Card>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-64">
+                <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-8 h-9 text-xs"
+                  placeholder="Filter lines by invoice, type, remarks..."
+                  value={itemizedSearch}
+                  onChange={(e) => setItemizedSearch(e.target.value)}
+                />
+              </div>
+
+              <Select
+                value={itemizedTypeFilter}
+                onValueChange={setItemizedTypeFilter}
+              >
+                <SelectTrigger className="w-48 h-9 text-xs">
+                  <SelectValue placeholder="All Expense Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Expense Types</SelectItem>
+                  {types.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={itemizedProviderFilter}
+                onValueChange={setItemizedProviderFilter}
+              >
+                <SelectTrigger className="w-48 h-9 text-xs">
+                  <SelectValue placeholder="All Providers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Providers</SelectItem>
+                  {providers.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={itemizedShipmentFilter}
+                onValueChange={setItemizedShipmentFilter}
+              >
+                <SelectTrigger className="w-52 h-9 text-xs">
+                  <SelectValue placeholder="All Shipments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Shipments</SelectItem>
+                  {shipments.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.invoiceNumber} — {s.supplierName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportItemizedCsv}
+              disabled={filteredItemizedLines.length === 0}
+              className="h-9 gap-1.5"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Export CSV</span>
+            </Button>
+          </div>
+
+          <Card>
+            <CardContent className="pt-6">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date / Invoice</TableHead>
+                    <TableHead>Service Provider</TableHead>
+                    <TableHead>Shipment</TableHead>
+                    <TableHead>Expense Type</TableHead>
+                    <TableHead className="text-right">Basic (INR)</TableHead>
+                    <TableHead className="text-right">GST (INR)</TableHead>
+                    <TableHead className="text-right">TDS (INR)</TableHead>
+                    <TableHead className="text-right">Net Payable (INR)</TableHead>
+                    <TableHead>Remarks</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredItemizedLines.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                        No itemized expense lines match the current filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredItemizedLines.map((line) => {
+                      const gstPaise = line.cgstPaise + line.sgstPaise + line.igstPaise;
+                      return (
+                        <TableRow key={line.lineId}>
                           <TableCell>
-                            <div className="font-medium">{inv.invoiceNo}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {inv.invoiceDate} · v{inv.version}
-                            </div>
+                            <div className="font-medium">{line.invoiceNo}</div>
+                            <div className="text-xs text-muted-foreground">{line.invoiceDate}</div>
                           </TableCell>
-                          <TableCell>{inv.serviceProviderName}</TableCell>
-                          <TableCell className="font-mono text-xs">{inv.shipmentInvoiceNo}</TableCell>
+                          <TableCell>{line.serviceProviderName}</TableCell>
+                          <TableCell className="font-mono text-xs">{line.shipmentInvoiceNo}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{inv.lines.length} lines</Badge>
+                            <Badge variant="secondary" className="font-medium">
+                              {line.expenseTypeName}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right font-mono">
-                            {formatPaiseINR(inv.baseAmountPaise)}
+                            {formatPaiseINR(line.amountPaise)}
                           </TableCell>
-                          <TableCell className="text-right font-mono">
+                          <TableCell className="text-right font-mono text-muted-foreground">
                             {formatPaiseINR(gstPaise)}
                           </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {formatPaiseINR(inv.totalTdsPaise)}
+                          <TableCell className="text-right font-mono text-amber-500">
+                            {line.tdsPaise > 0 ? `-${formatPaiseINR(line.tdsPaise)}` : '—'}
                           </TableCell>
                           <TableCell className="text-right font-mono font-semibold">
-                            {formatPaiseINR(inv.netAmountPaise)}
+                            {formatPaiseINR(line.netPaise)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-xs truncate" title={line.remarks}>
+                            {line.remarks || '—'}
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              {canWrite && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  aria-label={`Edit ${inv.invoiceNo}`}
-                                  onClick={() => openEditInvoice(inv)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {canDelete && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  aria-label={`Delete ${inv.invoiceNo}`}
-                                  onClick={() =>
-                                    void expenseService
-                                      .deleteExpenseInvoice(inv.id)
-                                      .then(loadAll)
-                                      .then(() => toast.success('Expense invoice moved to Recycle Bin'))
-                                      .catch((err) => toast.error(String(err)))
-                                  }
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              )}
-                            </div>
+                            {canWrite && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Edit parent invoice"
+                                onClick={() => openEditInvoice(line.parentInvoice)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );

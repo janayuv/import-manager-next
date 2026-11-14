@@ -453,4 +453,140 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
     fireEvent.click(screen.getByRole('button', { name: /Add Expense Type/i }));
     await waitFor(() => expect(expenseService.createExpenseType).toHaveBeenCalled());
   });
+
+  it('expands invoice row in ledger to show added expense line details and switches to itemized tab', async () => {
+    vi.mocked(expenseService.listExpenseInvoices).mockResolvedValue([
+      {
+        id: 'EINV-101',
+        shipmentId: 'SH-1',
+        shipmentInvoiceNo: 'INV-SH-1',
+        serviceProviderId: 'SP-1',
+        serviceProviderName: 'DHL Express',
+        invoiceNo: 'EXP-INV-999',
+        invoiceDate: '2026-04-15',
+        currency: 'INR',
+        baseAmountPaise: 5000000,
+        totalCgstPaise: 450000,
+        totalSgstPaise: 450000,
+        totalIgstPaise: 0,
+        totalTdsPaise: 100000,
+        totalAmountPaise: 5900000,
+        netAmountPaise: 5800000,
+        remarks: 'Air shipment customs clearance',
+        idempotencyKey: 'k999',
+        version: 1,
+        createdAt: '2026-04-15',
+        updatedAt: '2026-04-15',
+        lines: [
+          {
+            id: 'LINE-1',
+            expenseInvoiceId: 'EINV-101',
+            shipmentId: 'SH-1',
+            serviceProviderId: 'SP-1',
+            expenseTypeId: 'ET-1',
+            expenseTypeName: 'Customs Duty Clearance',
+            amountPaise: 5000000,
+            cgstRateBp: 900,
+            sgstRateBp: 900,
+            igstRateBp: 0,
+            tdsRateBp: 200,
+            cgstPaise: 450000,
+            sgstPaise: 450000,
+            igstPaise: 0,
+            tdsPaise: 100000,
+            totalPaise: 5900000,
+            netPaise: 5800000,
+            remarks: 'Port duty pass',
+          },
+        ],
+      },
+    ]);
+    vi.mocked(expenseService.listServiceProviders).mockResolvedValue([
+      {
+        id: 'SP-1',
+        name: 'DHL Express',
+        gstin: '29AAACD1234F1Z5',
+        state: 'Karnataka',
+        contactPerson: '',
+        contactEmail: '',
+        contactPhone: '',
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(expenseService.listExpenseTypes).mockResolvedValue([
+      {
+        id: 'ET-1',
+        name: 'Customs Duty Clearance',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 200,
+        isActive: true,
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'SH-1',
+          supplierId: 'SUP-1',
+          supplierName: 'Bosch GmbH',
+          invoiceNumber: 'INV-SH-1',
+          invoiceDate: '2026-04-10',
+          goodsCategory: 'Machinery',
+          invoiceValue: 1000,
+          invoiceCurrency: 'USD',
+          incoterm: 'CIF',
+          shipmentMode: 'Air',
+          shipmentType: 'Dutiable',
+          blAwbNumber: '',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 10,
+          etd: '',
+          eta: '',
+          status: 'Active',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '',
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ExpensesPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    // Initial table view displays the invoice
+    await waitFor(() => expect(screen.getByText('EXP-INV-999')).toBeInTheDocument());
+
+    // Expand details via button
+    const expandBtn = screen.getByRole('button', { name: /Expand details for EXP-INV-999/i });
+    fireEvent.click(expandBtn);
+
+    // Verify added expense line details are clearly visible
+    await waitFor(() => {
+      expect(screen.getByText(/Expense Line Details for Invoice EXP-INV-999/i)).toBeInTheDocument();
+      expect(screen.getByText('Customs Duty Clearance')).toBeInTheDocument();
+      expect(screen.getByText('Port duty pass')).toBeInTheDocument();
+    });
+
+    // Switch to the Itemized Expense Details tab
+    const itemizedTab = screen.getByRole('tab', { name: /Itemized Expense Details/i });
+    fireEvent.click(itemizedTab);
+
+    // Verify itemized ledger view shows line row and summary
+    await waitFor(() => {
+      expect(screen.getByText('Total Line Items')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Export CSV/i })).toBeInTheDocument();
+    });
+  });
 });
