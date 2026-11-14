@@ -31,9 +31,13 @@ jobs:
       - name: Install Wails 3 CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
 
-      - name: Install Frontend Dependencies
+      - name: Install Frontend Dependencies & Build
         working-directory: frontend
-        run: npm ci
+        run: |
+          npm ci
+          npm run type-check
+          npm test
+          npm run build
 
       - name: Install Playwright Browsers
         working-directory: frontend
@@ -41,13 +45,6 @@ jobs:
 
       - name: Run Go Race Detector & Integration Tests (SQLCipher)
         run: go test -tags "json1,sqlite_fts5,sqlite_foreign_keys" -race ./...
-
-      - name: Type-Check, Unit Tests & Production Frontend Build
-        working-directory: frontend
-        run: |
-          npm run type-check
-          npm test
-          npm run build
 
       - name: Run Playwright E2E Suite
         working-directory: frontend

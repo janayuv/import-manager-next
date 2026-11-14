@@ -44,6 +44,12 @@ jobs:
       - name: Run Go Test Suite
         run: go test -tags "json1,sqlite_fts5,sqlite_foreign_keys" ./...
 
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis -y
+          Add-Content $env:GITHUB_PATH "C:\Program Files (x86)\NSIS"
+
       - name: Build Production Binary & NSIS Installer
         shell: pwsh
         run: |
