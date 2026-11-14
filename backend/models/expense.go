@@ -48,6 +48,10 @@ type ExpenseTypeInput struct {
 type ExpenseLineInput struct {
 	ExpenseTypeID string `json:"expenseTypeId"`
 	AmountPaise   int64  `json:"amountPaise"`
+	IsManualGST   bool   `json:"isManualGst"`
+	CGSTPaise     int64  `json:"cgstPaise"`
+	SGSTPaise     int64  `json:"sgstPaise"`
+	IGSTPaise     int64  `json:"igstPaise"`
 	CGSTRateBP    int64  `json:"cgstRateBp"`
 	SGSTRateBP    int64  `json:"sgstRateBp"`
 	IGSTRateBP    int64  `json:"igstRateBp"`
@@ -59,6 +63,7 @@ type ExpenseLineInput struct {
 type ExpenseLineCalculation struct {
 	ExpenseTypeID string  `json:"expenseTypeId"`
 	AmountPaise   int64   `json:"amountPaise"`
+	IsManualGST   bool    `json:"isManualGst"`
 	CGSTRateBP    int64   `json:"cgstRateBp"`
 	SGSTRateBP    int64   `json:"sgstRateBp"`
 	IGSTRateBP    int64   `json:"igstRateBp"`
@@ -107,24 +112,25 @@ type ExpenseInvoiceRequest struct {
 
 // ExpenseLine mirrors a persisted row in expenses joined with expense_types.
 type ExpenseLine struct {
-	ID               string `json:"id"`
-	ExpenseInvoiceID string `json:"expenseInvoiceId"`
-	ShipmentID       string `json:"shipmentId"`
+	ID                string `json:"id"`
+	ExpenseInvoiceID  string `json:"expenseInvoiceId"`
+	ShipmentID        string `json:"shipmentId"`
 	ServiceProviderID string `json:"serviceProviderId"`
-	ExpenseTypeID    string `json:"expenseTypeId"`
-	ExpenseTypeName  string `json:"expenseTypeName"`
-	AmountPaise      int64  `json:"amountPaise"`
-	CGSTRateBP       int64  `json:"cgstRateBp"`
-	SGSTRateBP       int64  `json:"sgstRateBp"`
-	IGSTRateBP       int64  `json:"igstRateBp"`
-	TDSRateBP        int64  `json:"tdsRateBp"`
-	CGSTPaise        int64  `json:"cgstPaise"`
-	SGSTPaise        int64  `json:"sgstPaise"`
-	IGSTPaise        int64  `json:"igstPaise"`
-	TDSPaise         int64  `json:"tdsPaise"`
-	TotalPaise       int64  `json:"totalPaise"`
-	NetPaise         int64  `json:"netPaise"`
-	Remarks          string `json:"remarks"`
+	ExpenseTypeID     string `json:"expenseTypeId"`
+	ExpenseTypeName   string `json:"expenseTypeName"`
+	AmountPaise       int64  `json:"amountPaise"`
+	IsManualGST       bool   `json:"isManualGst"`
+	CGSTRateBP        int64  `json:"cgstRateBp"`
+	SGSTRateBP        int64  `json:"sgstRateBp"`
+	IGSTRateBP        int64  `json:"igstRateBp"`
+	TDSRateBP         int64  `json:"tdsRateBp"`
+	CGSTPaise         int64  `json:"cgstPaise"`
+	SGSTPaise         int64  `json:"sgstPaise"`
+	IGSTPaise         int64  `json:"igstPaise"`
+	TDSPaise          int64  `json:"tdsPaise"`
+	TotalPaise        int64  `json:"totalPaise"`
+	NetPaise          int64  `json:"netPaise"`
+	Remarks           string `json:"remarks"`
 }
 
 // ExpenseInvoice mirrors a persisted row in expense_invoices plus lines.

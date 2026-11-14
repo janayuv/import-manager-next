@@ -521,11 +521,12 @@ func (s *Service) loadInvoiceLines(invoiceID string) ([]models.ExpenseLine, erro
 		       COALESCE(e.tds_amount_paise, 0),
 		       COALESCE(NULLIF(e.total_amount_paise,0), CAST(ROUND(COALESCE(e.total_amount, e.amount, 0)*100) AS INTEGER), 0),
 		       COALESCE(NULLIF(e.net_amount_paise,0), CAST(ROUND(COALESCE(e.total_amount, e.amount, 0)*100) AS INTEGER), 0),
+		       COALESCE(e.is_manual_gst, 0),
 		       COALESCE(e.remarks,'')
 		FROM expenses e
 		LEFT JOIN expense_types et ON et.id = e.expense_type_id
 		WHERE e.expense_invoice_id = ? AND e.deleted_at IS NULL
-		ORDER BY e.created_at ASC, e.id ASC`, invoiceID)
+		ORDER BY e.created_at ASC, e.rowid ASC`, invoiceID)
 	if err != nil {
 		return nil, err
 	}
@@ -534,15 +535,17 @@ func (s *Service) loadInvoiceLines(invoiceID string) ([]models.ExpenseLine, erro
 	out := make([]models.ExpenseLine, 0)
 	for rows.Next() {
 		var l models.ExpenseLine
+		var isManualInt int
 		if err := rows.Scan(
 			&l.ID, &l.ExpenseInvoiceID, &l.ShipmentID, &l.ServiceProviderID,
 			&l.ExpenseTypeID, &l.ExpenseTypeName,
 			&l.AmountPaise, &l.CGSTRateBP, &l.SGSTRateBP, &l.IGSTRateBP, &l.TDSRateBP,
 			&l.CGSTPaise, &l.SGSTPaise, &l.IGSTPaise, &l.TDSPaise, &l.TotalPaise, &l.NetPaise,
-			&l.Remarks,
+			&isManualInt, &l.Remarks,
 		); err != nil {
 			return nil, err
 		}
+		l.IsManualGST = (isManualInt != 0)
 		out = append(out, l)
 	}
 	return out, rows.Err()
@@ -818,17 +821,29 @@ func (s *Service) ensureMutableRefs(tx *sql.Tx, shipmentID, spID string, lines [
 func insertExpenseLinesTx(tx *sql.Tx, invID, shipmentID, spID, invNo, invDate, user, now string, lines []models.ExpenseLineCalculation) error {
 	for _, l := range lines {
 		lineID := "EXP-" + strings.ToUpper(uuid.NewString()[:8])
+		cgstRate := float64(l.CGSTRateBP) / 100.0
+		sgstRate := float64(l.SGSTRateBP) / 100.0
+		igstRate := float64(l.IGSTRateBP) / 100.0
+		if l.IsManualGST && l.AmountPaise > 0 {
+			cgstRate = (float64(l.CGSTPaise) / float64(l.AmountPaise)) * 100.0
+			sgstRate = (float64(l.SGSTPaise) / float64(l.AmountPaise)) * 100.0
+			igstRate = (float64(l.IGSTPaise) / float64(l.AmountPaise)) * 100.0
+		}
+		isManualInt := 0
+		if l.IsManualGST {
+			isManualInt = 1
+		}
 		if _, err := tx.Exec(`
 			INSERT INTO expenses (
 				id, expense_invoice_id, shipment_id, service_provider_id, invoice_no, invoice_date, expense_type_id,
 				amount, cgst_rate, sgst_rate, igst_rate, tds_rate,
 				amount_paise, cgst_amount_paise, sgst_amount_paise, igst_amount_paise, tds_amount_paise, total_amount_paise, net_amount_paise,
-				remarks, created_by, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				is_manual_gst, remarks, created_by, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			lineID, invID, shipmentID, spID, invNo, invDate, l.ExpenseTypeID,
-			l.AmountINR, float64(l.CGSTRateBP)/100.0, float64(l.SGSTRateBP)/100.0, float64(l.IGSTRateBP)/100.0, float64(l.TDSRateBP)/100.0,
+			l.AmountINR, cgstRate, sgstRate, igstRate, float64(l.TDSRateBP)/100.0,
 			l.AmountPaise, l.CGSTPaise, l.SGSTPaise, l.IGSTPaise, l.TDSPaise, l.TotalPaise, l.NetPaise,
-			l.Remarks, user, now, now,
+			isManualInt, l.Remarks, user, now, now,
 		); err != nil {
 			return err
 		}

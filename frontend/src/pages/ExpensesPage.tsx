@@ -68,19 +68,27 @@ import { shipmentService, type Shipment } from '@/services/shipment-invoice-serv
 interface DraftLine {
   expenseTypeId: string;
   amountInr: string;
+  isManualGst: boolean;
   cgstPct: string;
   sgstPct: string;
   igstPct: string;
+  manualCgstInr: string;
+  manualSgstInr: string;
+  manualIgstInr: string;
   tdsPct: string;
   remarks: string;
 }
 
-const emptyLine = (et?: ExpenseType): DraftLine => ({
+const emptyLine = (et?: ExpenseType, isManualGst = false): DraftLine => ({
   expenseTypeId: et?.id ?? '',
   amountInr: '0.00',
+  isManualGst,
   cgstPct: et ? (et.defaultCgstRateBp / 100).toFixed(2) : '0',
   sgstPct: et ? (et.defaultSgstRateBp / 100).toFixed(2) : '0',
   igstPct: et ? (et.defaultIgstRateBp / 100).toFixed(2) : '0',
+  manualCgstInr: '0.00',
+  manualSgstInr: '0.00',
+  manualIgstInr: '0.00',
   tdsPct: et ? (et.defaultTdsRateBp / 100).toFixed(2) : '0',
   remarks: '',
 });
@@ -89,6 +97,10 @@ function toLineInputs(lines: DraftLine[]): ExpenseLineInput[] {
   return lines.map((l) => ({
     expenseTypeId: l.expenseTypeId,
     amountPaise: Math.round((Number.parseFloat(l.amountInr) || 0) * 100),
+    isManualGst: l.isManualGst,
+    cgstPaise: l.isManualGst ? Math.round((Number.parseFloat(l.manualCgstInr) || 0) * 100) : 0,
+    sgstPaise: l.isManualGst ? Math.round((Number.parseFloat(l.manualSgstInr) || 0) * 100) : 0,
+    igstPaise: l.isManualGst ? Math.round((Number.parseFloat(l.manualIgstInr) || 0) * 100) : 0,
     cgstRateBp: Math.round((Number.parseFloat(l.cgstPct) || 0) * 100),
     sgstRateBp: Math.round((Number.parseFloat(l.sgstPct) || 0) * 100),
     igstRateBp: Math.round((Number.parseFloat(l.igstPct) || 0) * 100),
@@ -256,6 +268,7 @@ export function ExpensesPage() {
       expenseTypeId: string;
       expenseTypeName: string;
       amountPaise: number;
+      isManualGst: boolean;
       cgstRateBp: number;
       sgstRateBp: number;
       igstRateBp: number;
@@ -285,6 +298,7 @@ export function ExpensesPage() {
             expenseTypeId: line.expenseTypeId,
             expenseTypeName: line.expenseTypeName || 'Expense Item',
             amountPaise: line.amountPaise,
+            isManualGst: Boolean(line.isManualGst),
             cgstRateBp: line.cgstRateBp,
             sgstRateBp: line.sgstRateBp,
             igstRateBp: line.igstRateBp,
@@ -419,12 +433,16 @@ export function ExpensesPage() {
     setInvoiceDate(inv.invoiceDate);
     setRemarks(inv.remarks);
     setIdempotencyKey(inv.idempotencyKey);
-    const lines = (inv.lines || []).map((l) => ({
+    const lines: DraftLine[] = (inv.lines || []).map((l) => ({
       expenseTypeId: l.expenseTypeId,
       amountInr: (l.amountPaise / 100).toFixed(2),
+      isManualGst: Boolean(l.isManualGst),
       cgstPct: (l.cgstRateBp / 100).toFixed(2),
       sgstPct: (l.sgstRateBp / 100).toFixed(2),
       igstPct: (l.igstRateBp / 100).toFixed(2),
+      manualCgstInr: (l.cgstPaise / 100).toFixed(2),
+      manualSgstInr: (l.sgstPaise / 100).toFixed(2),
+      manualIgstInr: (l.igstPaise / 100).toFixed(2),
       tdsPct: (l.tdsRateBp / 100).toFixed(2),
       remarks: l.remarks,
     }));
@@ -442,12 +460,16 @@ export function ExpensesPage() {
   const handleCombineDuplicates = async () => {
     try {
       const merged = await expenseService.mergeDuplicateLines(toLineInputs(draftLines));
-      const next = merged.map((m) => ({
+      const next: DraftLine[] = merged.map((m) => ({
         expenseTypeId: m.expenseTypeId,
         amountInr: (m.amountPaise / 100).toFixed(2),
+        isManualGst: Boolean(m.isManualGst),
         cgstPct: (m.cgstRateBp / 100).toFixed(2),
         sgstPct: (m.sgstRateBp / 100).toFixed(2),
         igstPct: (m.igstRateBp / 100).toFixed(2),
+        manualCgstInr: (m.cgstPaise / 100).toFixed(2),
+        manualSgstInr: (m.sgstPaise / 100).toFixed(2),
+        manualIgstInr: (m.igstPaise / 100).toFixed(2),
         tdsPct: (m.tdsRateBp / 100).toFixed(2),
         remarks: m.remarks,
       }));
@@ -830,9 +852,13 @@ export function ExpensesPage() {
                                                 {formatPaiseINR(line.amountPaise)}
                                               </TableCell>
                                               <TableCell className="text-right font-mono text-muted-foreground py-2">
-                                                {line.cgstRateBp > 0 ? (
+                                                {line.cgstPaise > 0 ? (
                                                   <span>
-                                                    {(line.cgstRateBp / 100).toFixed(1)}% ·{' '}
+                                                    {line.isManualGst ? (
+                                                      <span className="text-[10px] text-amber-600 font-medium mr-1">Manual ·</span>
+                                                    ) : line.cgstRateBp > 0 ? (
+                                                      `${(line.cgstRateBp / 100).toFixed(1)}% · `
+                                                    ) : null}
                                                     <span className="text-foreground">{formatPaiseINR(line.cgstPaise)}</span>
                                                   </span>
                                                 ) : (
@@ -840,9 +866,13 @@ export function ExpensesPage() {
                                                 )}
                                               </TableCell>
                                               <TableCell className="text-right font-mono text-muted-foreground py-2">
-                                                {line.sgstRateBp > 0 ? (
+                                                {line.sgstPaise > 0 ? (
                                                   <span>
-                                                    {(line.sgstRateBp / 100).toFixed(1)}% ·{' '}
+                                                    {line.isManualGst ? (
+                                                      <span className="text-[10px] text-amber-600 font-medium mr-1">Manual ·</span>
+                                                    ) : line.sgstRateBp > 0 ? (
+                                                      `${(line.sgstRateBp / 100).toFixed(1)}% · `
+                                                    ) : null}
                                                     <span className="text-foreground">{formatPaiseINR(line.sgstPaise)}</span>
                                                   </span>
                                                 ) : (
@@ -850,9 +880,13 @@ export function ExpensesPage() {
                                                 )}
                                               </TableCell>
                                               <TableCell className="text-right font-mono text-muted-foreground py-2">
-                                                {line.igstRateBp > 0 ? (
+                                                {line.igstPaise > 0 ? (
                                                   <span>
-                                                    {(line.igstRateBp / 100).toFixed(1)}% ·{' '}
+                                                    {line.isManualGst ? (
+                                                      <span className="text-[10px] text-amber-600 font-medium mr-1">Manual ·</span>
+                                                    ) : line.igstRateBp > 0 ? (
+                                                      `${(line.igstRateBp / 100).toFixed(1)}% · `
+                                                    ) : null}
                                                     <span className="text-foreground">{formatPaiseINR(line.igstPaise)}</span>
                                                   </span>
                                                 ) : (
@@ -1035,7 +1069,14 @@ export function ExpensesPage() {
                             {formatPaiseINR(line.amountPaise)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-muted-foreground">
-                            {formatPaiseINR(gstPaise)}
+                            <div className="flex items-center justify-end gap-1">
+                              {line.isManualGst && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-300 text-amber-700 bg-amber-50 dark:bg-amber-950 dark:text-amber-200">
+                                  Manual
+                                </Badge>
+                              )}
+                              <span>{formatPaiseINR(gstPaise)}</span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-amber-500">
                             {line.tdsPaise > 0 ? `-${formatPaiseINR(line.tdsPaise)}` : '—'}
@@ -1374,8 +1415,65 @@ export function ExpensesPage() {
           )}
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Expense Lines</Label>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+              <div className="flex items-center gap-2.5">
+                <Label className="text-sm font-semibold">Expense Lines</Label>
+                <div className="inline-flex items-center rounded-md border bg-muted/40 p-0.5 text-xs">
+                  <button
+                    type="button"
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                      !draftLines.some((l) => l.isManualGst)
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => {
+                      const next = draftLines.map((l) => ({ ...l, isManualGst: false }));
+                      setDraftLines(next);
+                      void refreshPreview(next);
+                    }}
+                  >
+                    Automatic (% Rate)
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                      draftLines.every((l) => l.isManualGst)
+                        ? 'bg-amber-500 text-white shadow-sm dark:bg-amber-600'
+                        : draftLines.some((l) => l.isManualGst)
+                        ? 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => {
+                      const next = draftLines.map((l) => {
+                        const amt = Number.parseFloat(l.amountInr) || 0;
+                        const cPct = Number.parseFloat(l.cgstPct) || 0;
+                        const sPct = Number.parseFloat(l.sgstPct) || 0;
+                        const iPct = Number.parseFloat(l.igstPct) || 0;
+                        return {
+                          ...l,
+                          isManualGst: true,
+                          manualCgstInr:
+                            l.manualCgstInr && l.manualCgstInr !== '0.00'
+                              ? l.manualCgstInr
+                              : ((amt * cPct) / 100).toFixed(2),
+                          manualSgstInr:
+                            l.manualSgstInr && l.manualSgstInr !== '0.00'
+                              ? l.manualSgstInr
+                              : ((amt * sPct) / 100).toFixed(2),
+                          manualIgstInr:
+                            l.manualIgstInr && l.manualIgstInr !== '0.00'
+                              ? l.manualIgstInr
+                              : ((amt * iPct) / 100).toFixed(2),
+                        };
+                      });
+                      setDraftLines(next);
+                      void refreshPreview(next);
+                    }}
+                  >
+                    Manual GST Amount (₹)
+                  </button>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
@@ -1395,7 +1493,12 @@ export function ExpensesPage() {
                   variant="outline"
                   type="button"
                   className="h-8 gap-1 text-xs"
-                  onClick={() => setDraftLines((prev) => [...prev, emptyLine(types[0])])}
+                  onClick={() =>
+                    setDraftLines((prev) => [
+                      ...prev,
+                      emptyLine(types[0], prev.some((l) => l.isManualGst)),
+                    ])
+                  }
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add Line
@@ -1403,11 +1506,62 @@ export function ExpensesPage() {
               </div>
             </div>
 
+            {draftLines.some((l) => l.isManualGst) && (
+              <div className="rounded-md border border-amber-300 bg-amber-50/50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                <span className="font-semibold">Manual GST Mode active:</span> Enter exact GST rupee amounts (CGST/SGST or IGST) for lines where some values are exempt or not eligible for full GST.
+              </div>
+            )}
+
             {draftLines.map((line, idx) => (
-              <div key={idx} className="grid grid-cols-12 items-end gap-2 rounded-md border p-2">
+              <div
+                key={idx}
+                className={`grid grid-cols-12 items-end gap-2 rounded-md border p-2 transition-colors ${
+                  line.isManualGst
+                    ? 'border-amber-300 bg-amber-50/20 dark:border-amber-800/60 dark:bg-amber-950/10'
+                    : ''
+                }`}
+              >
                 <div className="col-span-3 space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">Expense Type</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs">Expense Type</Label>
+                      <button
+                        type="button"
+                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer font-medium ${
+                          line.isManualGst
+                            ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-200'
+                            : 'bg-muted text-muted-foreground border-transparent hover:bg-muted/80'
+                        }`}
+                        title={
+                          line.isManualGst
+                            ? 'Manual GST amount mode active. Click to switch to Auto %'
+                            : 'Auto percentage mode active. Click to enter manual GST amount'
+                        }
+                        onClick={() => {
+                          const nextManual = !line.isManualGst;
+                          let mCgst = line.manualCgstInr;
+                          let mSgst = line.manualSgstInr;
+                          let mIgst = line.manualIgstInr;
+                          if (nextManual && (!mCgst || mCgst === '0' || mCgst === '0.00')) {
+                            const amt = Number.parseFloat(line.amountInr) || 0;
+                            const cPct = Number.parseFloat(line.cgstPct) || 0;
+                            const sPct = Number.parseFloat(line.sgstPct) || 0;
+                            const iPct = Number.parseFloat(line.igstPct) || 0;
+                            mCgst = ((amt * cPct) / 100).toFixed(2);
+                            mSgst = ((amt * sPct) / 100).toFixed(2);
+                            mIgst = ((amt * iPct) / 100).toFixed(2);
+                          }
+                          updateLine(idx, {
+                            isManualGst: nextManual,
+                            manualCgstInr: mCgst,
+                            manualSgstInr: mSgst,
+                            manualIgstInr: mIgst,
+                          });
+                        }}
+                      >
+                        {line.isManualGst ? 'Manual ₹' : 'Auto %'}
+                      </button>
+                    </div>
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
@@ -1424,11 +1578,18 @@ export function ExpensesPage() {
                     value={line.expenseTypeId}
                     onValueChange={(v) => {
                       const et = types.find((t) => t.id === v);
+                      const cPct = et ? (et.defaultCgstRateBp / 100).toFixed(2) : line.cgstPct;
+                      const sPct = et ? (et.defaultSgstRateBp / 100).toFixed(2) : line.sgstPct;
+                      const iPct = et ? (et.defaultIgstRateBp / 100).toFixed(2) : line.igstPct;
+                      const amt = Number.parseFloat(line.amountInr) || 0;
                       updateLine(idx, {
                         expenseTypeId: v,
-                        cgstPct: et ? (et.defaultCgstRateBp / 100).toFixed(2) : line.cgstPct,
-                        sgstPct: et ? (et.defaultSgstRateBp / 100).toFixed(2) : line.sgstPct,
-                        igstPct: et ? (et.defaultIgstRateBp / 100).toFixed(2) : line.igstPct,
+                        cgstPct: cPct,
+                        sgstPct: sPct,
+                        igstPct: iPct,
+                        manualCgstInr: line.isManualGst ? ((amt * Number.parseFloat(cPct)) / 100).toFixed(2) : line.manualCgstInr,
+                        manualSgstInr: line.isManualGst ? ((amt * Number.parseFloat(sPct)) / 100).toFixed(2) : line.manualSgstInr,
+                        manualIgstInr: line.isManualGst ? ((amt * Number.parseFloat(iPct)) / 100).toFixed(2) : line.manualIgstInr,
                         tdsPct: et ? (et.defaultTdsRateBp / 100).toFixed(2) : line.tdsPct,
                       });
                     }}
@@ -1448,47 +1609,101 @@ export function ExpensesPage() {
                 <div className="col-span-2 space-y-1">
                   <Label className="text-xs">Basic (INR)</Label>
                   <Input
-                    className="h-8 text-xs"
+                    className="h-8 text-xs font-mono"
                     type="number"
                     step="0.01"
+                    aria-label="Basic (INR)"
                     value={line.amountInr}
                     onChange={(e) => updateLine(idx, { amountInr: e.target.value })}
                   />
                 </div>
-                <div className="col-span-1 space-y-1">
-                  <Label className="text-xs">CGST%</Label>
-                  <Input
-                    className="h-8 text-xs"
-                    type="number"
-                    step="0.01"
-                    value={line.cgstPct}
-                    onChange={(e) => updateLine(idx, { cgstPct: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-1 space-y-1">
-                  <Label className="text-xs">SGST%</Label>
-                  <Input
-                    className="h-8 text-xs"
-                    type="number"
-                    step="0.01"
-                    value={line.sgstPct}
-                    onChange={(e) => updateLine(idx, { sgstPct: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-1 space-y-1">
-                  <Label className="text-xs">IGST%</Label>
-                  <Input
-                    className="h-8 text-xs"
-                    type="number"
-                    step="0.01"
-                    value={line.igstPct}
-                    onChange={(e) => updateLine(idx, { igstPct: e.target.value })}
-                  />
-                </div>
+                {!line.isManualGst ? (
+                  <>
+                    <div className="col-span-1 space-y-1">
+                      <Label className="text-xs">CGST%</Label>
+                      <Input
+                        className="h-8 text-xs font-mono"
+                        type="number"
+                        step="0.01"
+                        value={line.cgstPct}
+                        onChange={(e) => updateLine(idx, { cgstPct: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-span-1 space-y-1">
+                      <Label className="text-xs">SGST%</Label>
+                      <Input
+                        className="h-8 text-xs font-mono"
+                        type="number"
+                        step="0.01"
+                        value={line.sgstPct}
+                        onChange={(e) => updateLine(idx, { sgstPct: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-span-1 space-y-1">
+                      <Label className="text-xs">IGST%</Label>
+                      <Input
+                        className="h-8 text-xs font-mono"
+                        type="number"
+                        step="0.01"
+                        value={line.igstPct}
+                        onChange={(e) => updateLine(idx, { igstPct: e.target.value })}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="col-span-1 space-y-1">
+                      <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">CGST (₹)</Label>
+                      <Input
+                        className="h-8 text-xs font-mono border-amber-300 dark:border-amber-800"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        aria-label="CGST Amount (INR)"
+                        value={line.manualCgstInr}
+                        onChange={(e) => updateLine(idx, { manualCgstInr: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-span-1 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">SGST (₹)</Label>
+                        <button
+                          type="button"
+                          className="text-[9px] text-primary hover:underline cursor-pointer"
+                          title="Copy CGST to SGST"
+                          onClick={() => updateLine(idx, { manualSgstInr: line.manualCgstInr })}
+                        >
+                          =CGST
+                        </button>
+                      </div>
+                      <Input
+                        className="h-8 text-xs font-mono border-amber-300 dark:border-amber-800"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        aria-label="SGST Amount (INR)"
+                        value={line.manualSgstInr}
+                        onChange={(e) => updateLine(idx, { manualSgstInr: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-span-1 space-y-1">
+                      <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">IGST (₹)</Label>
+                      <Input
+                        className="h-8 text-xs font-mono border-amber-300 dark:border-amber-800"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        aria-label="IGST Amount (INR)"
+                        value={line.manualIgstInr}
+                        onChange={(e) => updateLine(idx, { manualIgstInr: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
                 <div className="col-span-1 space-y-1">
                   <Label className="text-xs">TDS%</Label>
                   <Input
-                    className="h-8 text-xs"
+                    className="h-8 text-xs font-mono"
                     type="number"
                     step="0.01"
                     value={line.tdsPct}

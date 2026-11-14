@@ -2514,6 +2514,7 @@ export class ExpenseLine {
     "expenseTypeId": string;
     "expenseTypeName": string;
     "amountPaise": number;
+    "isManualGst": boolean;
     "cgstRateBp": number;
     "sgstRateBp": number;
     "igstRateBp": number;
@@ -2548,6 +2549,9 @@ export class ExpenseLine {
         }
         if (!("amountPaise" in $$source)) {
             this["amountPaise"] = 0;
+        }
+        if (!("isManualGst" in $$source)) {
+            this["isManualGst"] = false;
         }
         if (!("cgstRateBp" in $$source)) {
             this["cgstRateBp"] = 0;
@@ -2601,6 +2605,7 @@ export class ExpenseLine {
 export class ExpenseLineCalculation {
     "expenseTypeId": string;
     "amountPaise": number;
+    "isManualGst": boolean;
     "cgstRateBp": number;
     "sgstRateBp": number;
     "igstRateBp": number;
@@ -2623,6 +2628,9 @@ export class ExpenseLineCalculation {
         }
         if (!("amountPaise" in $$source)) {
             this["amountPaise"] = 0;
+        }
+        if (!("isManualGst" in $$source)) {
+            this["isManualGst"] = false;
         }
         if (!("cgstRateBp" in $$source)) {
             this["cgstRateBp"] = 0;
@@ -2685,6 +2693,10 @@ export class ExpenseLineCalculation {
 export class ExpenseLineInput {
     "expenseTypeId": string;
     "amountPaise": number;
+    "isManualGst": boolean;
+    "cgstPaise": number;
+    "sgstPaise": number;
+    "igstPaise": number;
     "cgstRateBp": number;
     "sgstRateBp": number;
     "igstRateBp": number;
@@ -2698,6 +2710,18 @@ export class ExpenseLineInput {
         }
         if (!("amountPaise" in $$source)) {
             this["amountPaise"] = 0;
+        }
+        if (!("isManualGst" in $$source)) {
+            this["isManualGst"] = false;
+        }
+        if (!("cgstPaise" in $$source)) {
+            this["cgstPaise"] = 0;
+        }
+        if (!("sgstPaise" in $$source)) {
+            this["sgstPaise"] = 0;
+        }
+        if (!("igstPaise" in $$source)) {
+            this["igstPaise"] = 0;
         }
         if (!("cgstRateBp" in $$source)) {
             this["cgstRateBp"] = 0;

@@ -327,7 +327,7 @@ func (r *ShipmentRepository) GetDetail(id string) (models.ShipmentDetail, error)
 
 	expRows, err := r.db.Query(`
 		SELECT e.id, COALESCE(et.name, e.expense_type_id), e.amount,
-		       ROUND(e.amount * (1.0 + (COALESCE(e.cgst_rate,0) + COALESCE(e.sgst_rate,0) + COALESCE(e.igst_rate,0)) / 100.0), 2),
+		       COALESCE(NULLIF(e.total_amount_paise, 0)/100.0, ROUND(e.amount * (1.0 + (COALESCE(e.cgst_rate,0) + COALESCE(e.sgst_rate,0) + COALESCE(e.igst_rate,0)) / 100.0), 2)),
 		       COALESCE(e.remarks,'')
 		FROM expenses e
 		LEFT JOIN expense_types et ON et.id = e.expense_type_id

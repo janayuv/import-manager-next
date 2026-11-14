@@ -59,6 +59,41 @@ func TestPaiseCalculatorPrecisionAndMerge(t *testing.T) {
 	if len(merged) != 1 || merged[0].AmountPaise != 120000 {
 		t.Fatalf("expected merged line 120000 paise, got %+v", merged)
 	}
+
+	// Manual GST calculation for values with partial GST eligibility
+	manualLine, err := expenses.CalcLinePaise(models.ExpenseLineInput{
+		ExpenseTypeID: "ET-CHA",
+		AmountPaise:   5000000, // ₹50,000 total bill
+		IsManualGST:   true,
+		CGSTPaise:     90000, // ₹900 (e.g. 9% only on eligible ₹10,000 portion)
+		SGSTPaise:     90000, // ₹900
+		IGSTPaise:     0,
+		TDSRateBP:     200, // 2% TDS on ₹50,000 = ₹1,000 (100000 paise)
+	})
+	if err != nil {
+		t.Fatalf("CalcLinePaise with manual GST failed: %v", err)
+	}
+	if manualLine.CGSTPaise != 90000 || manualLine.SGSTPaise != 90000 || manualLine.IGSTPaise != 0 {
+		t.Fatalf("unexpected manual GST paise: %+v", manualLine)
+	}
+	if manualLine.TotalPaise != 5000000+180000 {
+		t.Fatalf("expected total 5180000, got %d", manualLine.TotalPaise)
+	}
+	if manualLine.NetPaise != 5180000-100000 {
+		t.Fatalf("expected net 5080000, got %d", manualLine.NetPaise)
+	}
+
+	// Merging manual GST lines sums manual paise
+	mergedManual, err := expenses.MergeDuplicateLines([]models.ExpenseLineInput{
+		{ExpenseTypeID: "ET-CHA", AmountPaise: 3000000, IsManualGST: true, CGSTPaise: 45000, SGSTPaise: 45000, TDSRateBP: 200, Remarks: "Duty Reimbursement"},
+		{ExpenseTypeID: "ET-CHA", AmountPaise: 2000000, IsManualGST: true, CGSTPaise: 45000, SGSTPaise: 45000, TDSRateBP: 200, Remarks: "Agency Fee"},
+	})
+	if err != nil {
+		t.Fatalf("MergeDuplicateLines manual failed: %v", err)
+	}
+	if len(mergedManual) != 1 || mergedManual[0].AmountPaise != 5000000 || mergedManual[0].CGSTPaise != 90000 || mergedManual[0].SGSTPaise != 90000 {
+		t.Fatalf("expected combined manual amounts, got %+v", mergedManual[0])
+	}
 }
 
 func TestExpensesIdempotencyOptimisticLockReportsAndLandedCost(t *testing.T) {
@@ -306,5 +341,128 @@ func TestExpensesIdempotencyOptimisticLockReportsAndLandedCost(t *testing.T) {
 		Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etFreight.ID, AmountPaise: 10000}},
 	}); err == nil {
 		t.Fatalf("expected frozen shipment to reject expense creation")
+	}
+}
+
+func TestManualGSTCalculationAndPersistence(t *testing.T) {
+	rt := setupExpenseEnv(t)
+
+	sup, err := rt.Suppliers.Create(models.SupplierInput{
+		SupplierName: "Manual GST Supplier",
+		ShortName:    "MGS",
+		Country:      "India",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("create supplier: %v", err)
+	}
+
+	sh, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "INV-MGST-1",
+		InvoiceDate:     "2026-04-15",
+		GoodsCategory:   "Machinery",
+		InvoiceValue:    100,
+		InvoiceCurrency: "INR",
+		Incoterm:        "FOB",
+		ShipmentMode:    "Air",
+		ShipmentType:    "Dutiable",
+	})
+	if err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+
+	sp, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "Express Clearing Ltd",
+		GSTIN: "33AABCE1234F1Z5",
+		State: "Tamil Nadu",
+	})
+	if err != nil {
+		t.Fatalf("CreateServiceProvider: %v", err)
+	}
+
+	etClear, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Clearing Charges",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		DefaultTDSRateBP:  200,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateExpenseType: %v", err)
+	}
+
+	etTrans, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Transportation",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		DefaultTDSRateBP:  200,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateExpenseType 2: %v", err)
+	}
+
+	// Create multi-line invoice where Line 1 has Manual GST (partial eligibility) and Line 2 has Automatic GST
+	req := models.ExpenseInvoiceRequest{
+		ShipmentID:        sh.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "EXP-MANUAL-001",
+		InvoiceDate:       "2026-04-20",
+		Currency:          "INR",
+		IdempotencyKey:    "idem-manual-001",
+		Lines: []models.ExpenseLineInput{
+			{
+				ExpenseTypeID: etClear.ID,
+				AmountPaise:   5000000, // ₹50,000 total bill (only ₹10,000 eligible for GST)
+				IsManualGST:   true,
+				CGSTPaise:     90000, // ₹900 manual CGST (9% on 10,000)
+				SGSTPaise:     90000, // ₹900 manual SGST (9% on 10,000)
+				IGSTPaise:     0,
+				TDSRateBP:     200, // 2% TDS on ₹50,000 = ₹1,000
+				Remarks:       "Partial GST eligible agency fee",
+			},
+			{
+				ExpenseTypeID: etTrans.ID,
+				AmountPaise:   1000000, // ₹10,000 basic (automatic 9% + 9% = 900 + 900)
+				IsManualGST:   false,
+				CGSTRateBP:    900,
+				SGSTRateBP:    900,
+				TDSRateBP:     200,
+				Remarks:       "Full GST eligible transportation",
+			},
+		},
+	}
+
+	inv, err := rt.Expenses.CreateExpenseInvoice(req)
+	if err != nil {
+		t.Fatalf("CreateExpenseInvoice failed: %v", err)
+	}
+
+	// Verify line 1: Base 50000, CGST 900, SGST 900, Total 51800, Net 50800
+	// Line 2: Base 10000, CGST 900, SGST 900, Total 11800, Net 11600
+	// Invoice totals: Base 60000, Total CGST 1800, Total SGST 1800, Total 63600, Net 62400
+	if inv.BaseAmountPaise != 6000000 {
+		t.Fatalf("expected base 6000000, got %d", inv.BaseAmountPaise)
+	}
+	if inv.TotalCGSTPaise != 180000 || inv.TotalSGSTPaise != 180000 {
+		t.Fatalf("expected CGST 180000 & SGST 180000, got CGST=%d SGST=%d", inv.TotalCGSTPaise, inv.TotalSGSTPaise)
+	}
+	if inv.TotalAmountPaise != 6360000 || inv.NetAmountPaise != 6240000 {
+		t.Fatalf("expected total 6360000 & net 6240000, got total=%d net=%d", inv.TotalAmountPaise, inv.NetAmountPaise)
+	}
+
+	fetched, err := rt.Expenses.GetExpenseInvoice(inv.ID)
+	if err != nil {
+		t.Fatalf("GetExpenseInvoice failed: %v", err)
+	}
+	if len(fetched.Lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d", len(fetched.Lines))
+	}
+	if !fetched.Lines[0].IsManualGST || fetched.Lines[0].CGSTPaise != 90000 {
+		t.Fatalf("expected Line 0 to have IsManualGST=true and CGSTPaise=90000, got %+v", fetched.Lines[0])
+	}
+	if fetched.Lines[1].IsManualGST || fetched.Lines[1].CGSTPaise != 90000 {
+		t.Fatalf("expected Line 1 to have IsManualGST=false and CGSTPaise=90000, got %+v", fetched.Lines[1])
 	}
 }

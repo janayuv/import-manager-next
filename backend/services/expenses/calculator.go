@@ -3,6 +3,7 @@ package expenses
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/janayuv/import-manager-next/backend/models"
@@ -10,8 +11,9 @@ import (
 
 const BasisPointsScale = 10000
 
-// CalcLinePaise implements exact integer paise & basis point arithmetic:
-// 10000 bp = 100%; tax_paise = (amount_paise * rate_bp) / 10000;
+// CalcLinePaise implements exact integer paise arithmetic:
+// In Automatic mode: tax_paise = (amount_paise * rate_bp) / 10000.
+// In Manual mode: tax_paise is taken directly from manual CGST/SGST/IGST paise (supporting values not eligible for full GST).
 // total_paise = amount_paise + cgst + sgst + igst; net_paise = total_paise - tds.
 func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, error) {
 	if strings.TrimSpace(in.ExpenseTypeID) == "" {
@@ -20,16 +22,45 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 	if in.AmountPaise <= 0 {
 		return models.ExpenseLineCalculation{}, errors.New("expense amount must be positive")
 	}
-	if in.CGSTRateBP < 0 || in.SGSTRateBP < 0 || in.IGSTRateBP < 0 || in.TDSRateBP < 0 {
-		return models.ExpenseLineCalculation{}, errors.New("tax and TDS rates cannot be negative")
-	}
-	if in.CGSTRateBP > 10000 || in.SGSTRateBP > 10000 || in.IGSTRateBP > 10000 || in.TDSRateBP > 10000 {
-		return models.ExpenseLineCalculation{}, errors.New("tax and TDS rates cannot exceed 100% (10000 bp)")
+	if in.TDSRateBP < 0 || in.TDSRateBP > 10000 {
+		return models.ExpenseLineCalculation{}, errors.New("TDS rate must be between 0% and 100% (0-10000 bp)")
 	}
 
-	cgst := (in.AmountPaise * in.CGSTRateBP) / BasisPointsScale
-	sgst := (in.AmountPaise * in.SGSTRateBP) / BasisPointsScale
-	igst := (in.AmountPaise * in.IGSTRateBP) / BasisPointsScale
+	var cgst, sgst, igst int64
+	cgstRateBP := in.CGSTRateBP
+	sgstRateBP := in.SGSTRateBP
+	igstRateBP := in.IGSTRateBP
+
+	if in.IsManualGST {
+		if in.CGSTPaise < 0 || in.SGSTPaise < 0 || in.IGSTPaise < 0 {
+			return models.ExpenseLineCalculation{}, errors.New("manual GST amounts cannot be negative")
+		}
+		cgst = in.CGSTPaise
+		sgst = in.SGSTPaise
+		igst = in.IGSTPaise
+
+		// If nominal rates weren't explicitly supplied, derive effective basis points from amount
+		if cgstRateBP == 0 && in.AmountPaise > 0 && cgst > 0 {
+			cgstRateBP = int64(math.Round(float64(cgst*BasisPointsScale) / float64(in.AmountPaise)))
+		}
+		if sgstRateBP == 0 && in.AmountPaise > 0 && sgst > 0 {
+			sgstRateBP = int64(math.Round(float64(sgst*BasisPointsScale) / float64(in.AmountPaise)))
+		}
+		if igstRateBP == 0 && in.AmountPaise > 0 && igst > 0 {
+			igstRateBP = int64(math.Round(float64(igst*BasisPointsScale) / float64(in.AmountPaise)))
+		}
+	} else {
+		if in.CGSTRateBP < 0 || in.SGSTRateBP < 0 || in.IGSTRateBP < 0 {
+			return models.ExpenseLineCalculation{}, errors.New("tax and TDS rates cannot be negative")
+		}
+		if in.CGSTRateBP > 10000 || in.SGSTRateBP > 10000 || in.IGSTRateBP > 10000 {
+			return models.ExpenseLineCalculation{}, errors.New("tax and TDS rates cannot exceed 100% (10000 bp)")
+		}
+		cgst = (in.AmountPaise * in.CGSTRateBP) / BasisPointsScale
+		sgst = (in.AmountPaise * in.SGSTRateBP) / BasisPointsScale
+		igst = (in.AmountPaise * in.IGSTRateBP) / BasisPointsScale
+	}
+
 	tds := (in.AmountPaise * in.TDSRateBP) / BasisPointsScale
 
 	total := in.AmountPaise + cgst + sgst + igst
@@ -38,9 +69,10 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 	return models.ExpenseLineCalculation{
 		ExpenseTypeID: in.ExpenseTypeID,
 		AmountPaise:   in.AmountPaise,
-		CGSTRateBP:    in.CGSTRateBP,
-		SGSTRateBP:    in.SGSTRateBP,
-		IGSTRateBP:    in.IGSTRateBP,
+		IsManualGST:   in.IsManualGST,
+		CGSTRateBP:    cgstRateBP,
+		SGSTRateBP:    sgstRateBP,
+		IGSTRateBP:    igstRateBP,
 		TDSRateBP:     in.TDSRateBP,
 		CGSTPaise:     cgst,
 		SGSTPaise:     sgst,
@@ -87,11 +119,22 @@ func MergeDuplicateLines(lines []models.ExpenseLineInput) ([]models.ExpenseLineI
 			order = append(order, key)
 			continue
 		}
-		if cur.CGSTRateBP != raw.CGSTRateBP ||
-			cur.SGSTRateBP != raw.SGSTRateBP ||
-			cur.IGSTRateBP != raw.IGSTRateBP ||
-			cur.TDSRateBP != raw.TDSRateBP {
-			return nil, fmt.Errorf("cannot merge duplicate expense type %q with differing tax/TDS rates", key)
+		if cur.IsManualGST != raw.IsManualGST {
+			return nil, fmt.Errorf("cannot merge duplicate expense type %q with mixed auto/manual GST modes", key)
+		}
+		if cur.TDSRateBP != raw.TDSRateBP {
+			return nil, fmt.Errorf("cannot merge duplicate expense type %q with differing TDS rates", key)
+		}
+		if !cur.IsManualGST {
+			if cur.CGSTRateBP != raw.CGSTRateBP ||
+				cur.SGSTRateBP != raw.SGSTRateBP ||
+				cur.IGSTRateBP != raw.IGSTRateBP {
+				return nil, fmt.Errorf("cannot merge duplicate expense type %q with differing tax/TDS rates", key)
+			}
+		} else {
+			cur.CGSTPaise += raw.CGSTPaise
+			cur.SGSTPaise += raw.SGSTPaise
+			cur.IGSTPaise += raw.IGSTPaise
 		}
 		cur.AmountPaise += raw.AmountPaise
 		rem := strings.TrimSpace(raw.Remarks)

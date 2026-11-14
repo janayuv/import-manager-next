@@ -176,10 +176,14 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
       {
         expenseTypeId: 'ET-1',
         amountPaise: 50000,
+        isManualGst: false,
         cgstRateBp: 900,
         sgstRateBp: 900,
         igstRateBp: 0,
         tdsRateBp: 200,
+        cgstPaise: 4500,
+        sgstPaise: 4500,
+        igstPaise: 0,
         remarks: 'Combined',
       },
     ]);
@@ -220,6 +224,155 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
 
     fireEvent.click(screen.getByRole('button', { name: /Combine Duplicate Lines/i }));
     await waitFor(() => expect(expenseService.mergeDuplicateLines).toHaveBeenCalled());
+  });
+
+  it('supports toggling to manual GST amount entry for partial or non-eligible values', async () => {
+    vi.mocked(expenseService.listExpenseInvoices).mockResolvedValue([
+      {
+        id: 'EINV-1',
+        shipmentId: 'SH-1',
+        shipmentInvoiceNo: 'INV-SH-1',
+        serviceProviderId: 'SP-1',
+        serviceProviderName: 'Express CHA Services',
+        invoiceNo: 'CHA-101',
+        invoiceDate: '2026-04-18',
+        currency: 'INR',
+        baseAmountPaise: 900000,
+        totalCgstPaise: 81000,
+        totalSgstPaise: 81000,
+        totalIgstPaise: 0,
+        totalTdsPaise: 18000,
+        totalAmountPaise: 1062000,
+        netAmountPaise: 1044000,
+        remarks: 'Sample invoice',
+        idempotencyKey: 'idem-1',
+        version: 1,
+        createdAt: '2026-04-18T00:00:00Z',
+        updatedAt: '2026-04-18T00:00:00Z',
+        lines: [],
+      },
+    ]);
+    vi.mocked(expenseService.listServiceProviders).mockResolvedValue([
+      {
+        id: 'SP-1',
+        name: 'Express CHA Services',
+        gstin: '33AABCE1234F1Z5',
+        state: 'Tamil Nadu',
+        contactPerson: 'Ramesh',
+        contactEmail: 'ramesh@cha.in',
+        contactPhone: '9876543210',
+        createdAt: '2026-04-01T00:00:00Z',
+      },
+    ]);
+    vi.mocked(expenseService.listExpenseTypes).mockResolvedValue([
+      {
+        id: 'ET-1',
+        name: 'Customs Clearance',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 200,
+        isActive: true,
+        createdAt: '2026-04-01T00:00:00Z',
+      },
+    ]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'SH-1',
+          invoiceNumber: 'INV-SH-1',
+          supplierId: 'SUP-1',
+          supplierName: 'Bosch GmbH',
+          status: 'In Transit',
+          isFrozen: false,
+        } as any,
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+
+    vi.mocked(expenseService.previewCalculation).mockResolvedValue({
+      lines: [
+        {
+          expenseTypeId: 'ET-1',
+          amountPaise: 5000000,
+          isManualGst: true,
+          cgstRateBp: 180,
+          sgstRateBp: 180,
+          igstRateBp: 0,
+          tdsRateBp: 200,
+          cgstPaise: 90000,
+          sgstPaise: 90000,
+          igstPaise: 0,
+          tdsPaise: 100000,
+          totalPaise: 5180000,
+          netPaise: 5080000,
+          amountInr: 50000,
+          totalInr: 51800,
+          netInr: 50800,
+          remarks: 'Partial GST',
+        },
+      ],
+      baseAmountPaise: 5000000,
+      totalCgstPaise: 90000,
+      totalSgstPaise: 90000,
+      totalIgstPaise: 0,
+      totalTdsPaise: 100000,
+      totalAmountPaise: 5180000,
+      netAmountPaise: 5080000,
+      totalAmountInr: 51800,
+      netAmountInr: 50800,
+      hasDuplicateType: false,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ExpensesPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('CHA-101')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /New Expense Invoice/i }));
+    await waitFor(() =>
+      expect(screen.getByText('New Multi-Line Expense Invoice')).toBeInTheDocument()
+    );
+
+    // Initial mode is Automatic (% Rate)
+    expect(screen.getByRole('button', { name: /Automatic \(% Rate\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Manual GST Amount \(₹\)/i })).toBeInTheDocument();
+    expect(screen.getByText('CGST%')).toBeInTheDocument();
+
+    // Set basic amount so amountPaise > 0
+    fireEvent.change(screen.getByLabelText('Basic (INR)'), { target: { value: '50000.00' } });
+
+    // Switch to Manual GST Amount mode
+    fireEvent.click(screen.getByRole('button', { name: /Manual GST Amount \(₹\)/i }));
+
+    // Verify manual mode labels and active banner
+    await waitFor(() => {
+      expect(screen.getByText(/Manual GST Mode active/i)).toBeInTheDocument();
+      expect(screen.getByText(/CGST \(₹\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/SGST \(₹\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/IGST \(₹\)/i)).toBeInTheDocument();
+    });
+
+    // Enter manual CGST
+    fireEvent.change(screen.getByLabelText('CGST Amount (INR)'), { target: { value: '900.00' } });
+
+    await waitFor(() => {
+      expect(expenseService.previewCalculation).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            isManualGst: true,
+            cgstPaise: 90000,
+          }),
+        ])
+      );
+    });
   });
 
   it('switches Expense Reports across views and renders Landed Cost rows excluding IGST', async () => {
@@ -486,6 +639,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
             expenseTypeId: 'ET-1',
             expenseTypeName: 'Customs Duty Clearance',
             amountPaise: 5000000,
+            isManualGst: false,
             cgstRateBp: 900,
             sgstRateBp: 900,
             igstRateBp: 0,
