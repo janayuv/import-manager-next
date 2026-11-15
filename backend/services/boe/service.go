@@ -120,6 +120,14 @@ func (s *Service) Create(in models.BOEDetailInput) (models.BOEDetail, error) {
 	if err := normalizeBOEInput(&in); err != nil {
 		return models.BOEDetail{}, err
 	}
+	var exists int
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM boe_details WHERE be_number = ? AND be_date = ? AND deleted_at IS NULL`, in.BENumber, in.BEDate).Scan(&exists)
+	if exists > 0 {
+		return models.BOEDetail{}, fmt.Errorf("active BOE record already exists for BE Number %s and Date %s", in.BENumber, in.BEDate)
+	}
+	// Purge any soft-deleted phantom with the same (be_number, be_date) so the new active record can be inserted cleanly.
+	_, _ = s.db.Exec(`DELETE FROM boe_details WHERE be_number = ? AND be_date = ? AND deleted_at IS NOT NULL`, in.BENumber, in.BEDate)
+
 	id := "BOE-" + strings.ToUpper(uuid.NewString()[:8])
 	_, err = s.db.Exec(`
 		INSERT INTO boe_details (
@@ -248,6 +256,9 @@ func (s *Service) ImportCSV(content string) (models.CSVImportResult, error) {
 			res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: fmt.Sprintf("duplicate BE (%s, %s)", beNo, beDate)})
 			continue
 		}
+
+		// Purge any soft-deleted phantom with the same (be_number, be_date) before inserting.
+		_, _ = s.db.Exec(`DELETE FROM boe_details WHERE be_number = ? AND be_date = ? AND deleted_at IS NOT NULL`, beNo, beDate)
 
 		location := validation.CellByAliases(row, idx, "location")
 		if location == "" {

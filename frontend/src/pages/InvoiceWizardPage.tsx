@@ -92,6 +92,7 @@ export function InvoiceWizardPage() {
 
   const [lines, setLines] = React.useState<WizardLine[]>([]);
   const [addItemId, setAddItemId] = React.useState('');
+  const [supplierOnly, setSupplierOnly] = React.useState(true);
 
   const [pasteOpen, setPasteOpen] = React.useState(false);
   const [pasteText, setPasteText] = React.useState('');
@@ -191,9 +192,7 @@ export function InvoiceWizardPage() {
           setSelectedShipmentId(eligibleShipments[0]?.id ?? '');
         }
 
-        if (catalog?.items?.[0]) {
-          setAddItemId(catalog.items[0].id);
-        }
+        // Item selection is automatically synchronized with available catalog items for the selected shipment.
       } catch (err) {
         toast.error(err instanceof Error ? err.message : String(err));
       }
@@ -215,6 +214,34 @@ export function InvoiceWizardPage() {
     () => shipments.find((s) => s.id === selectedShipmentId) ?? null,
     [shipments, selectedShipmentId],
   );
+
+  const availableCatalogItems = React.useMemo(() => {
+    if (!supplierOnly || !selectedShipment) {
+      return items;
+    }
+    const supId = selectedShipment.supplierId?.trim().toLowerCase();
+    const supName = selectedShipment.supplierName?.trim().toLowerCase();
+    if (!supId && !supName) {
+      return items;
+    }
+    return items.filter((it) => {
+      const itSupId = it.supplierId?.trim().toLowerCase();
+      const itSupName = it.supplierName?.trim().toLowerCase();
+      if (supId && itSupId && itSupId === supId) return true;
+      if (supName && itSupName && (itSupName === supName || itSupName.includes(supName) || supName.includes(itSupName))) return true;
+      return false;
+    });
+  }, [items, selectedShipment, supplierOnly]);
+
+  React.useEffect(() => {
+    if (availableCatalogItems.length > 0) {
+      if (!addItemId || !availableCatalogItems.some((it) => it.id === addItemId)) {
+        setAddItemId(availableCatalogItems[0]?.id ?? '');
+      }
+    } else {
+      setAddItemId('');
+    }
+  }, [availableCatalogItems, addItemId]);
 
   const saveLocalDraft = React.useCallback(
     (nextLines: WizardLine[]) => {
@@ -546,8 +573,10 @@ export function InvoiceWizardPage() {
                 </CardTitle>
                 <CardDescription>
                   Target Shipment Total: {selectedShipment?.invoiceCurrency}{' '}
-                  {selectedShipment?.invoiceValue.toFixed(2)} • Current Sum:{' '}
-                  {computedInvoiceTotal.toFixed(invoiceTotalDecimals)}
+                  {selectedShipment?.invoiceValue.toFixed(2)}
+                  {selectedShipment?.supplierName && ` • Supplier: ${selectedShipment.supplierName}`}
+                  {' • '}
+                  Current Sum: {computedInvoiceTotal.toFixed(invoiceTotalDecimals)}
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={() => setPasteOpen(true)}>
@@ -557,15 +586,35 @@ export function InvoiceWizardPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-wrap items-end gap-3">
               <div className="w-80 space-y-1">
-                <Label>Add Catalog Item</Label>
-                <Select value={addItemId} onValueChange={setAddItemId}>
+                <div className="flex items-center justify-between">
+                  <Label>Add Catalog Item</Label>
+                  {selectedShipment?.supplierName && (
+                    <span
+                      className="text-[11px] text-muted-foreground truncate max-w-[140px]"
+                      title={selectedShipment.supplierName}
+                    >
+                      {selectedShipment.supplierName}
+                    </span>
+                  )}
+                </div>
+                <Select
+                  value={addItemId}
+                  onValueChange={setAddItemId}
+                  disabled={availableCatalogItems.length === 0}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose item" />
+                    <SelectValue
+                      placeholder={
+                        availableCatalogItems.length === 0
+                          ? 'No items for this supplier'
+                          : 'Choose item'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {items.map((it) => (
+                    {availableCatalogItems.map((it) => (
                       <SelectItem key={it.id} value={it.id}>
                         {it.partNumber} — {it.itemDescription} ({it.currency} {it.unitPrice})
                       </SelectItem>
@@ -573,11 +622,34 @@ export function InvoiceWizardPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="button" onClick={handleAddSelectedItem} disabled={!addItemId}>
+              <Button
+                type="button"
+                onClick={handleAddSelectedItem}
+                disabled={!addItemId || availableCatalogItems.length === 0}
+              >
                 <Plus className="h-4 w-4" />
                 Add Line
               </Button>
+              <div className="flex items-center space-x-2 pb-2">
+                <Switch
+                  id="supplier-items-only"
+                  checked={supplierOnly}
+                  onCheckedChange={setSupplierOnly}
+                />
+                <Label
+                  htmlFor="supplier-items-only"
+                  className="text-xs cursor-pointer select-none font-medium text-muted-foreground hover:text-foreground"
+                >
+                  Supplier items only
+                </Label>
+              </div>
             </div>
+            {supplierOnly && selectedShipment && availableCatalogItems.length === 0 && (
+              <p className="text-xs text-amber-500">
+                No catalog items found for {selectedShipment.supplierName || 'this supplier'}. Uncheck
+                &quot;Supplier items only&quot; to pick from all items or add parts in Item Master.
+              </p>
+            )}
 
             <Table>
               <TableHeader>

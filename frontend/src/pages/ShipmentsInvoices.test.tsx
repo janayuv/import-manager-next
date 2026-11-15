@@ -245,6 +245,119 @@ describe('Stage 5 Shipments & Invoice Wizard UI', () => {
     });
   });
 
+  it('filters Add Catalog Item in Invoice Wizard to shipment supplier by default and supports toggling', async () => {
+    vi.mocked(invoiceService.listActiveShipments).mockResolvedValue([
+      {
+        id: 'SHP-001',
+        supplierId: 'SUP-001',
+        supplierName: 'DY ELACEN CO LTD',
+        invoiceNumber: 'INV-100',
+        invoiceDate: '2026-11-01',
+        goodsCategory: 'Gaskets',
+        invoiceValue: 500,
+        invoiceCurrency: 'USD',
+        incoterm: 'CIF',
+        shipmentMode: 'Sea',
+        shipmentType: 'FCL',
+        blAwbNumber: '',
+        blAwbDate: '',
+        vesselName: '',
+        containerNumber: '',
+        grossWeightKg: 10,
+        etd: '',
+        eta: '',
+        status: 'in-transit',
+        dateOfDelivery: '',
+        isFrozen: false,
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(itemService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'ITM-DY-1',
+          partNumber: 'DY-557144',
+          itemDescription: 'AIM Gasket ETC',
+          unit: 'PCS',
+          currency: 'USD',
+          unitPrice: 10,
+          hsnCode: '84849000',
+          supplierId: 'SUP-001',
+          supplierName: 'DY ELACEN CO LTD',
+          isActive: true,
+          countryOfOrigin: 'Vietnam',
+          bcd: '10',
+          sws: '10',
+          igst: '18',
+          technicalWriteUp: '',
+          category: '',
+          endUse: '',
+          netWeightKg: 0.1,
+          purchaseUom: 'PCS',
+          grossWeightPerUomKg: 0.1,
+          photoPath: '',
+        },
+        {
+          id: 'ITM-WEC-1',
+          partNumber: 'WEC-548143',
+          itemDescription: 'Acoustic Assy - AIR',
+          unit: 'PCS',
+          currency: 'KRW',
+          unitPrice: 3576,
+          hsnCode: '85182900',
+          supplierId: 'SUP-002',
+          supplierName: 'Wecosta Co Ltd',
+          isActive: true,
+          countryOfOrigin: 'Korea',
+          bcd: '10',
+          sws: '10',
+          igst: '18',
+          technicalWriteUp: '',
+          category: '',
+          endUse: '',
+          netWeightKg: 0.2,
+          purchaseUom: 'PCS',
+          grossWeightPerUomKg: 0.2,
+          photoPath: '',
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 500,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <InvoiceWizardPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Continue to Line Items/i })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue to Line Items/i }));
+
+    // In Step 2, "Supplier items only" switch should be rendered and checked by default
+    const supplierOnlySwitch = screen.getByRole('switch', { name: /Supplier items only/i });
+    expect(supplierOnlySwitch).toBeChecked();
+
+    // Default selected item in the dropdown should be the DY ELACEN item, not Wecosta
+    expect(screen.getByText(/DY-557144/i)).toBeInTheDocument();
+    expect(screen.queryByText(/WEC-548143/i)).not.toBeInTheDocument();
+
+    // Toggle off "Supplier items only" to show all items
+    fireEvent.click(supplierOnlySwitch);
+    expect(supplierOnlySwitch).not.toBeChecked();
+
+    // Toggle back on to re-filter
+    fireEvent.click(supplierOnlySwitch);
+    expect(supplierOnlySwitch).toBeChecked();
+    expect(screen.queryByText(/WEC-548143/i)).not.toBeInTheDocument();
+  });
+
   it('renders InvoicesPage with Edit Draft and Quick Finalize actions', async () => {
     vi.mocked(invoiceService.list).mockResolvedValue([
       {
