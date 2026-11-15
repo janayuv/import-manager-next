@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  AlertTriangle,
   Cloud,
+  Copy,
   Database,
+  ExternalLink,
   FileKey2,
   HardDriveDownload,
   History,
@@ -18,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { openExternalURL } from '@/services/app-service';
 import {
   Select,
   SelectContent,
@@ -120,7 +124,16 @@ export function DatabaseBackupsPage() {
       setDriveStatus(drvStat);
       setHasSavedPass(savedPass);
       if (drvStat?.connected) {
-        googleDriveService.listBackups().then(setDriveFiles).catch(() => setDriveFiles([]));
+        googleDriveService
+          .listBackups()
+          .then(setDriveFiles)
+          .catch((err) => {
+            setDriveFiles([]);
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes('permission missing') || msg.includes('insufficient') || msg.includes('403')) {
+              toast.error('Google Drive permission missing. Please Disconnect and re-connect, ensuring Drive access is checked.');
+            }
+          });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load database console');
@@ -132,6 +145,26 @@ export function DatabaseBackupsPage() {
   useEffect(() => {
     void loadAll();
   }, []);
+
+  // Auto-poll when Google OAuth flow is initiated in browser
+  useEffect(() => {
+    if (!gdriveAuthUrl || driveStatus?.connected) return;
+    const interval = window.setInterval(async () => {
+      try {
+        const stat = await googleDriveService.getStatus();
+        if (stat.connected) {
+          setDriveStatus(stat);
+          setGdriveAuthUrl('');
+          setGdriveAuthCode('');
+          toast.success(`Google Drive connected as ${stat.accountEmail || 'Authorized Account'}`);
+          void loadAll();
+        }
+      } catch {
+        // still waiting for user consent in browser
+      }
+    }, 1500);
+    return () => window.clearInterval(interval);
+  }, [gdriveAuthUrl, driveStatus?.connected]);
 
   useEffect(() => {
     if (!lastBulkResult?.undoExpiresAt || !lastBulkResult.undoToken) {
@@ -748,7 +781,9 @@ export function DatabaseBackupsPage() {
                           .startOAuthFlow()
                           .then((url) => {
                             setGdriveAuthUrl(url);
-                            toast.info('OAuth listener ready on 127.0.0.1:8765');
+                            openExternalURL(url)
+                              .then(() => toast.info('Opened Google sign-in in your default browser'))
+                              .catch(() => toast.info('OAuth listener ready. Click "Open in Browser" below.'));
                           })
                           .catch((e) => toast.error(e.message))
                       }
@@ -768,7 +803,14 @@ export function DatabaseBackupsPage() {
                     onClick={() =>
                       googleDriveService
                         .disconnect()
-                        .then(() => void loadAll())
+                        .then(() => {
+                          setDriveStatus(null);
+                          setDriveFiles([]);
+                          setGdriveAuthUrl('');
+                          setGdriveAuthCode('');
+                          toast.success('Disconnected from Google Drive');
+                          void loadAll();
+                        })
                         .catch((e) => toast.error(e.message))
                     }
                   >
@@ -778,28 +820,88 @@ export function DatabaseBackupsPage() {
               )}
 
               {gdriveAuthUrl && (
-                <div className="space-y-2 rounded border p-2.5 text-xs">
-                  <div className="truncate">Auth URL: {gdriveAuthUrl}</div>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Paste auth code if manual fallback needed"
-                      value={gdriveAuthCode}
-                      onChange={(e) => setGdriveAuthCode(e.target.value)}
-                    />
+                <div className="space-y-3 rounded-lg border border-border/80 bg-muted/30 p-3.5 text-xs">
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <p className="font-semibold text-amber-300">Action Required on Google Consent Screen:</p>
+                        <p className="text-slate-300">
+                          Make sure to <strong>check the checkbox</strong> next to <strong>&quot;See, edit, create, and delete all your Google Drive files&quot;</strong> before clicking Continue, otherwise backups cannot be uploaded.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
-                      onClick={() =>
-                        googleDriveService
-                          .completeOAuthCode(gdriveAuthCode, '')
-                          .then(() => {
-                            setGdriveAuthUrl('');
-                            void loadAll();
-                          })
-                          .catch((e) => toast.error(e.message))
-                      }
+                      type="button"
+                      onClick={() => openExternalURL(gdriveAuthUrl).catch((e) => toast.error(e.message))}
                     >
-                      Exchange Code
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                      Open in Browser
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(gdriveAuthUrl);
+                        toast.success('Auth URL copied to clipboard');
+                      }}
+                    >
+                      <Copy className="mr-1.5 h-3.5 w-3.5" />
+                      Copy Auth Link
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={() => setGdriveAuthUrl('')}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Full Authentication URL:</Label>
+                    <Input
+                      readOnly
+                      value={gdriveAuthUrl}
+                      className="font-mono text-[11px] select-all bg-background"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 pt-1">
+                    <Label className="text-[11px] text-muted-foreground">Manual Fallback (if browser does not auto-redirect):</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Paste auth code if manual fallback needed"
+                        value={gdriveAuthCode}
+                        onChange={(e) => setGdriveAuthCode(e.target.value)}
+                        className="text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        type="button"
+                        onClick={() =>
+                          googleDriveService
+                            .completeOAuthCode(gdriveAuthCode, '')
+                            .then((st) => {
+                              setGdriveAuthUrl('');
+                              setGdriveAuthCode('');
+                              setDriveStatus(st);
+                              toast.success('Connected to Google Drive');
+                              void loadAll();
+                            })
+                            .catch((e) => toast.error(e.message))
+                        }
+                      >
+                        Exchange Code
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}

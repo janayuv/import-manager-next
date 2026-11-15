@@ -347,14 +347,18 @@ func (s *Service) OpenURL(rawURL string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("cmd.exe", "/c", "start", "", trimmed)
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", trimmed)
 	case "darwin":
 		cmd = exec.Command("open", trimmed)
 	default:
 		cmd = exec.Command("xdg-open", trimmed)
 	}
 
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // selectBestAsset chooses the most suitable asset for the client OS from release assets.

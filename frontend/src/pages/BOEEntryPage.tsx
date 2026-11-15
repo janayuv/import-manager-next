@@ -43,6 +43,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { exportBOEExcel, exportBOEPdf } from '@/lib/boe-export';
 import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
+import { LinkedBoeSelector } from '@/components/boe/LinkedBoeSelector';
 import { optionsService, type LookupOption } from '@/services/master-service';
 import {
   boeEntryService,
@@ -331,27 +332,16 @@ export function BOEEntryPage() {
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label>Linked ICEGATE BOE (for Duty Paid Check)</Label>
-              <Select
-                value={params?.boeId || 'none'}
-                onValueChange={(v) =>
-                  params && void recompute({ ...params, boeId: v === 'none' ? '' : v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Unlinked (Awaiting BOE Data)</SelectItem>
-                  {displayBoes.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.beNumber} ({b.beDate}) — Paid: INR {Math.round(b.dutyPaid).toLocaleString()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <LinkedBoeSelector
+              value={params?.boeId || ''}
+              onChange={(v) =>
+                params && void recompute({ ...params, boeId: v })
+              }
+              boes={displayBoes}
+              expectedDuty={result?.customsDutyTotal}
+              cashDuty={result?.cashCustomsDutyTotal}
+              disabled={!params}
+            />
 
             <div className="flex flex-wrap items-end gap-2 pb-1">
               {cifLocked && <Badge variant="warning">CIF Zero-Locked</Badge>}

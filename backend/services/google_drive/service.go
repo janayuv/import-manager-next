@@ -92,6 +92,19 @@ func gdriveErr(msg string, err error) error {
 	return fmt.Errorf("GDRIVE_ERROR: %s", msg)
 }
 
+func formatDriveAPIError(action string, statusCode int, body []byte) error {
+	raw := string(body)
+	if statusCode == http.StatusForbidden || statusCode == http.StatusUnauthorized {
+		if strings.Contains(raw, "ACCESS_TOKEN_SCOPE_INSUFFICIENT") || strings.Contains(raw, "insufficientPermissions") {
+			return gdriveErr("Google Drive permission missing on your account. Please click 'Disconnect' and re-connect, and make sure to check the 'See, edit, create, and delete all your Google Drive files' checkbox during Google sign-in", nil)
+		}
+		if strings.Contains(raw, "invalid_grant") || strings.Contains(raw, "Token has been expired or revoked") {
+			return gdriveErr("Google session expired or revoked. Please click 'Disconnect' and re-connect your Google account", nil)
+		}
+	}
+	return gdriveErr(fmt.Sprintf("%s HTTP %d: %s", action, statusCode, raw), nil)
+}
+
 // SaveClientConfig persists Google OAuth2 desktop client credentials in Windows Credential Manager.
 func (s *Service) SaveClientConfig(input models.GoogleDriveConfigInput) error {
 	sess, err := s.security.RequirePermission(security.PermBackupSettings)
@@ -204,16 +217,25 @@ func (s *Service) serveLoopbackCallback(ln net.Listener, expectedState string) {
 		}()
 		code := r.URL.Query().Get("code")
 		state := r.URL.Query().Get("state")
+		errParam := r.URL.Query().Get("error")
+		if errParam != "" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, fmt.Sprintf(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Connection Error</title><style>body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f8fafc;padding:3rem;text-align:center}h2{color:#ef4444}.box{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:2rem;max-width:520px;margin:2rem auto;line-height:1.6}</style></head><body><div class="box"><h2>Authentication Canceled or Denied</h2><p>Google reported: <strong>%s</strong></p><p>You may close this tab and try again in Import Manager.</p></div></body></html>`, errParam))
+			return
+		}
 		if state != expectedState || code == "" {
 			http.Error(w, "Invalid OAuth callback state or missing authorization code", http.StatusBadRequest)
 			return
 		}
 		if err := s.exchangeCodeAndPersist(r.Context(), code); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, fmt.Sprintf(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Connection Failed</title><style>body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f8fafc;padding:3rem;text-align:center}h2{color:#ef4444}.box{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:2rem;max-width:520px;margin:2rem auto;line-height:1.6}</style></head><body><div class="box"><h2>Authorization Incomplete</h2><p>%s</p><p>Please return to Import Manager and try again.</p></div></body></html>`, err.Error()))
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = io.WriteString(w, "<html><body><h2>Import Manager Connected</h2><p>Google Drive authorization succeeded. You may close this tab.</p></body></html>")
+		_, _ = io.WriteString(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Connected to Google Drive</title><style>body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f8fafc;padding:3rem;text-align:center}h2{color:#22c55e}.box{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:2rem;max-width:520px;margin:2rem auto;line-height:1.6}</style></head><body><div class="box"><h2>✓ Google Drive Connected!</h2><p>Your Google Drive account has been successfully linked to Import Manager for backups.</p><p style="color:#94a3b8">You may close this browser tab and return to Import Manager.</p></div></body></html>`)
 	})
 
 	go func() {
@@ -279,6 +301,7 @@ func (s *Service) exchangeCodeAndPersist(ctx context.Context, code string) error
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 		ExpiresIn    int64  `json:"expires_in"`
+		Scope        string `json:"scope"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return gdriveErr("parse token response", err)
@@ -286,12 +309,20 @@ func (s *Service) exchangeCodeAndPersist(ctx context.Context, code string) error
 	if parsed.AccessToken == "" {
 		return gdriveErr("empty access_token from Google OAuth", nil)
 	}
+	if parsed.Scope != "" && !strings.Contains(parsed.Scope, "drive") {
+		return gdriveErr("Google Drive permission was not granted by your Google account. In the Google sign-in consent window, you must check the box to allow Google Drive access", nil)
+	}
 
 	expiry := time.Now().UTC().Add(time.Duration(max(parsed.ExpiresIn, 3600)) * time.Second).Format(time.RFC3339)
 	tok := storedTokens{
 		AccessToken:  parsed.AccessToken,
 		RefreshToken: parsed.RefreshToken,
 		Expiry:       expiry,
+	}
+	if tok.RefreshToken == "" {
+		if prevTok, prevErr := s.loadTokens(); prevErr == nil && prevTok.RefreshToken != "" {
+			tok.RefreshToken = prevTok.RefreshToken
+		}
 	}
 	if email, err := s.fetchUserEmail(ctx, tok.AccessToken); err == nil {
 		tok.Email = email
@@ -394,7 +425,7 @@ func (s *Service) ensureBackupFolder(ctx context.Context, tok storedTokens) (str
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return "", gdriveErr(fmt.Sprintf("folder lookup HTTP %d: %s", resp.StatusCode, string(body)), nil)
+		return "", formatDriveAPIError("folder lookup", resp.StatusCode, body)
 	}
 
 	var listResp struct {
@@ -426,7 +457,7 @@ func (s *Service) ensureBackupFolder(ctx context.Context, tok storedTokens) (str
 	defer createResp.Body.Close()
 	if createResp.StatusCode < 200 || createResp.StatusCode >= 300 {
 		body, _ := io.ReadAll(createResp.Body)
-		return "", gdriveErr(fmt.Sprintf("create folder HTTP %d: %s", createResp.StatusCode, string(body)), nil)
+		return "", formatDriveAPIError("create folder", createResp.StatusCode, body)
 	}
 	var created struct {
 		ID string `json:"id"`
@@ -501,7 +532,7 @@ func (s *Service) UploadBackup(localFilePath string) (models.GoogleDriveRemoteFi
 
 	rawResp, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return models.GoogleDriveRemoteFile{}, gdriveErr(fmt.Sprintf("upload HTTP %d: %s", resp.StatusCode, string(rawResp)), nil)
+		return models.GoogleDriveRemoteFile{}, formatDriveAPIError("upload", resp.StatusCode, rawResp)
 	}
 
 	var uploaded struct {
@@ -566,7 +597,7 @@ func (s *Service) listFolderFiles(ctx context.Context, tok storedTokens, folderI
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, gdriveErr(fmt.Sprintf("list HTTP %d: %s", resp.StatusCode, string(body)), nil)
+		return nil, formatDriveAPIError("list remote backups", resp.StatusCode, body)
 	}
 	var parsed struct {
 		Files []struct {
@@ -645,7 +676,7 @@ func (s *Service) DownloadBackup(fileIDOrLocator, targetFilename string) (string
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return "", gdriveErr(fmt.Sprintf("download HTTP %d: %s", resp.StatusCode, string(body)), nil)
+		return "", formatDriveAPIError("download backup", resp.StatusCode, body)
 	}
 	payload, err := io.ReadAll(resp.Body)
 	if err != nil {
