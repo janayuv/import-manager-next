@@ -160,19 +160,35 @@ export function InvoiceWizardPage() {
   React.useEffect(() => {
     void (async () => {
       try {
-        const [activeShips, catalog, draftList] = await Promise.all([
+        const [activeShips, catalog, draftList, allInvoices] = await Promise.all([
           invoiceService.listActiveShipments(),
           itemService.list({ search: '', supplierId: '', status: 'active', sortBy: 'partNumber', sortDir: 'asc', page: 1, pageSize: 500 }),
           Promise.resolve(invoiceService.list('', 'Draft')).catch(() => []),
+          Promise.resolve(invoiceService.list('', '')).catch(() => []),
         ]);
-        setShipments(activeShips ?? []);
+
+        const sumList = Array.isArray(allInvoices) ? allInvoices : [];
+        const finalizedShipmentIds = new Set(
+          sumList
+            .filter((inv) => (inv.status || '').toLowerCase() === 'finalized')
+            .map((inv) => inv.shipmentId),
+        );
+
+        const eligibleShipments = (activeShips ?? []).filter((sh) => {
+          if (editIdParam) return true;
+          return !finalizedShipmentIds.has(sh.id);
+        });
+
+        setShipments(eligibleShipments);
         setItems(catalog?.items ?? []);
         setDbDrafts(Array.isArray(draftList) ? draftList : []);
 
         if (editIdParam) {
           await loadDraftForEdit(editIdParam);
-        } else if (activeShips?.[0] && !selectedShipmentId) {
-          setSelectedShipmentId(activeShips[0].id);
+        } else if (eligibleShipments?.[0] && !selectedShipmentId) {
+          setSelectedShipmentId(eligibleShipments[0].id);
+        } else if (!eligibleShipments.some((s) => s.id === selectedShipmentId)) {
+          setSelectedShipmentId(eligibleShipments[0]?.id ?? '');
         }
 
         if (catalog?.items?.[0]) {
@@ -409,7 +425,7 @@ export function InvoiceWizardPage() {
                 <Label>Target Shipment *</Label>
                 <Select value={selectedShipmentId} onValueChange={setSelectedShipmentId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose active shipment" />
+                    <SelectValue placeholder={shipments.length === 0 ? 'No pending shipments eligible for invoicing' : 'Choose active shipment'} />
                   </SelectTrigger>
                   <SelectContent>
                     {shipments.map((sh) => (

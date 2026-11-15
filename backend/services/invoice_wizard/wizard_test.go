@@ -86,6 +86,12 @@ func TestInvoiceWizardDraftFinalizePasteAndTransition(t *testing.T) {
 		t.Fatalf("expected shipment auto-transitioned to in-transit, got %s", shMid.Status)
 	}
 
+	// Active shipments includes sh while invoice is Draft
+	activeBefore, err := invSvc.ListActiveShipmentsForInvoicing()
+	if err != nil || len(activeBefore) != 1 || activeBefore[0].ID != sh.ID {
+		t.Fatalf("expected 1 active shipment before finalize, got %+v err=%v", activeBefore, err)
+	}
+
 	// Finalize with exact match (5 * 100 = 500) + freeze shipment succeeds
 	final, err := wiz.SaveInvoice(models.SaveInvoiceRequest{
 		InvoiceID: draft.Invoice.ID, ShipmentID: sh.ID, Finalize: true, FreezeShipment: true,
@@ -97,6 +103,15 @@ func TestInvoiceWizardDraftFinalizePasteAndTransition(t *testing.T) {
 	}
 	if final.Invoice.Status != "Finalized" || !final.Invoice.ShipmentFrozen {
 		t.Fatalf("expected Finalized + Frozen, got %+v", final.Invoice)
+	}
+
+	// Once invoice is Finalized, shipment is no longer eligible and excluded from ListActiveShipmentsForInvoicing
+	activeAfter, err := invSvc.ListActiveShipmentsForInvoicing()
+	if err != nil {
+		t.Fatalf("list active shipments after finalize failed: %v", err)
+	}
+	if len(activeAfter) != 0 {
+		t.Fatalf("expected 0 active shipments after finalize, got %d", len(activeAfter))
 	}
 	// Delete blocked on frozen shipment
 	if err := invSvc.Delete(final.Invoice.ID); err == nil {

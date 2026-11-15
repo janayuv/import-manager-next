@@ -66,6 +66,7 @@ func (s *Service) Delete(invoiceID string) error {
 }
 
 // ListActiveShipmentsForInvoicing lists non-frozen, non-terminal shipments eligible for invoice entry.
+// Shipments that already have a finalized commercial invoice are excluded.
 func (s *Service) ListActiveShipmentsForInvoicing() ([]models.Shipment, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
 		return nil, err
@@ -74,13 +75,25 @@ func (s *Service) ListActiveShipmentsForInvoicing() ([]models.Shipment, error) {
 	if err != nil {
 		return nil, err
 	}
+	allInvoices, err := s.repo.ListAll("", "Finalized")
+	if err != nil {
+		return nil, err
+	}
+	finalizedShipmentIDs := make(map[string]bool, len(allInvoices))
+	for _, inv := range allInvoices {
+		finalizedShipmentIDs[strings.TrimSpace(inv.ShipmentID)] = true
+	}
+
 	var out []models.Shipment
 	for _, sh := range page.Items {
 		if sh.IsFrozen {
 			continue
 		}
+		if finalizedShipmentIDs[strings.TrimSpace(sh.ID)] {
+			continue
+		}
 		st := strings.ToLower(strings.TrimSpace(sh.Status))
-		if st == "delivered" || st == "cancelled" || st == "closed" || st == "completed" {
+		if st == "delivered" || st == "cancelled" || st == "closed" || st == "completed" || st == "finalized" {
 			continue
 		}
 		out = append(out, sh)

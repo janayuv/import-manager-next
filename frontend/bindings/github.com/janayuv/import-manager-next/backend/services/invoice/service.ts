@@ -41,6 +41,7 @@ export function List(search: string, status: string): $CancellablePromise<models
 
 /**
  * ListActiveShipmentsForInvoicing lists non-frozen, non-terminal shipments eligible for invoice entry.
+ * Shipments that already have a finalized commercial invoice are excluded.
  */
 export function ListActiveShipmentsForInvoicing(): $CancellablePromise<models$0.Shipment[]> {
     return $Call.ByID(1190659581).then(($result: any) => {

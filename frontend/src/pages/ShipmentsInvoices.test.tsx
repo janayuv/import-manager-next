@@ -451,4 +451,92 @@ describe('Stage 5 Shipments & Invoice Wizard UI', () => {
       );
     });
   });
+
+  it('excludes shipments with finalized invoices from the Commercial Invoice Wizard active shipment list', async () => {
+    vi.mocked(invoiceService.listActiveShipments).mockResolvedValue([
+      {
+        id: 'SHP-FINAL',
+        supplierId: 'SUP-001',
+        supplierName: 'DY ELACEN CO LTD - VIETNAM',
+        invoiceNumber: 'DEVP/INZI260827-01',
+        invoiceDate: '2026-08-27',
+        goodsCategory: 'General',
+        invoiceValue: 47379.4,
+        invoiceCurrency: 'USD',
+        incoterm: 'CIF',
+        shipmentMode: 'Sea',
+        shipmentType: 'FCL',
+        blAwbNumber: '',
+        blAwbDate: '',
+        vesselName: '',
+        containerNumber: '',
+        grossWeightKg: 0,
+        etd: '',
+        eta: '',
+        status: 'in-transit',
+        dateOfDelivery: '',
+        isFrozen: false,
+        createdAt: '',
+      },
+      {
+        id: 'SHP-PENDING',
+        supplierId: 'SUP-002',
+        supplierName: 'Pending Supplier',
+        invoiceNumber: 'INV-PENDING',
+        invoiceDate: '2026-11-01',
+        goodsCategory: 'General',
+        invoiceValue: 1000,
+        invoiceCurrency: 'USD',
+        incoterm: 'FOB',
+        shipmentMode: 'Air',
+        shipmentType: 'LCL',
+        blAwbNumber: '',
+        blAwbDate: '',
+        vesselName: '',
+        containerNumber: '',
+        grossWeightKg: 0,
+        etd: '',
+        eta: '',
+        status: 'docs-rcvd',
+        dateOfDelivery: '',
+        isFrozen: false,
+        createdAt: '',
+      },
+    ]);
+
+    vi.mocked(invoiceService.list).mockImplementation(async (_search, status) => {
+      if (status === 'Draft') return [];
+      return [
+        {
+          id: 'INV-FINAL',
+          shipmentId: 'SHP-FINAL',
+          supplierId: 'SUP-001',
+          supplierName: 'DY ELACEN CO LTD - VIETNAM',
+          invoiceNumber: 'DEVP/INZI260827-01',
+          invoiceDate: '2026-08-27',
+          currency: 'USD',
+          shipmentInvoiceValue: 47379.4,
+          computedTotal: 47379.4,
+          lineCount: 6,
+          status: 'Finalized',
+          lineTotalDecimals: 2,
+          invoiceTotalDecimals: 2,
+          shipmentFrozen: false,
+        },
+      ];
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <InvoiceWizardPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/INV-PENDING/i)).toBeInTheDocument();
+      expect(screen.queryByText(/DEVP\/INZI260827-01/i)).not.toBeInTheDocument();
+    });
+  });
 });
