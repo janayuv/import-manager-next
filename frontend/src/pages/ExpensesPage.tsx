@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {
   AlertTriangle,
+  ArrowLeft,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
@@ -23,7 +24,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -547,32 +547,606 @@ export function ExpensesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Import Expenses Ledger</h1>
-          <p className="text-sm text-muted-foreground">
-            Exact integer-paise &amp; basis-point GST/TDS expense invoices, providers, and bulk import.
-          </p>
-        </div>
-        {canWrite && (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setBulkShipmentId(shipments.find((s) => !s.isFrozen)?.id ?? '');
-                setBulkOpen(true);
-              }}
-            >
-              <Upload className="h-4 w-4" />
-              Bulk CSV Import
-            </Button>
-            <Button onClick={openCreateInvoice}>
-              <Plus className="h-4 w-4" />
-              New Expense Invoice
-            </Button>
+      {invOpen ? (
+        <div className="space-y-6">
+          {/* Top Navigation & Action Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInvOpen(false)}
+                className="gap-1.5"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to Expense Ledger</span>
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  {editingInv ? `Edit Expense Invoice (${editingInv.invoiceNo})` : 'New Multi-Line Expense Invoice'}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  All amounts calculate in integer paise without floating-point drift.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setInvOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={savingInv || hasDuplicateType || !shipmentId || !serviceProviderId || !invoiceNo}
+                onClick={() => void handleSaveInvoice()}
+              >
+                {savingInv ? 'Saving...' : 'Save Expense Invoice'}
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Invoice Information Header Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Invoice Information</CardTitle>
+              <CardDescription>Select the shipment and service provider, and enter invoice reference details.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label>Shipment *</Label>
+                  <Select value={shipmentId} onValueChange={setShipmentId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose shipment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shipments
+                        .filter((s) => !s.isFrozen || s.id === shipmentId)
+                        .map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.invoiceNumber} — {s.supplierName}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label>Service Provider *</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
+                      onClick={() => setManageSpOpen(true)}
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage
+                    </button>
+                  </div>
+                  <Select value={serviceProviderId} onValueChange={setServiceProviderId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {providers.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="expInvNo">Invoice No *</Label>
+                  <Input
+                    id="expInvNo"
+                    placeholder="e.g. INV-2026-001"
+                    value={invoiceNo}
+                    onChange={(e) => setInvoiceNo(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="expInvDate">Invoice Date *</Label>
+                  <Input
+                    id="expInvDate"
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {hasDuplicateType && (
+            <div className="flex items-center justify-between rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs">
+              <span className="flex items-center gap-2 font-medium text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                Duplicate expense type detected across lines. Combine matching lines before saving.
+              </span>
+              <Button size="sm" variant="outline" onClick={() => void handleCombineDuplicates()}>
+                <Merge className="h-3.5 w-3.5" />
+                Combine Duplicate Lines
+              </Button>
+            </div>
+          )}
+
+          {/* Expense Lines Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-base font-semibold">Expense Lines</CardTitle>
+                  <div className="inline-flex items-center rounded-md border bg-muted/40 p-0.5 text-xs">
+                    <button
+                      type="button"
+                      className={`rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                        !draftLines.some((l) => l.isManualGst)
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      onClick={() => {
+                        const next = draftLines.map((l) => ({ ...l, isManualGst: false }));
+                        setDraftLines(next);
+                        void refreshPreview(next);
+                      }}
+                    >
+                      Automatic (% Rate)
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                        draftLines.every((l) => l.isManualGst)
+                          ? 'bg-amber-500 text-white shadow-sm dark:bg-amber-600'
+                          : draftLines.some((l) => l.isManualGst)
+                          ? 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      onClick={() => {
+                        const next = draftLines.map((l) => {
+                          const amt = Number.parseFloat(l.amountInr) || 0;
+                          const cPct = Number.parseFloat(l.cgstPct) || 0;
+                          const sPct = Number.parseFloat(l.sgstPct) || 0;
+                          const iPct = Number.parseFloat(l.igstPct) || 0;
+                          return {
+                            ...l,
+                            isManualGst: true,
+                            manualCgstInr:
+                              l.manualCgstInr && l.manualCgstInr !== '0.00'
+                                ? l.manualCgstInr
+                                : ((amt * cPct) / 100).toFixed(2),
+                            manualSgstInr:
+                              l.manualSgstInr && l.manualSgstInr !== '0.00'
+                                ? l.manualSgstInr
+                                : ((amt * sPct) / 100).toFixed(2),
+                            manualIgstInr:
+                              l.manualIgstInr && l.manualIgstInr !== '0.00'
+                                ? l.manualIgstInr
+                                : ((amt * iPct) / 100).toFixed(2),
+                          };
+                        });
+                        setDraftLines(next);
+                        void refreshPreview(next);
+                      }}
+                    >
+                      Manual GST Amount (₹)
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    className="gap-1.5 text-xs"
+                    onClick={() => {
+                      setTargetLineIdx(null);
+                      setManageEtOpen(true);
+                    }}
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                    Manage Types
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    className="gap-1.5 text-xs"
+                    onClick={() =>
+                      setDraftLines((prev) => [
+                        ...prev,
+                        emptyLine(types[0], prev.some((l) => l.isManualGst)),
+                      ])
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Line
+                  </Button>
+                </div>
+              </div>
+
+              {draftLines.some((l) => l.isManualGst) && (
+                <div className="mt-2 rounded-md border border-amber-300 bg-amber-50/50 p-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                  <span className="font-semibold">Manual GST Mode active:</span> Enter exact GST rupee amounts (CGST/SGST or IGST) for lines where some values are exempt or not eligible for full GST.
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {draftLines.map((line, idx) => (
+                <div
+                  key={idx}
+                  className={`rounded-lg border p-3 transition-colors ${
+                    line.isManualGst
+                      ? 'border-amber-300 bg-amber-50/20 dark:border-amber-800/60 dark:bg-amber-950/10'
+                      : 'bg-card'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-end gap-3">
+                    {/* Line Index Badge */}
+                    <div className="flex items-center pb-2">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                        #{idx + 1}
+                      </span>
+                    </div>
+
+                    {/* Expense Type */}
+                    <div className="min-w-[200px] flex-1 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-xs font-medium">Expense Type</Label>
+                          <button
+                            type="button"
+                            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer font-medium ${
+                              line.isManualGst
+                                ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-200'
+                                : 'bg-muted text-muted-foreground border-transparent hover:bg-muted/80'
+                            }`}
+                            title={
+                              line.isManualGst
+                                ? 'Manual GST amount mode active. Click to switch to Auto %'
+                                : 'Auto percentage mode active. Click to enter manual GST amount'
+                            }
+                            onClick={() => {
+                              const nextManual = !line.isManualGst;
+                              let mCgst = line.manualCgstInr;
+                              let mSgst = line.manualSgstInr;
+                              let mIgst = line.manualIgstInr;
+                              if (nextManual && (!mCgst || mCgst === '0' || mCgst === '0.00')) {
+                                const amt = Number.parseFloat(line.amountInr) || 0;
+                                const cPct = Number.parseFloat(line.cgstPct) || 0;
+                                const sPct = Number.parseFloat(line.sgstPct) || 0;
+                                const iPct = Number.parseFloat(line.igstPct) || 0;
+                                mCgst = ((amt * cPct) / 100).toFixed(2);
+                                mSgst = ((amt * sPct) / 100).toFixed(2);
+                                mIgst = ((amt * iPct) / 100).toFixed(2);
+                              }
+                              updateLine(idx, {
+                                isManualGst: nextManual,
+                                manualCgstInr: mCgst,
+                                manualSgstInr: mSgst,
+                                manualIgstInr: mIgst,
+                              });
+                            }}
+                          >
+                            {line.isManualGst ? 'Manual ₹' : 'Auto %'}
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
+                          onClick={() => {
+                            setTargetLineIdx(idx);
+                            setManageEtOpen(true);
+                          }}
+                        >
+                          <Settings2 className="h-2.5 w-2.5" />
+                          Manage
+                        </button>
+                      </div>
+                      <Select
+                        value={line.expenseTypeId}
+                        onValueChange={(v) => {
+                          const et = types.find((t) => t.id === v);
+                          const cPct = et ? (et.defaultCgstRateBp / 100).toFixed(2) : line.cgstPct;
+                          const sPct = et ? (et.defaultSgstRateBp / 100).toFixed(2) : line.sgstPct;
+                          const iPct = et ? (et.defaultIgstRateBp / 100).toFixed(2) : line.igstPct;
+                          const amt = Number.parseFloat(line.amountInr) || 0;
+                          updateLine(idx, {
+                            expenseTypeId: v,
+                            cgstPct: cPct,
+                            sgstPct: sPct,
+                            igstPct: iPct,
+                            manualCgstInr: line.isManualGst ? ((amt * Number.parseFloat(cPct)) / 100).toFixed(2) : line.manualCgstInr,
+                            manualSgstInr: line.isManualGst ? ((amt * Number.parseFloat(sPct)) / 100).toFixed(2) : line.manualSgstInr,
+                            manualIgstInr: line.isManualGst ? ((amt * Number.parseFloat(iPct)) / 100).toFixed(2) : line.manualIgstInr,
+                            tdsPct: et ? (et.defaultTdsRateBp / 100).toFixed(2) : line.tdsPct,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {types.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Basic (INR) */}
+                    <div className="w-36 space-y-1">
+                      <Label className="text-xs font-medium">Basic (INR)</Label>
+                      <Input
+                        className="h-9 text-xs font-mono"
+                        type="number"
+                        step="0.01"
+                        aria-label="Basic (INR)"
+                        value={line.amountInr}
+                        onChange={(e) => updateLine(idx, { amountInr: e.target.value })}
+                      />
+                    </div>
+
+                    {/* GST Columns */}
+                    {!line.isManualGst ? (
+                      <>
+                        <div className="w-24 space-y-1">
+                          <Label className="text-xs font-medium">CGST%</Label>
+                          <Input
+                            className="h-9 text-xs font-mono text-center px-2"
+                            type="number"
+                            step="0.01"
+                            value={line.cgstPct}
+                            onChange={(e) => updateLine(idx, { cgstPct: e.target.value })}
+                          />
+                        </div>
+                        <div className="w-24 space-y-1">
+                          <Label className="text-xs font-medium">SGST%</Label>
+                          <Input
+                            className="h-9 text-xs font-mono text-center px-2"
+                            type="number"
+                            step="0.01"
+                            value={line.sgstPct}
+                            onChange={(e) => updateLine(idx, { sgstPct: e.target.value })}
+                          />
+                        </div>
+                        <div className="w-24 space-y-1">
+                          <Label className="text-xs font-medium">IGST%</Label>
+                          <Input
+                            className="h-9 text-xs font-mono text-center px-2"
+                            type="number"
+                            step="0.01"
+                            value={line.igstPct}
+                            onChange={(e) => updateLine(idx, { igstPct: e.target.value })}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-32 space-y-1">
+                          <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">CGST (₹)</Label>
+                          <Input
+                            className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            aria-label="CGST Amount (INR)"
+                            value={line.manualCgstInr}
+                            onChange={(e) => updateLine(idx, { manualCgstInr: e.target.value })}
+                          />
+                        </div>
+                        <div className="w-32 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">SGST (₹)</Label>
+                            <button
+                              type="button"
+                              className="text-[10px] text-primary hover:underline cursor-pointer font-medium"
+                              title="Copy CGST to SGST"
+                              onClick={() => updateLine(idx, { manualSgstInr: line.manualCgstInr })}
+                            >
+                              =CGST
+                            </button>
+                          </div>
+                          <Input
+                            className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            aria-label="SGST Amount (INR)"
+                            value={line.manualSgstInr}
+                            onChange={(e) => updateLine(idx, { manualSgstInr: e.target.value })}
+                          />
+                        </div>
+                        <div className="w-32 space-y-1">
+                          <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">IGST (₹)</Label>
+                          <Input
+                            className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            aria-label="IGST Amount (INR)"
+                            value={line.manualIgstInr}
+                            onChange={(e) => updateLine(idx, { manualIgstInr: e.target.value })}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* TDS% */}
+                    <div className="w-24 space-y-1">
+                      <Label className="text-xs font-medium">TDS%</Label>
+                      <Input
+                        className="h-9 text-xs font-mono text-center px-2"
+                        type="number"
+                        step="0.01"
+                        value={line.tdsPct}
+                        onChange={(e) => updateLine(idx, { tdsPct: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Remarks */}
+                    <div className="min-w-[160px] flex-1 space-y-1">
+                      <Label className="text-xs font-medium">Remarks</Label>
+                      <Input
+                        className="h-9 text-xs"
+                        placeholder="Optional line remarks"
+                        value={line.remarks}
+                        onChange={(e) => updateLine(idx, { remarks: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Delete Line Action */}
+                    <div className="pb-0.5">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
+                        disabled={draftLines.length === 1}
+                        title="Delete line"
+                        onClick={() => {
+                          const next = draftLines.filter((_, i) => i !== idx);
+                          setDraftLines(next);
+                          void refreshPreview(next);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="pt-2 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  className="gap-1.5 text-xs"
+                  onClick={() =>
+                    setDraftLines((prev) => [
+                      ...prev,
+                      emptyLine(types[0], prev.some((l) => l.isManualGst)),
+                    ])
+                  }
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Another Line
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Invoice Remarks Card */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-1.5">
+                <Label htmlFor="expInvRemarks" className="text-sm font-medium">Invoice Remarks</Label>
+                <Input
+                  id="expInvRemarks"
+                  placeholder="Optional notes or reference instructions for this expense invoice"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Calculation Summary Card */}
+          {preview && (
+            <Card className="border-primary/20 bg-muted/20">
+              <CardHeader className="py-3 px-6 border-b">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Computed Totals (Paise Exact)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="rounded-lg border bg-card p-4 shadow-xs">
+                    <span className="text-xs text-muted-foreground font-medium">Base (Excl. GST)</span>
+                    <div className="font-mono text-lg font-bold text-foreground mt-1">
+                      INR {formatPaiseINR(preview.baseAmountPaise)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-card p-4 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground font-medium">GST Total</span>
+                      <span className="text-[10px] text-muted-foreground">(CGST+SGST+IGST)</span>
+                    </div>
+                    <div className="font-mono text-lg font-bold text-foreground mt-1">
+                      INR {formatPaiseINR(preview.totalCgstPaise + preview.totalSgstPaise + preview.totalIgstPaise)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      CGST: {formatPaiseINR(preview.totalCgstPaise)} | SGST: {formatPaiseINR(preview.totalSgstPaise)} | IGST: {formatPaiseINR(preview.totalIgstPaise)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-card p-4 shadow-xs">
+                    <span className="text-xs text-muted-foreground font-medium">TDS Deducted</span>
+                    <div className="font-mono text-lg font-bold text-foreground mt-1">
+                      INR {formatPaiseINR(preview.totalTdsPaise)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 shadow-xs">
+                    <span className="text-xs text-primary font-semibold">Net Payable</span>
+                    <div className="font-mono text-xl font-extrabold text-primary mt-1">
+                      INR {formatPaiseINR(preview.netAmountPaise)}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Bottom Action Footer */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            <Button variant="outline" onClick={() => setInvOpen(false)}>
+              Cancel
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setInvOpen(false)}
+              >
+                Back to List
+              </Button>
+              <Button
+                disabled={savingInv || hasDuplicateType || !shipmentId || !serviceProviderId || !invoiceNo}
+                onClick={() => void handleSaveInvoice()}
+              >
+                {savingInv ? 'Saving...' : 'Save Expense Invoice'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Import Expenses Ledger</h1>
+              <p className="text-sm text-muted-foreground">
+                Exact integer-paise &amp; basis-point GST/TDS expense invoices, providers, and bulk import.
+              </p>
+            </div>
+            {canWrite && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setBulkShipmentId(shipments.find((s) => !s.isFrozen)?.id ?? '');
+                    setBulkOpen(true);
+                  }}
+                >
+                  <Upload className="h-4 w-4" />
+                  Bulk CSV Import
+                </Button>
+                <Button onClick={openCreateInvoice}>
+                  <Plus className="h-4 w-4" />
+                  New Expense Invoice
+                </Button>
+              </div>
+            )}
+          </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto h-auto">
@@ -1330,464 +1904,8 @@ export function ExpensesPage() {
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Multi-line Expense Invoice Dialog */}
-      <Dialog open={invOpen} onOpenChange={setInvOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingInv ? `Edit Expense Invoice (${editingInv.invoiceNo})` : 'New Multi-Line Expense Invoice'}
-            </DialogTitle>
-            <DialogDescription>
-              All amounts calculate in integer paise without floating-point drift.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3 md:grid-cols-4">
-            <div className="space-y-1">
-              <Label>Shipment *</Label>
-              <Select value={shipmentId} onValueChange={setShipmentId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose shipment" />
-                </SelectTrigger>
-                <SelectContent>
-                  {shipments
-                    .filter((s) => !s.isFrozen || s.id === shipmentId)
-                    .map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.invoiceNumber} — {s.supplierName}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label>Service Provider *</Label>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
-                  onClick={() => setManageSpOpen(true)}
-                >
-                  <Settings2 className="h-3 w-3" />
-                  Manage
-                </button>
-              </div>
-              <Select value={serviceProviderId} onValueChange={setServiceProviderId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {providers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="expInvNo">Invoice No *</Label>
-              <Input id="expInvNo" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="expInvDate">Invoice Date *</Label>
-              <Input
-                id="expInvDate"
-                type="date"
-                value={invoiceDate}
-                onChange={(e) => setInvoiceDate(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {hasDuplicateType && (
-            <div className="flex items-center justify-between rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-              <span className="flex items-center gap-2 font-medium text-amber-800 dark:text-amber-300">
-                <AlertTriangle className="h-4 w-4" />
-                Duplicate expense type detected across lines. Combine matching lines before saving.
-              </span>
-              <Button size="sm" variant="outline" onClick={() => void handleCombineDuplicates()}>
-                <Merge className="h-3.5 w-3.5" />
-                Combine Duplicate Lines
-              </Button>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-              <div className="flex items-center gap-2.5">
-                <Label className="text-sm font-semibold">Expense Lines</Label>
-                <div className="inline-flex items-center rounded-md border bg-muted/40 p-0.5 text-xs">
-                  <button
-                    type="button"
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                      !draftLines.some((l) => l.isManualGst)
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                    onClick={() => {
-                      const next = draftLines.map((l) => ({ ...l, isManualGst: false }));
-                      setDraftLines(next);
-                      void refreshPreview(next);
-                    }}
-                  >
-                    Automatic (% Rate)
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                      draftLines.every((l) => l.isManualGst)
-                        ? 'bg-amber-500 text-white shadow-sm dark:bg-amber-600'
-                        : draftLines.some((l) => l.isManualGst)
-                        ? 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                    onClick={() => {
-                      const next = draftLines.map((l) => {
-                        const amt = Number.parseFloat(l.amountInr) || 0;
-                        const cPct = Number.parseFloat(l.cgstPct) || 0;
-                        const sPct = Number.parseFloat(l.sgstPct) || 0;
-                        const iPct = Number.parseFloat(l.igstPct) || 0;
-                        return {
-                          ...l,
-                          isManualGst: true,
-                          manualCgstInr:
-                            l.manualCgstInr && l.manualCgstInr !== '0.00'
-                              ? l.manualCgstInr
-                              : ((amt * cPct) / 100).toFixed(2),
-                          manualSgstInr:
-                            l.manualSgstInr && l.manualSgstInr !== '0.00'
-                              ? l.manualSgstInr
-                              : ((amt * sPct) / 100).toFixed(2),
-                          manualIgstInr:
-                            l.manualIgstInr && l.manualIgstInr !== '0.00'
-                              ? l.manualIgstInr
-                              : ((amt * iPct) / 100).toFixed(2),
-                        };
-                      });
-                      setDraftLines(next);
-                      void refreshPreview(next);
-                    }}
-                  >
-                    Manual GST Amount (₹)
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  type="button"
-                  className="h-8 gap-1 text-xs"
-                  onClick={() => {
-                    setTargetLineIdx(null);
-                    setManageEtOpen(true);
-                  }}
-                >
-                  <Settings2 className="h-3.5 w-3.5" />
-                  Manage Types
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  type="button"
-                  className="h-8 gap-1 text-xs"
-                  onClick={() =>
-                    setDraftLines((prev) => [
-                      ...prev,
-                      emptyLine(types[0], prev.some((l) => l.isManualGst)),
-                    ])
-                  }
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Line
-                </Button>
-              </div>
-            </div>
-
-            {draftLines.some((l) => l.isManualGst) && (
-              <div className="rounded-md border border-amber-300 bg-amber-50/50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-                <span className="font-semibold">Manual GST Mode active:</span> Enter exact GST rupee amounts (CGST/SGST or IGST) for lines where some values are exempt or not eligible for full GST.
-              </div>
-            )}
-
-            {draftLines.map((line, idx) => (
-              <div
-                key={idx}
-                className={`grid grid-cols-12 items-end gap-2 rounded-md border p-2 transition-colors ${
-                  line.isManualGst
-                    ? 'border-amber-300 bg-amber-50/20 dark:border-amber-800/60 dark:bg-amber-950/10'
-                    : ''
-                }`}
-              >
-                <div className="col-span-3 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <Label className="text-xs">Expense Type</Label>
-                      <button
-                        type="button"
-                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer font-medium ${
-                          line.isManualGst
-                            ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-200'
-                            : 'bg-muted text-muted-foreground border-transparent hover:bg-muted/80'
-                        }`}
-                        title={
-                          line.isManualGst
-                            ? 'Manual GST amount mode active. Click to switch to Auto %'
-                            : 'Auto percentage mode active. Click to enter manual GST amount'
-                        }
-                        onClick={() => {
-                          const nextManual = !line.isManualGst;
-                          let mCgst = line.manualCgstInr;
-                          let mSgst = line.manualSgstInr;
-                          let mIgst = line.manualIgstInr;
-                          if (nextManual && (!mCgst || mCgst === '0' || mCgst === '0.00')) {
-                            const amt = Number.parseFloat(line.amountInr) || 0;
-                            const cPct = Number.parseFloat(line.cgstPct) || 0;
-                            const sPct = Number.parseFloat(line.sgstPct) || 0;
-                            const iPct = Number.parseFloat(line.igstPct) || 0;
-                            mCgst = ((amt * cPct) / 100).toFixed(2);
-                            mSgst = ((amt * sPct) / 100).toFixed(2);
-                            mIgst = ((amt * iPct) / 100).toFixed(2);
-                          }
-                          updateLine(idx, {
-                            isManualGst: nextManual,
-                            manualCgstInr: mCgst,
-                            manualSgstInr: mSgst,
-                            manualIgstInr: mIgst,
-                          });
-                        }}
-                      >
-                        {line.isManualGst ? 'Manual ₹' : 'Auto %'}
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
-                      onClick={() => {
-                        setTargetLineIdx(idx);
-                        setManageEtOpen(true);
-                      }}
-                    >
-                      <Settings2 className="h-2.5 w-2.5" />
-                      Manage
-                    </button>
-                  </div>
-                  <Select
-                    value={line.expenseTypeId}
-                    onValueChange={(v) => {
-                      const et = types.find((t) => t.id === v);
-                      const cPct = et ? (et.defaultCgstRateBp / 100).toFixed(2) : line.cgstPct;
-                      const sPct = et ? (et.defaultSgstRateBp / 100).toFixed(2) : line.sgstPct;
-                      const iPct = et ? (et.defaultIgstRateBp / 100).toFixed(2) : line.igstPct;
-                      const amt = Number.parseFloat(line.amountInr) || 0;
-                      updateLine(idx, {
-                        expenseTypeId: v,
-                        cgstPct: cPct,
-                        sgstPct: sPct,
-                        igstPct: iPct,
-                        manualCgstInr: line.isManualGst ? ((amt * Number.parseFloat(cPct)) / 100).toFixed(2) : line.manualCgstInr,
-                        manualSgstInr: line.isManualGst ? ((amt * Number.parseFloat(sPct)) / 100).toFixed(2) : line.manualSgstInr,
-                        manualIgstInr: line.isManualGst ? ((amt * Number.parseFloat(iPct)) / 100).toFixed(2) : line.manualIgstInr,
-                        tdsPct: et ? (et.defaultTdsRateBp / 100).toFixed(2) : line.tdsPct,
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {types.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <Label className="text-xs">Basic (INR)</Label>
-                  <Input
-                    className="h-8 text-xs font-mono"
-                    type="number"
-                    step="0.01"
-                    aria-label="Basic (INR)"
-                    value={line.amountInr}
-                    onChange={(e) => updateLine(idx, { amountInr: e.target.value })}
-                  />
-                </div>
-                {!line.isManualGst ? (
-                  <>
-                    <div className="col-span-1 space-y-1">
-                      <Label className="text-xs">CGST%</Label>
-                      <Input
-                        className="h-8 text-xs font-mono"
-                        type="number"
-                        step="0.01"
-                        value={line.cgstPct}
-                        onChange={(e) => updateLine(idx, { cgstPct: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-span-1 space-y-1">
-                      <Label className="text-xs">SGST%</Label>
-                      <Input
-                        className="h-8 text-xs font-mono"
-                        type="number"
-                        step="0.01"
-                        value={line.sgstPct}
-                        onChange={(e) => updateLine(idx, { sgstPct: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-span-1 space-y-1">
-                      <Label className="text-xs">IGST%</Label>
-                      <Input
-                        className="h-8 text-xs font-mono"
-                        type="number"
-                        step="0.01"
-                        value={line.igstPct}
-                        onChange={(e) => updateLine(idx, { igstPct: e.target.value })}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="col-span-1 space-y-1">
-                      <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">CGST (₹)</Label>
-                      <Input
-                        className="h-8 text-xs font-mono border-amber-300 dark:border-amber-800"
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        aria-label="CGST Amount (INR)"
-                        value={line.manualCgstInr}
-                        onChange={(e) => updateLine(idx, { manualCgstInr: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-span-1 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">SGST (₹)</Label>
-                        <button
-                          type="button"
-                          className="text-[9px] text-primary hover:underline cursor-pointer"
-                          title="Copy CGST to SGST"
-                          onClick={() => updateLine(idx, { manualSgstInr: line.manualCgstInr })}
-                        >
-                          =CGST
-                        </button>
-                      </div>
-                      <Input
-                        className="h-8 text-xs font-mono border-amber-300 dark:border-amber-800"
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        aria-label="SGST Amount (INR)"
-                        value={line.manualSgstInr}
-                        onChange={(e) => updateLine(idx, { manualSgstInr: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-span-1 space-y-1">
-                      <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">IGST (₹)</Label>
-                      <Input
-                        className="h-8 text-xs font-mono border-amber-300 dark:border-amber-800"
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        aria-label="IGST Amount (INR)"
-                        value={line.manualIgstInr}
-                        onChange={(e) => updateLine(idx, { manualIgstInr: e.target.value })}
-                      />
-                    </div>
-                  </>
-                )}
-                <div className="col-span-1 space-y-1">
-                  <Label className="text-xs">TDS%</Label>
-                  <Input
-                    className="h-8 text-xs font-mono"
-                    type="number"
-                    step="0.01"
-                    value={line.tdsPct}
-                    onChange={(e) => updateLine(idx, { tdsPct: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <Label className="text-xs">Remarks</Label>
-                  <Input
-                    className="h-8 text-xs"
-                    value={line.remarks}
-                    onChange={(e) => updateLine(idx, { remarks: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-1 flex justify-end">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0"
-                    disabled={draftLines.length === 1}
-                    onClick={() => {
-                      const next = draftLines.filter((_, i) => i !== idx);
-                      setDraftLines(next);
-                      void refreshPreview(next);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {preview && (
-            <div className="grid grid-cols-4 gap-3 rounded-md bg-muted/40 p-3 text-xs">
-              <div>
-                <span className="text-muted-foreground">Base (Excl. GST)</span>
-                <div className="font-mono text-sm font-semibold">
-                  INR {formatPaiseINR(preview.baseAmountPaise)}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">GST (CGST+SGST+IGST)</span>
-                <div className="font-mono text-sm font-semibold">
-                  INR {formatPaiseINR(preview.totalCgstPaise + preview.totalSgstPaise + preview.totalIgstPaise)}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">TDS Deducted</span>
-                <div className="font-mono text-sm font-semibold">
-                  INR {formatPaiseINR(preview.totalTdsPaise)}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Net Payable</span>
-                <div className="font-mono text-sm font-bold text-primary">
-                  INR {formatPaiseINR(preview.netAmountPaise)}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <Label htmlFor="expInvRemarks">Invoice Remarks</Label>
-            <Input
-              id="expInvRemarks"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setInvOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={savingInv || hasDuplicateType || !shipmentId || !serviceProviderId || !invoiceNo}
-              onClick={() => void handleSaveInvoice()}
-            >
-              {savingInv ? 'Saving...' : 'Save Expense Invoice'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+    </>
+  )}
 
       {/* Service Provider Dialog */}
       <Dialog open={spOpen} onOpenChange={setSpOpen}>
