@@ -106,7 +106,7 @@ export function exportLandedCostPdf(report: LandedCostReport): void {
   doc.setFontSize(9);
   doc.text(
     `Rows: ${report.summary.totalRows} | Assessable: INR ${report.summary.totalAssessableValue.toFixed(2)} | ` +
-      `Basic Duties: INR ${report.summary.totalBasicDuties.toFixed(2)} | Basic Expenses: INR ${report.summary.totalBasicExpenses.toFixed(2)} | ` +
+      `Basic Duties: INR ${report.summary.totalBasicDuties.toFixed(2)} | BOE Interest: INR ${(report.summary.totalBoeInterest || 0).toFixed(2)} | Basic Expenses: INR ${report.summary.totalBasicExpenses.toFixed(2)} | ` +
       `Total LDC (Excl. IGST): INR ${report.summary.totalLandedCostExIgst.toFixed(2)}`,
     32,
     52,
@@ -126,6 +126,7 @@ export function exportLandedCostPdf(report: LandedCostReport): void {
       'BCD',
       'SWS',
       'IGST',
+      'BOE Interest',
       'Expenses (Basic)',
       'LDC/Qty',
     ]],
@@ -140,6 +141,7 @@ export function exportLandedCostPdf(report: LandedCostReport): void {
       r.bcdAmount.toFixed(2),
       r.swsAmount.toFixed(2),
       r.igstAmount.toFixed(2),
+      (r.boeInterest || 0).toFixed(2),
       r.expensesTotal.toFixed(2),
       r.ldcPerQty.toFixed(4),
     ]),

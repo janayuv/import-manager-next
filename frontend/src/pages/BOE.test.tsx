@@ -117,6 +117,8 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
   });
 
   it('shows CIF Zero-Locked state and disables Save when BCD override or dutyPaid mismatch blocks saving', async () => {
+    vi.mocked(boeSummaryService.list).mockResolvedValue([]);
+
     vi.mocked(shipmentService.list).mockResolvedValue({
       items: [
         {
@@ -214,10 +216,10 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
         totalInsurance: 0,
         totalAssessableValue: 85000,
         bcdTotal: 6375,
-        swsTotal: 637.5,
-        igstTotal: 16562.25,
+        swsTotal: 638,
+        igstTotal: 16562,
         interest: 0,
-        customsDutyTotal: 23574.75,
+        customsDutyTotal: 23575,
         hasBlockingBcdOverride: true,
         cifZeroLocked: true,
         payloadBytes: 512,
@@ -244,10 +246,238 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
       screen.getByText(/Save blocked: One or more line items have BOE BCD rate higher than Item Master Actual BCD rate/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Save blocked: Linked BOE duty paid \(INR 10000\.00\) does not match computed Customs Duty Total \(INR 23574\.75\)/i)
+      screen.getByText(/Save blocked: Linked BOE duty paid \(INR 10,000\) does not match computed Customs Duty Total \(INR 23,575\)/i)
     ).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: /Save Calculation/i })).toBeDisabled();
     expect(securityService.getMySession).toHaveBeenCalled();
+  });
+
+  it('excludes finalized shipments and linked BOEs from BOE Duty Calculation Engine dropdowns', async () => {
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'sh-pending',
+          supplierId: 'sup-1',
+          supplierName: 'Pending Supplier',
+          invoiceNumber: 'INV-PENDING',
+          invoiceDate: '2026-04-18',
+          goodsCategory: 'Parts',
+          invoiceValue: 500,
+          invoiceCurrency: 'USD',
+          incoterm: 'FOB',
+          shipmentMode: 'Air',
+          shipmentType: 'Dutiable',
+          blAwbNumber: '',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 5,
+          etd: '',
+          eta: '',
+          status: 'in-transit',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '',
+        },
+        {
+          id: 'sh-finalized',
+          supplierId: 'sup-2',
+          supplierName: 'Finalized Supplier',
+          invoiceNumber: 'INV-FINALIZED',
+          invoiceDate: '2026-04-10',
+          goodsCategory: 'Parts',
+          invoiceValue: 1200,
+          invoiceCurrency: 'USD',
+          incoterm: 'CIF',
+          shipmentMode: 'Sea',
+          shipmentType: 'Dutiable',
+          blAwbNumber: '',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 10,
+          etd: '',
+          eta: '',
+          status: 'customs-clearance',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '',
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 500,
+    });
+
+    vi.mocked(boeService.list).mockResolvedValue([
+      {
+        id: 'boe-available',
+        beNumber: 'BE-AVAIL-1',
+        beDate: '2026-04-18',
+        location: 'INMAA4',
+        totalAssessmentValue: 50000,
+        dutyAmount: 15000,
+        paymentDate: '2026-04-18',
+        dutyPaid: 15000,
+        challanNumber: 'CH-AVAIL',
+        refId: '',
+        transactionId: '',
+      },
+      {
+        id: 'boe-linked-final',
+        beNumber: 'BE-FINAL-1',
+        beDate: '2026-04-10',
+        location: 'INMAA4',
+        totalAssessmentValue: 100000,
+        dutyAmount: 32460,
+        paymentDate: '2026-04-10',
+        dutyPaid: 32460,
+        challanNumber: 'CH-FINAL',
+        refId: '',
+        transactionId: '',
+      },
+    ]);
+
+    vi.mocked(boeSummaryService.list).mockResolvedValue([
+      {
+        id: 'calc-fin',
+        shipmentId: 'sh-finalized',
+        boeId: 'boe-linked-final',
+        beNumber: 'BE-FINAL-1',
+        beDate: '2026-04-10',
+        supplierName: 'Finalized Supplier',
+        invoiceNumber: 'INV-FINALIZED',
+        status: 'Reconciled',
+        customsDutyTotal: 32460,
+        dutyPaid: 32460,
+        assessableTotal: 100000,
+        createdAt: '2026-04-10T10:00:00Z',
+      },
+    ]);
+
+    vi.mocked(boeEntryService.loadShipmentContext).mockResolvedValue({
+      shipment: {
+        id: 'sh-pending',
+        supplierId: 'sup-1',
+        supplierName: 'Pending Supplier',
+        invoiceNumber: 'INV-PENDING',
+        invoiceDate: '2026-04-18',
+        goodsCategory: 'Parts',
+        invoiceValue: 500,
+        invoiceCurrency: 'USD',
+        incoterm: 'FOB',
+        shipmentMode: 'Air',
+        shipmentType: 'Dutiable',
+        blAwbNumber: '',
+        blAwbDate: '',
+        vesselName: '',
+        containerNumber: '',
+        grossWeightKg: 5,
+        etd: '',
+        eta: '',
+        status: 'in-transit',
+        dateOfDelivery: '',
+        isFrozen: false,
+        createdAt: '',
+      },
+      params: {
+        shipmentId: 'sh-pending',
+        boeId: '',
+        supplierName: 'Pending Supplier',
+        invoiceNumber: 'INV-PENDING',
+        invoiceCurrency: 'USD',
+        incoterm: 'FOB',
+        status: 'Awaiting BOE Data',
+        exchangeRate: 83.5,
+        freightCost: 0,
+        exwCost: 0,
+        insuranceRate: 0.015,
+        interest: 0,
+        lineItems: [
+          {
+            itemId: 'ITM-1',
+            partNumber: 'PN-101',
+            description: 'Item 1',
+            hsnCode: '8471',
+            unit: 'PCS',
+            quantity: 1,
+            unitPrice: 104776,
+            actualBcdRate: 10,
+            actualSwsRate: 10,
+            actualIgstRate: 18,
+            calculationMethod: 'Standard',
+            boeBcdRate: 10,
+            boeSwsRate: 10,
+            boeIgstRate: 18,
+          },
+        ],
+      },
+      result: {
+        items: [
+          {
+            itemId: 'ITM-1',
+            partNumber: 'PN-101',
+            description: 'Item 1',
+            hsnCode: '8471',
+            unit: 'PCS',
+            quantity: 1,
+            unitPrice: 104776,
+            itemForexValue: 104776,
+            itemValueInr: 104776,
+            itemFreight: 0,
+            itemExw: 0,
+            itemInsurance: 0,
+            assessableValue: 104776,
+            calculationMethod: 'Standard',
+            actualBcdRate: 10,
+            actualSwsRate: 10,
+            actualIgstRate: 18,
+            boeBcdRate: 10,
+            boeSwsRate: 10,
+            boeIgstRate: 18,
+            bcdValue: 10477.6,
+            swsValue: 1047.8,
+            igstValue: 20934.3,
+            totalLineDuty: 32459.7,
+            bcdDiscrepancy: false,
+          },
+        ],
+        totalInvoiceValue: 104776,
+        totalValueInr: 104776,
+        totalFreight: 0,
+        totalExw: 0,
+        totalInsurance: 0,
+        totalAssessableValue: 104776,
+        bcdTotal: 10478,
+        swsTotal: 1048,
+        igstTotal: 20934,
+        interest: 0,
+        customsDutyTotal: 32460,
+        hasBlockingBcdOverride: false,
+        cifZeroLocked: false,
+        payloadBytes: 256,
+        payloadWarning: false,
+      },
+      hasSaved: false,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <BOEEntryPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText(/INV-PENDING/i)).toBeInTheDocument());
+    expect(screen.queryByText(/INV-FINALIZED/i)).not.toBeInTheDocument();
+
+    // Verify 1 decimal place for line items and 0 decimal places for totals
+    expect(screen.getByText('10477.6 / 1047.8 / 20934.3')).toBeInTheDocument();
+    expect(screen.getByText('10,478')).toBeInTheDocument();
+    expect(screen.getByText('1,048')).toBeInTheDocument();
+    expect(screen.getByText('20,934')).toBeInTheDocument();
+    expect(screen.getByText('INR 32,460')).toBeInTheDocument();
   });
 });

@@ -15,7 +15,7 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as models$0 from "../../models/models.js";
 
 /**
- * ExportLandedCostCSV exports the exact 14-column Landed Cost CSV with formula-cell protection.
+ * ExportLandedCostCSV exports the 15-column Landed Cost CSV with formula-cell protection.
  */
 export function ExportLandedCostCSV(filter: models$0.LandedCostFilter): $CancellablePromise<string> {
     return $Call.ByID(4152519464, filter);

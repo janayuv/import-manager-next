@@ -133,7 +133,7 @@ export function exportBOEPdf(params: BOECalcParams, result: BOECalculationResult
   const finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 120;
   doc.setFontSize(10);
   doc.text(
-    `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | BCD ${result.bcdTotal} | SWS ${result.swsTotal} | IGST ${result.igstTotal} | Interest ${result.interest} | Customs Duty Total: ${result.customsDutyTotal}`,
+    `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | BCD ${result.bcdTotal.toFixed(0)} | SWS ${result.swsTotal.toFixed(0)} | IGST ${result.igstTotal.toFixed(0)} | Interest ${result.interest.toFixed(0)} | Customs Duty Total: ${result.customsDutyTotal.toFixed(0)}`,
     14,
     finalY + 10,
   );

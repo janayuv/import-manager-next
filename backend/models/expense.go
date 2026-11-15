@@ -49,6 +49,7 @@ type ExpenseLineInput struct {
 	ExpenseTypeID string `json:"expenseTypeId"`
 	AmountPaise   int64  `json:"amountPaise"`
 	IsManualGST   bool   `json:"isManualGst"`
+	RoundOff      bool   `json:"roundOff"`
 	CGSTPaise     int64  `json:"cgstPaise"`
 	SGSTPaise     int64  `json:"sgstPaise"`
 	IGSTPaise     int64  `json:"igstPaise"`
@@ -88,6 +89,7 @@ type ExpenseInvoiceCalculation struct {
 	TotalSGSTPaise   int64                    `json:"totalSgstPaise"`
 	TotalIGSTPaise   int64                    `json:"totalIgstPaise"`
 	TotalTDSPaise    int64                    `json:"totalTdsPaise"`
+	RoundOffPaise    int64                    `json:"roundOffPaise"`
 	TotalAmountPaise int64                    `json:"totalAmountPaise"`
 	NetAmountPaise   int64                    `json:"netAmountPaise"`
 	TotalAmountINR   float64                  `json:"totalAmountInr"`
@@ -107,6 +109,7 @@ type ExpenseInvoiceRequest struct {
 	IdempotencyKey    string             `json:"idempotencyKey"`
 	Version           int                `json:"version"`
 	MergeDuplicates   bool               `json:"mergeDuplicates"`
+	RoundOffPaise     int64              `json:"roundOffPaise"`
 	Lines             []ExpenseLineInput `json:"lines"`
 }
 
@@ -149,6 +152,7 @@ type ExpenseInvoice struct {
 	TotalIGSTPaise      int64         `json:"totalIgstPaise"`
 	TotalTDSPaise       int64         `json:"totalTdsPaise"`
 	TotalAmountPaise    int64         `json:"totalAmountPaise"`
+	RoundOffPaise       int64         `json:"roundOffPaise"`
 	NetAmountPaise      int64         `json:"netAmountPaise"`
 	Remarks             string        `json:"remarks"`
 	IdempotencyKey      string        `json:"idempotencyKey"`
@@ -241,7 +245,7 @@ type LandedCostFilter struct {
 	Search     string `json:"search"`
 }
 
-// LandedCostRow mirrors the 15 columns exposed by report_view (14 export columns + supplierId).
+// LandedCostRow mirrors the 16 columns exposed by report_view (15 export columns + supplierId).
 type LandedCostRow struct {
 	Supplier        string  `json:"supplier"`
 	SupplierID      string  `json:"supplierId"`
@@ -256,6 +260,7 @@ type LandedCostRow struct {
 	BCDAmount       float64 `json:"bcdAmount"`
 	SWSAmount       float64 `json:"swsAmount"`
 	IGSTAmount      float64 `json:"igstAmount"`
+	BoeInterest     float64 `json:"boeInterest"`
 	ExpensesTotal   float64 `json:"expensesTotal"`
 	LDCPerQty       float64 `json:"ldcPerQty"`
 }
@@ -267,6 +272,7 @@ type LandedCostSummary struct {
 	TotalAssessableValue  float64 `json:"totalAssessableValue"`
 	TotalBasicDuties      float64 `json:"totalBasicDuties"` // BCD + SWS
 	TotalIGST             float64 `json:"totalIgst"`
+	TotalBoeInterest      float64 `json:"totalBoeInterest"`
 	TotalBasicExpenses    float64 `json:"totalBasicExpenses"`
 	TotalLandedCostExIGST float64 `json:"totalLandedCostExIgst"`
 }

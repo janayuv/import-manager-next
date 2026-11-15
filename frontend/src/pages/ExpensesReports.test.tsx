@@ -108,6 +108,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         totalIgstPaise: 0,
         totalTdsPaise: 2000,
         totalAmountPaise: 118000,
+        roundOffPaise: 0,
         netAmountPaise: 116000,
         remarks: '',
         idempotencyKey: 'k1',
@@ -177,6 +178,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         expenseTypeId: 'ET-1',
         amountPaise: 50000,
         isManualGst: false,
+        roundOff: false,
         cgstRateBp: 900,
         sgstRateBp: 900,
         igstRateBp: 0,
@@ -195,6 +197,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
       totalIgstPaise: 0,
       totalTdsPaise: 1000,
       totalAmountPaise: 59000,
+      roundOffPaise: 0,
       netAmountPaise: 58000,
       totalAmountInr: 590,
       netAmountInr: 580,
@@ -243,6 +246,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         totalIgstPaise: 0,
         totalTdsPaise: 18000,
         totalAmountPaise: 1062000,
+        roundOffPaise: 0,
         netAmountPaise: 1044000,
         remarks: 'Sample invoice',
         idempotencyKey: 'idem-1',
@@ -320,6 +324,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
       totalIgstPaise: 0,
       totalTdsPaise: 100000,
       totalAmountPaise: 5180000,
+      roundOffPaise: 0,
       netAmountPaise: 5080000,
       totalAmountInr: 51800,
       netAmountInr: 50800,
@@ -447,6 +452,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
           bcdAmount: 1350,
           swsAmount: 135,
           igstAmount: 3507.3,
+          boeInterest: 0,
           expensesTotal: 6000,
           ldcPerQty: 12742.5,
         },
@@ -457,6 +463,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         totalAssessableValue: 18000,
         totalBasicDuties: 1485,
         totalIgst: 3507.3,
+        totalBoeInterest: 0,
         totalBasicExpenses: 6000,
         totalLandedCostExIgst: 25485,
       },
@@ -472,6 +479,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
 
     await waitFor(() => expect(screen.getByText('PN-100')).toBeInTheDocument());
     expect(screen.getByText('12742.5000')).toBeInTheDocument();
+    expect(screen.getAllByText('BOE Interest').length).toBeGreaterThan(0);
   });
 
   it('opens Manage Service Providers and Manage Expense Types dialogs from the multi-line invoice modal', async () => {
@@ -624,6 +632,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         totalIgstPaise: 0,
         totalTdsPaise: 100000,
         totalAmountPaise: 5900000,
+        roundOffPaise: 0,
         netAmountPaise: 5800000,
         remarks: 'Air shipment customs clearance',
         idempotencyKey: 'k999',
@@ -741,6 +750,196 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
     await waitFor(() => {
       expect(screen.getByText('Total Line Items')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Export CSV/i })).toBeInTheDocument();
+    });
+  });
+
+  it('supports multi-service invoice entry with roundoff and existing invoice helper', async () => {
+    vi.mocked(expenseService.listExpenseInvoices).mockResolvedValue([
+      {
+        id: 'EINV-377',
+        shipmentId: 'SH-1',
+        shipmentInvoiceNo: 'INV-SH-1',
+        serviceProviderId: 'SP-1',
+        serviceProviderName: 'MANTHRA SHIPPING',
+        invoiceNo: '377',
+        invoiceDate: '2026-10-14',
+        currency: 'INR',
+        baseAmountPaise: 625000,
+        totalCgstPaise: 56300,
+        totalSgstPaise: 56300,
+        totalIgstPaise: 0,
+        totalTdsPaise: 0,
+        totalAmountPaise: 737600,
+        netAmountPaise: 737600,
+        roundOffPaise: 0,
+        remarks: 'Transport',
+        idempotencyKey: 'idem-377',
+        version: 1,
+        createdAt: '2026-10-14T00:00:00Z',
+        updatedAt: '2026-10-14T00:00:00Z',
+        lines: [
+          {
+            id: 'line-1',
+            expenseInvoiceId: 'EINV-377',
+            shipmentId: 'SH-1',
+            serviceProviderId: 'SP-1',
+            expenseTypeId: 'ET-1',
+            expenseTypeName: 'Transport Charges-LCL',
+            amountPaise: 625000,
+            cgstRateBp: 900,
+            sgstRateBp: 900,
+            igstRateBp: 0,
+            tdsRateBp: 0,
+            cgstPaise: 56300,
+            sgstPaise: 56300,
+            igstPaise: 0,
+            tdsPaise: 0,
+            totalPaise: 737600,
+            netPaise: 737600,
+            isManualGst: false,
+            remarks: 'Transport only',
+          },
+        ],
+      },
+    ]);
+    vi.mocked(expenseService.listServiceProviders).mockResolvedValue([
+      {
+        id: 'SP-1',
+        name: 'MANTHRA SHIPPING',
+        gstin: '33AABCE1234F1Z5',
+        state: 'Tamil Nadu',
+        contactPerson: '',
+        contactEmail: '',
+        contactPhone: '',
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(expenseService.listExpenseTypes).mockResolvedValue([
+      {
+        id: 'ET-1',
+        name: 'Transport Charges-LCL',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 0,
+        isActive: true,
+        createdAt: '',
+      },
+      {
+        id: 'ET-2',
+        name: 'Clearing & Forwarding LCL',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 0,
+        isActive: true,
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'SH-1',
+          supplierId: 'SUP-1',
+          supplierName: 'DY ELACEN CO LTD',
+          invoiceNumber: 'INV-SH-1',
+          invoiceDate: '2026-04-10',
+          goodsCategory: 'Goods',
+          invoiceValue: 5000,
+          invoiceCurrency: 'USD',
+          incoterm: 'CIF',
+          shipmentMode: 'Sea',
+          shipmentType: 'Dutiable',
+          blAwbNumber: '',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 100,
+          etd: '',
+          eta: '',
+          status: 'Active',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '',
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+    vi.mocked(expenseService.previewCalculation).mockResolvedValue({
+      lines: [],
+      baseAmountPaise: 964900,
+      totalCgstPaise: 86900,
+      totalSgstPaise: 86900,
+      totalIgstPaise: 0,
+      totalTdsPaise: 0,
+      totalAmountPaise: 1138700,
+      netAmountPaise: 1138700,
+      roundOffPaise: 0,
+      totalAmountInr: 11387,
+      netAmountInr: 11387,
+      hasDuplicateType: false,
+    });
+    vi.mocked(expenseService.updateExpenseInvoice).mockResolvedValue({} as any);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ExpensesPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('377')).toBeInTheDocument());
+
+    // Click New Expense Invoice
+    fireEvent.click(screen.getByRole('button', { name: /New Expense Invoice/i }));
+    await waitFor(() =>
+      expect(screen.getByText('New Multi-Line Expense Invoice')).toBeInTheDocument()
+    );
+
+    // Type invoice number "377"
+    const invInput = screen.getByLabelText(/Invoice No/i);
+    fireEvent.change(invInput, { target: { value: '377' } });
+
+    // Expect friendly helper indicating invoice 377 already exists and prompting to edit it
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Invoice “377” already exists for this service provider/i)
+      ).toBeInTheDocument()
+    );
+
+    // Click "Edit Existing Invoice #377"
+    const editBtn = screen.getByRole('button', { name: /Edit Existing Invoice #377/i });
+    fireEvent.click(editBtn);
+
+    // Verify it switched to edit mode for 377
+    await waitFor(() =>
+      expect(screen.getByText(/Edit Expense Invoice \(377\)/i)).toBeInTheDocument()
+    );
+
+    // Adjust Round Off field
+    const roundOffInput = screen.getByLabelText(/Round Off \(INR\)/i);
+    fireEvent.change(roundOffInput, { target: { value: '-1' } });
+
+    // Click Save Expense Invoice
+    const saveButtons = screen.getAllByRole('button', { name: /Save Expense Invoice/i });
+    expect(saveButtons.length).toBeGreaterThan(0);
+    fireEvent.click(saveButtons[0]!);
+
+    await waitFor(() => {
+      expect(expenseService.updateExpenseInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          invoiceNo: '377',
+          roundOffPaise: -100,
+          lines: expect.arrayContaining([
+            expect.objectContaining({
+              roundOff: true,
+            }),
+          ]),
+        })
+      );
     });
   });
 });

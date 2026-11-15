@@ -17,8 +17,9 @@ func TestFullBootstrapAndShutdownWithSQLCipher(t *testing.T) {
 		t.Fatalf("bootstrap.Initialize failed: %v", err)
 	}
 	coord := lifecycle.NewCoordinator(rt)
+	defer coord.Close()
 
-	if rt.MigrationResult.CurrentVersion != 6 || rt.MigrationResult.AppliedCount != 6 {
+	if rt.MigrationResult.CurrentVersion != 8 || rt.MigrationResult.AppliedCount != 8 {
 		t.Fatalf("unexpected migration result: %+v", rt.MigrationResult)
 	}
 	if !rt.Integrity.IntegrityOK || rt.Integrity.ForeignKeyErrors != 0 {

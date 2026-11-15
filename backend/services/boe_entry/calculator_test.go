@@ -214,3 +214,116 @@ func TestBOEEntrySaveBlockersOverridesAndTransitions(t *testing.T) {
 		t.Fatalf("unexpected boe summary list: %+v err=%v", summaries, err)
 	}
 }
+
+func TestCalculateDutiesUserSpecifiedSingleDigitAndZeroDigitTotals(t *testing.T) {
+	// Tests exact user example:
+	// each item BCD: 10477.6, SWS: 1047.8, IGST: 20934.3
+	// total: BCD: 10478, SWS: 1048, IGST: 20934, Customs duty: 32460
+	res, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:      "CIF",
+		ExchangeRate:  1.0,
+		FreightCost:   0,
+		EXWCost:       0,
+		InsuranceRate: 0,
+		Interest:      0,
+		LineItems: []models.BOECalculationItemInput{
+			{
+				ItemID:            "ITM-USER-1",
+				PartNumber:        "PN-USER-1",
+				Quantity:          1,
+				UnitPrice:         104776.0,
+				ActualBCDRate:     10.0,
+				ActualSWSRate:     10.0,
+				ActualIGSTRate:    18.0,
+				CalculationMethod: "Standard",
+				BOEBCDRate:        10.0,
+				BOESWSRate:        10.0,
+				BOEIGSTRate:       18.0,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CalculateDuties failed: %v", err)
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(res.Items))
+	}
+	ln := res.Items[0]
+	if ln.BCDValue != 10477.6 {
+		t.Fatalf("expected item BCD 10477.6, got %.1f", ln.BCDValue)
+	}
+	if ln.SWSValue != 1047.8 {
+		t.Fatalf("expected item SWS 1047.8, got %.1f", ln.SWSValue)
+	}
+	if ln.IGSTValue != 20934.3 {
+		t.Fatalf("expected item IGST 20934.3, got %.1f", ln.IGSTValue)
+	}
+	if res.BCDTotal != 10478 {
+		t.Fatalf("expected BCD total 10478, got %.0f", res.BCDTotal)
+	}
+	if res.SWSTotal != 1048 {
+		t.Fatalf("expected SWS total 1048, got %.0f", res.SWSTotal)
+	}
+	if res.IGSTTotal != 20934 {
+		t.Fatalf("expected IGST total 20934, got %.0f", res.IGSTTotal)
+	}
+	if res.CustomsDutyTotal != 32460 {
+		t.Fatalf("expected customs duty total 32460, got %.0f", res.CustomsDutyTotal)
+	}
+}
+
+func TestCalculateDutiesUserScreenshotDEVP_INZI260827_01(t *testing.T) {
+	// From user screenshot:
+	// Shipment: DEVP/INZI260827-01 (CIF, ExRate=96.8, Interest=1168)
+	// Line 1: 557145 -> Forex 3053.00, Assessable 295530.4, BCD 29553.0, SWS 2955.3, IGST 59047.0
+	// Line 2: 557144 -> Forex 1082.40, Assessable 104776.3, BCD 10477.6, SWS 1047.8, IGST 20934.3
+	// Line 3: 556972 -> Forex 2426.00, Assessable 234836.8, BCD 23483.7, SWS 2348.4, IGST 46920.4
+	// Line 4: 556975 -> Forex 4346.00, Assessable 420692.8, BCD 42069.3, SWS 4206.9, IGST 84054.4
+	// Line 5: 556973 -> Forex 31448.00, Assessable 3044166.4, BCD 304416.6, SWS 30441.7, IGST 608224.4
+	// Line 6: 556974 -> Forex 5024.00, Assessable 486323.2, BCD 48632.3, SWS 4863.2, IGST 97167.4
+	//
+	// Expected Totals:
+	// Assessable Value: 4586325.9
+	// BCD Total: 458633 (sum 458632.5 rounded half-up to 458633)
+	// SWS Total: 45863 (sum 45863.3 rounded half-up to 45863)
+	// IGST Total: 916348 (sum 916347.9 rounded half-up to 916348)
+	// Customs Duty Grand Total: 458633 + 45863 + 916348 + 1168 = 1422012 (matching linked BOE dutyPaid 14,22,012)
+	res, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:      "CIF",
+		ExchangeRate:  96.8,
+		FreightCost:   0,
+		EXWCost:       0,
+		InsuranceRate: 0,
+		Interest:      1168,
+		LineItems: []models.BOECalculationItemInput{
+			{PartNumber: "557145", Quantity: 1, UnitPrice: 3053.00, ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18, CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18},
+			{PartNumber: "557144", Quantity: 1, UnitPrice: 1082.40, ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18, CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18},
+			{PartNumber: "556972", Quantity: 1, UnitPrice: 2426.00, ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18, CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18},
+			{PartNumber: "556975", Quantity: 1, UnitPrice: 4346.00, ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18, CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18},
+			{PartNumber: "556973", Quantity: 1, UnitPrice: 31448.00, ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18, CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18},
+			{PartNumber: "556974", Quantity: 1, UnitPrice: 5024.00, ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18, CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CalculateDuties failed: %v", err)
+	}
+
+	if res.TotalAssessableValue != 4586325.9 {
+		t.Fatalf("expected Assessable Total 4586325.9, got %.1f", res.TotalAssessableValue)
+	}
+	if res.BCDTotal != 458633 {
+		t.Fatalf("expected BCD Total 458633, got %.0f", res.BCDTotal)
+	}
+	if res.SWSTotal != 45863 {
+		t.Fatalf("expected SWS Total 45863, got %.0f", res.SWSTotal)
+	}
+	if res.IGSTTotal != 916348 {
+		t.Fatalf("expected IGST Total 916348, got %.0f", res.IGSTTotal)
+	}
+	if res.Interest != 1168 {
+		t.Fatalf("expected Interest 1168, got %.0f", res.Interest)
+	}
+	if res.CustomsDutyTotal != 1422012 {
+		t.Fatalf("expected Customs Duty Grand Total 1422012, got %.0f", res.CustomsDutyTotal)
+	}
+}

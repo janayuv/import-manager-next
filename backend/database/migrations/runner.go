@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/janayuv/import-manager-next/backend/database/transactions"
 )
 
 //go:embed sql/*.sql
@@ -193,13 +191,33 @@ func RunWithMigrations(ctx context.Context, db *sql.DB, appVersion string, migs 
 		res.PreBackupPath = backupPath
 	}
 
+	conn, connErr := db.Conn(ctx)
+	if connErr != nil {
+		return res, fmt.Errorf("acquire migration connection: %w", connErr)
+	}
+	defer conn.Close()
+
 	for _, m := range pending {
 		start := time.Now()
-		txErr := transactions.WithinTx(ctx, db, func(tx *sql.Tx) error {
+
+		// SQLite foreign keys cannot be toggled inside a multi-statement transaction.
+		// Disable foreign keys on this dedicated connection prior to BeginTx so table rebuilding works.
+		if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF;"); err != nil {
+			return res, fmt.Errorf("disable foreign keys for migration: %w", err)
+		}
+
+		tx, beginErr := conn.BeginTx(ctx, nil)
+		if beginErr != nil {
+			_, _ = conn.ExecContext(ctx, "PRAGMA foreign_keys = ON;")
+			return res, fmt.Errorf("begin migration transaction: %w", beginErr)
+		}
+
+		var durMs int64
+		runErr := func() error {
 			if _, execErr := tx.ExecContext(ctx, m.SQL); execErr != nil {
 				return execErr
 			}
-			durMs := time.Since(start).Milliseconds()
+			durMs = time.Since(start).Milliseconds()
 			_, recErr := tx.ExecContext(ctx, `
 				INSERT INTO next_schema_migrations (
 					version, name, checksum_sha256, app_version, executed_at, duration_ms, status
@@ -212,11 +230,13 @@ func RunWithMigrations(ctx context.Context, db *sql.DB, appVersion string, migs 
 				durMs,
 			)
 			return recErr
-		})
-		if txErr != nil {
-			durMs := time.Since(start).Milliseconds()
+		}()
+
+		if runErr != nil {
+			_ = tx.Rollback()
+			durMs = time.Since(start).Milliseconds()
 			// Record failed migration state explicitly outside the rolled-back tx.
-			_, _ = db.ExecContext(ctx, `
+			_, _ = conn.ExecContext(ctx, `
 				INSERT OR REPLACE INTO next_schema_migrations (
 					version, name, checksum_sha256, app_version, executed_at, duration_ms, status
 				) VALUES (?, ?, ?, ?, ?, ?, 'FAILED')`,
@@ -227,8 +247,30 @@ func RunWithMigrations(ctx context.Context, db *sql.DB, appVersion string, migs 
 				time.Now().UTC().Format(time.RFC3339),
 				durMs,
 			)
-			return res, fmt.Errorf("apply migration v%d (%s): %w", m.Version, m.Name, txErr)
+			_, _ = conn.ExecContext(ctx, "PRAGMA foreign_keys = ON;")
+			return res, fmt.Errorf("apply migration v%d (%s): %w", m.Version, m.Name, runErr)
 		}
+
+		if commitErr := tx.Commit(); commitErr != nil {
+			_, _ = conn.ExecContext(ctx, "PRAGMA foreign_keys = ON;")
+			return res, fmt.Errorf("commit migration v%d (%s): %w", m.Version, m.Name, commitErr)
+		}
+
+		_, _ = conn.ExecContext(ctx, "PRAGMA foreign_keys = ON;")
+
+		// Verify foreign key integrity after re-enabling
+		fkRows, fkErr := conn.QueryContext(ctx, "PRAGMA foreign_key_check")
+		if fkErr == nil {
+			if fkRows.Next() {
+				var table, parent string
+				var rowid, fkid int
+				_ = fkRows.Scan(&table, &rowid, &parent, &fkid)
+				_ = fkRows.Close()
+				return res, fmt.Errorf("migration v%d (%s) foreign key check failed: table %s rowid %d references %s", m.Version, m.Name, table, rowid, parent)
+			}
+			_ = fkRows.Close()
+		}
+
 		res.AppliedCount++
 		res.CurrentVersion = m.Version
 	}

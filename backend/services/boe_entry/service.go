@@ -278,10 +278,10 @@ func (s *Service) SaveCalculation(params models.BOECalcParams) (models.BOECalcul
 		if err != nil {
 			return models.BOECalculationSummary{}, err
 		}
-		if roundTo(dutyPaid, 2) != roundTo(result.CustomsDutyTotal, 2) {
+		if math.Round(dutyPaid) != math.Round(result.CustomsDutyTotal) {
 			return models.BOECalculationSummary{}, fmt.Errorf(
-				"save blocked: linked BOE dutyPaid (%.2f) does not match computed customsDutyTotal (%.2f)",
-				roundTo(dutyPaid, 2), roundTo(result.CustomsDutyTotal, 2),
+				"save blocked: linked BOE dutyPaid (%.0f) does not match computed customsDutyTotal (%.0f)",
+				math.Round(dutyPaid), math.Round(result.CustomsDutyTotal),
 			)
 		}
 	}

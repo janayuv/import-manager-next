@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, ClipboardPaste, Plus, Save, Trash2 } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, CheckCircle2, ClipboardPaste, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,7 @@ import { itemService, type Item } from '@/services/master-service';
 import {
   invoiceService,
   invoiceWizardService,
+  type InvoiceSummary,
   type Shipment,
 } from '@/services/shipment-invoice-service';
 
@@ -75,7 +76,12 @@ function roundPrecision(val: number, decimals: number): number {
 
 export function InvoiceWizardPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const editIdParam = searchParams.get('id') || searchParams.get('invoiceId') || '';
+
   const [step, setStep] = React.useState<1 | 2 | 3>(1);
+  const [editingInvoiceId, setEditingInvoiceId] = React.useState<string>(editIdParam);
+  const [dbDrafts, setDbDrafts] = React.useState<InvoiceSummary[]>([]);
 
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
   const [items, setItems] = React.useState<Item[]>([]);
@@ -103,26 +109,91 @@ export function InvoiceWizardPage() {
     }
   });
 
+  const loadDraftForEdit = React.useCallback(async (invoiceId: string) => {
+    try {
+      const detail = await invoiceService.getDetail(invoiceId);
+      if (!detail || !detail.invoice) return;
+      setEditingInvoiceId(detail.invoice.id);
+      setSelectedShipmentId(detail.invoice.shipmentId);
+      setLineTotalDecimals(detail.invoice.lineTotalDecimals === 0 ? 0 : 2);
+      setInvoiceTotalDecimals(detail.invoice.invoiceTotalDecimals === 0 ? 0 : 2);
+
+      setShipments((prev) => {
+        if (prev.some((s) => s.id === detail.invoice.shipmentId)) return prev;
+        return [
+          {
+            id: detail.invoice.shipmentId,
+            invoiceNumber: detail.invoice.invoiceNumber,
+            invoiceDate: detail.invoice.invoiceDate,
+            supplierName: detail.invoice.supplierName,
+            supplierId: detail.invoice.supplierId,
+            invoiceCurrency: detail.invoice.currency,
+            invoiceValue: detail.invoice.shipmentInvoiceValue,
+            isFrozen: detail.invoice.shipmentFrozen,
+            status: 'in-transit',
+          } as Shipment,
+          ...prev,
+        ];
+      });
+
+      const loadedLines: WizardLine[] = (detail.lines ?? []).map((ln) => ({
+        key: `${ln.itemId}-${ln.id || Date.now()}`,
+        itemId: ln.itemId,
+        partNumber: ln.partNumber,
+        itemDescription: ln.itemDescription,
+        unit: ln.unit,
+        quantity: ln.quantity,
+        unitPrice: ln.unitPrice,
+        masterUnitPrice: ln.masterUnitPrice,
+        dutyPercent: ln.dutyPercent,
+        swsPercent: ln.swsPercent,
+        igstPercent: ln.igstPercent,
+      }));
+      setLines(loadedLines);
+      setStep(2);
+      toast.info(`Loaded draft invoice ${detail.invoice.id} for editing`);
+    } catch (err) {
+      toast.error(`Failed to load draft ${invoiceId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
   React.useEffect(() => {
     void (async () => {
       try {
-        const [activeShips, catalog] = await Promise.all([
+        const [activeShips, catalog, draftList] = await Promise.all([
           invoiceService.listActiveShipments(),
           itemService.list({ search: '', supplierId: '', status: 'active', sortBy: 'partNumber', sortDir: 'asc', page: 1, pageSize: 500 }),
+          Promise.resolve(invoiceService.list('', 'Draft')).catch(() => []),
         ]);
-        setShipments(activeShips);
-        setItems(catalog.items ?? []);
-        if (activeShips[0] && !selectedShipmentId) {
+        setShipments(activeShips ?? []);
+        setItems(catalog?.items ?? []);
+        setDbDrafts(Array.isArray(draftList) ? draftList : []);
+
+        if (editIdParam) {
+          await loadDraftForEdit(editIdParam);
+        } else if (activeShips?.[0] && !selectedShipmentId) {
           setSelectedShipmentId(activeShips[0].id);
         }
-        if (catalog.items?.[0]) {
+
+        if (catalog?.items?.[0]) {
           setAddItemId(catalog.items[0].id);
         }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : String(err));
       }
     })();
-  }, []);
+  }, [editIdParam, loadDraftForEdit]);
+
+  const handleStartNew = () => {
+    setEditingInvoiceId('');
+    setLines([]);
+    setStep(1);
+    setSearchParams({});
+    if (shipments[0]) {
+      setSelectedShipmentId(shipments[0].id);
+    }
+    toast.info('Cleared draft; started new invoice');
+  };
 
   const selectedShipment = React.useMemo(
     () => shipments.find((s) => s.id === selectedShipmentId) ?? null,
@@ -134,9 +205,13 @@ export function InvoiceWizardPage() {
       if (!selectedShipmentId || nextLines.length === 0) return;
       const sh = shipments.find((s) => s.id === selectedShipmentId);
       const entry: StoredDraft = {
-        id: `draft-${selectedShipmentId}`,
+        id: editingInvoiceId ? `draft-${editingInvoiceId}` : `draft-${selectedShipmentId}`,
         shipmentId: selectedShipmentId,
-        label: sh ? `${sh.invoiceNumber} (${sh.id})` : selectedShipmentId,
+        label: editingInvoiceId
+          ? `${editingInvoiceId} (${sh?.invoiceNumber || selectedShipmentId})`
+          : sh
+            ? `${sh.invoiceNumber} (${sh.id})`
+            : selectedShipmentId,
         savedAt: Date.now(),
         lineTotalDecimals,
         invoiceTotalDecimals,
@@ -149,7 +224,7 @@ export function InvoiceWizardPage() {
         return merged;
       });
     },
-    [selectedShipmentId, shipments, lineTotalDecimals, invoiceTotalDecimals],
+    [selectedShipmentId, shipments, lineTotalDecimals, invoiceTotalDecimals, editingInvoiceId],
   );
 
   const computedInvoiceTotal = React.useMemo(() => {
@@ -238,6 +313,7 @@ export function InvoiceWizardPage() {
     setSaving(true);
     try {
       const saved = await invoiceWizardService.saveInvoice({
+        invoiceId: editingInvoiceId || undefined,
         shipmentId: selectedShipmentId,
         finalize,
         freezeShipment: finalize && freezeOnFinalize,
@@ -253,14 +329,18 @@ export function InvoiceWizardPage() {
         })),
       });
       // Remove completed local draft
-      const remaining = drafts.filter((d) => d.shipmentId !== selectedShipmentId);
+      const remaining = drafts.filter(
+        (d) => d.shipmentId !== selectedShipmentId && d.id !== `draft-${editingInvoiceId}`,
+      );
       setDrafts(remaining);
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(remaining));
 
       toast.success(
         finalize
-          ? `Invoice ${saved.invoice.id} finalized`
-          : `Invoice ${saved.invoice.id} saved as Draft`,
+          ? `Invoice ${saved.invoice.id} finalized successfully`
+          : editingInvoiceId
+            ? `Invoice ${saved.invoice.id} draft updated`
+            : `Invoice ${saved.invoice.id} saved as Draft`,
       );
       navigate('/invoices');
     } catch (err) {
@@ -274,12 +354,25 @@ export function InvoiceWizardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Commercial Invoice Wizard</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Commercial Invoice Wizard</h1>
+            {editingInvoiceId && (
+              <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                Editing Draft: {editingInvoiceId}
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             3-step line-item builder with clipboard multi-line paste and integer-cent finalize gate.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {editingInvoiceId && (
+            <Button variant="ghost" size="sm" onClick={handleStartNew} title="Cancel editing and start a new invoice">
+              <X className="mr-1 h-3.5 w-3.5" />
+              New Invoice
+            </Button>
+          )}
           <Button variant={step === 1 ? 'default' : 'outline'} size="sm" onClick={() => setStep(1)}>
             1. Shipment &amp; Precision
           </Button>
@@ -361,6 +454,30 @@ export function InvoiceWizardPage() {
               </div>
             </div>
 
+            {dbDrafts.length > 0 && (
+              <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                  Saved Database Drafts ({dbDrafts.length}) — Click to Edit &amp; Finalize
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {dbDrafts.map((d) => (
+                    <Button
+                      key={d.id}
+                      type="button"
+                      variant={editingInvoiceId === d.id ? 'default' : 'outline'}
+                      size="sm"
+                      className={editingInvoiceId === d.id ? '' : 'border-amber-500/40 hover:bg-amber-500/10'}
+                      onClick={() => void loadDraftForEdit(d.id)}
+                    >
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                      {d.id}: {d.invoiceNumber} ({d.lineCount} lines • {d.currency}{' '}
+                      {d.computedTotal.toFixed(d.invoiceTotalDecimals)})
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {drafts.length > 0 && (
               <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -405,6 +522,11 @@ export function InvoiceWizardPage() {
               <div>
                 <CardTitle className="text-base">
                   Step 2: Invoice Lines — {selectedShipment?.invoiceNumber}
+                  {editingInvoiceId && (
+                    <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">
+                      (Editing {editingInvoiceId})
+                    </span>
+                  )}
                 </CardTitle>
                 <CardDescription>
                   Target Shipment Total: {selectedShipment?.invoiceCurrency}{' '}
@@ -533,7 +655,14 @@ export function InvoiceWizardPage() {
       {step === 3 && selectedShipment && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Step 3: Total Reconciliation &amp; Finalization</CardTitle>
+            <CardTitle className="text-base">
+              Step 3: Total Reconciliation &amp; Finalization
+              {editingInvoiceId && (
+                <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">
+                  (Editing {editingInvoiceId})
+                </span>
+              )}
+            </CardTitle>
             <CardDescription>
               Finalizing requires exact integer-cent agreement with shipment.invoice_value; Drafts bypass
               this check and transition shipment to in-transit.
@@ -594,7 +723,7 @@ export function InvoiceWizardPage() {
               <div className="flex gap-2">
                 <Button variant="outline" disabled={saving} onClick={() => void handleSubmit(false)}>
                   <Save className="h-4 w-4" />
-                  Save Draft
+                  {editingInvoiceId ? 'Update Draft' : 'Save Draft'}
                 </Button>
                 <Button
                   disabled={saving || !totalMatchesShipment}

@@ -90,14 +90,14 @@ export function LandedCostReportPage() {
             Landed Cost Report (Excl. IGST)
           </h1>
           <p className="text-sm text-muted-foreground">
-            Per-unit landed cost from report_view: (Assessable + BCD + SWS + Proportional Basic Expenses) / Qty.
+            Per-unit landed cost from report_view: (Assessable + BCD + SWS + BOE Interest + Proportional Basic Expenses) / Qty.
           </p>
         </div>
         {report && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => void handleExportCsv()}>
               <FileSpreadsheet className="h-4 w-4" />
-              Export 14-Col CSV
+              Export 15-Col CSV
             </Button>
             <Button variant="outline" onClick={() => exportLandedCostPdf(report)}>
               <FileDown className="h-4 w-4" />
@@ -160,7 +160,7 @@ export function LandedCostReportPage() {
       </Card>
 
       {report && (
-        <div className="grid gap-4 md:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-7">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Items / Qty</CardDescription>
@@ -190,6 +190,14 @@ export function LandedCostReportPage() {
               <CardDescription>IGST (Input Credit)</CardDescription>
               <CardTitle className="text-lg text-muted-foreground">
                 {report.summary.totalIgst.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>BOE Interest</CardDescription>
+              <CardTitle className="text-lg">
+                {(report.summary.totalBoeInterest || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -229,6 +237,7 @@ export function LandedCostReportPage() {
                 <TableHead className="text-right">BCD</TableHead>
                 <TableHead className="text-right">SWS</TableHead>
                 <TableHead className="text-right">IGST</TableHead>
+                <TableHead className="text-right">BOE Interest</TableHead>
                 <TableHead className="text-right">Expenses (Basic)</TableHead>
                 <TableHead className="text-right">LDC / Qty</TableHead>
               </TableRow>
@@ -236,7 +245,7 @@ export function LandedCostReportPage() {
             <TableBody>
               {(report?.rows ?? []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={14} className="text-center text-muted-foreground">
+                  <TableCell colSpan={15} className="text-center text-muted-foreground">
                     No finalized BOE &amp; invoice records matched filters.
                   </TableCell>
                 </TableRow>
@@ -257,6 +266,7 @@ export function LandedCostReportPage() {
                     <TableCell className="text-right font-mono text-muted-foreground">
                       {r.igstAmount.toFixed(2)}
                     </TableCell>
+                    <TableCell className="text-right font-mono">{(r.boeInterest || 0).toFixed(2)}</TableCell>
                     <TableCell className="text-right font-mono">{r.expensesTotal.toFixed(2)}</TableCell>
                     <TableCell className="text-right font-mono font-semibold text-primary">
                       {r.ldcPerQty.toFixed(4)}

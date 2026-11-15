@@ -38,9 +38,10 @@ export type {
 };
 
 export function formatPaiseINR(paise: number): string {
-  return (paise / 100).toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  const rupees = Math.round(paise / 100);
+  return rupees.toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   });
 }
 

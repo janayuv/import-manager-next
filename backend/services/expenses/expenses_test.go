@@ -304,7 +304,7 @@ func TestExpensesIdempotencyOptimisticLockReportsAndLandedCost(t *testing.T) {
 		t.Fatalf("expected proportional allocated basic expenses sum to 9000.00, got %.4f", lc.Summary.TotalBasicExpenses)
 	}
 	for _, row := range lc.Rows {
-		expectedLDC := (row.AssessableValue + row.BCDAmount + row.SWSAmount + row.ExpensesTotal) / row.Qty
+		expectedLDC := (row.AssessableValue + row.BCDAmount + row.SWSAmount + row.BoeInterest + row.ExpensesTotal) / row.Qty
 		if math.Abs(row.LDCPerQty-expectedLDC) > 0.01 {
 			t.Fatalf("LDCPerQty for %s includes unexpected IGST or math mismatch: got %.4f want %.4f (igst=%.2f)", row.PartNo, row.LDCPerQty, expectedLDC, row.IGSTAmount)
 		}
@@ -316,6 +316,33 @@ func TestExpensesIdempotencyOptimisticLockReportsAndLandedCost(t *testing.T) {
 	}
 	if !strings.Contains(csvText, "Expenses (Basic),LDC per qty") || !strings.Contains(csvText, "PN-100") {
 		t.Fatalf("unexpected 14-column CSV output:\n%s", csvText)
+	}
+
+	// 6b. Verify BOE Interest proportional allocation into Landed Cost
+	ctx2, err := rt.BOEEntry.LoadShipmentContext(sh.ID)
+	if err != nil {
+		t.Fatalf("LoadShipmentContext 2 failed: %v", err)
+	}
+	ctx2.Params.Interest = 300.0 // AV ratio 2:1 (18000 & 9000) -> 200.00 & 100.00
+	if _, err := rt.BOEEntry.SaveCalculation(ctx2.Params); err != nil {
+		t.Fatalf("SaveCalculation with Interest failed: %v", err)
+	}
+	lcWithInterest, err := rt.Reports.GetLandedCostReport(models.LandedCostFilter{})
+	if err != nil {
+		t.Fatalf("GetLandedCostReport with interest failed: %v", err)
+	}
+	if math.Abs(lcWithInterest.Summary.TotalBoeInterest-300.0) > 0.02 {
+		t.Fatalf("expected totalBoeInterest 300.00, got %.2f", lcWithInterest.Summary.TotalBoeInterest)
+	}
+	for _, row := range lcWithInterest.Rows {
+		expectedInterest := 300.0 * (row.AssessableValue / 27000.0)
+		if math.Abs(row.BoeInterest-expectedInterest) > 0.02 {
+			t.Fatalf("expected BoeInterest %.2f for %s, got %.2f", expectedInterest, row.PartNo, row.BoeInterest)
+		}
+		expectedLDC := (row.AssessableValue + row.BCDAmount + row.SWSAmount + row.BoeInterest + row.ExpensesTotal) / row.Qty
+		if math.Abs(row.LDCPerQty-expectedLDC) > 0.01 {
+			t.Fatalf("LDCPerQty with interest mismatch for %s: got %.4f want %.4f", row.PartNo, row.LDCPerQty, expectedLDC)
+		}
 	}
 
 	// 7. Bulk CSV import validation & frozen shipment protection
@@ -464,5 +491,157 @@ func TestManualGSTCalculationAndPersistence(t *testing.T) {
 	}
 	if fetched.Lines[1].IsManualGST || fetched.Lines[1].CGSTPaise != 90000 {
 		t.Fatalf("expected Line 1 to have IsManualGST=false and CGSTPaise=90000, got %+v", fetched.Lines[1])
+	}
+}
+
+func TestRecreateSoftDeletedExpenseInvoiceAndRoundOff(t *testing.T) {
+	rt := setupExpenseEnv(t)
+
+	sup, err := rt.Suppliers.Create(models.SupplierInput{
+		SupplierName: "Global Carrier",
+		ShortName:    "GC",
+		Country:      "India",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("create supplier: %v", err)
+	}
+
+	sh, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "INV-GC-1",
+		InvoiceDate:     "2026-10-14",
+		GoodsCategory:   "LCL Cargo",
+		InvoiceValue:    5000,
+		InvoiceCurrency: "INR",
+		Incoterm:        "FOB",
+		ShipmentMode:    "Sea",
+		ShipmentType:    "Dutiable",
+	})
+	if err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+
+	sp, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "MANTHRA SHIPPING",
+		GSTIN: "33AABCM3770F1Z1",
+		State: "Tamil Nadu",
+	})
+	if err != nil {
+		t.Fatalf("CreateServiceProvider: %v", err)
+	}
+
+	etTrans, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Transport Charges-LCL",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateExpenseType transport: %v", err)
+	}
+
+	etClear, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Clearing & Forwarding LCL",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateExpenseType clearing: %v", err)
+	}
+
+	// 1. Create invoice with 1 line (Transport)
+	initialReq := models.ExpenseInvoiceRequest{
+		ShipmentID:        sh.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "377",
+		InvoiceDate:       "2026-10-14",
+		Currency:          "INR",
+		Lines: []models.ExpenseLineInput{
+			{
+				ExpenseTypeID: etTrans.ID,
+				AmountPaise:   625000, // ₹6,250
+				CGSTRateBP:    900,
+				SGSTRateBP:    900,
+				RoundOff:      true,
+			},
+		},
+	}
+	inv1, err := rt.Expenses.CreateExpenseInvoice(initialReq)
+	if err != nil {
+		t.Fatalf("Create initial invoice failed: %v", err)
+	}
+
+	// 2. Soft-delete the invoice (just like the user did)
+	if err := rt.Expenses.DeleteExpenseInvoice(inv1.ID); err != nil {
+		t.Fatalf("DeleteExpenseInvoice failed: %v", err)
+	}
+
+	// 3. Re-create invoice 377 with multiple services (Transport + Clearing) and RoundOff
+	// Transport ₹6,250: 9% = 562.50 -> rounded to 563 (56300 paise)
+	// Clearing ₹3,399: 9% = 305.91 -> rounded to 306 (30600 paise)
+	// Base = 9649 (964900 paise)
+	// Total CGST = 563 + 306 = 869 (86900 paise)
+	// Total SGST = 563 + 306 = 869 (86900 paise)
+	// Total = 9649 + 869 + 869 = 11387 (1138700 paise)
+	multiReq := models.ExpenseInvoiceRequest{
+		ShipmentID:        sh.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "377",
+		InvoiceDate:       "2026-10-14",
+		Currency:          "INR",
+		RoundOffPaise:     -100, // Adjust by -₹1 to match paper invoice of ₹11,386
+		Lines: []models.ExpenseLineInput{
+			{
+				ExpenseTypeID: etTrans.ID,
+				AmountPaise:   625000,
+				CGSTRateBP:    900,
+				SGSTRateBP:    900,
+				RoundOff:      true,
+				Remarks:       "Transport portion",
+			},
+			{
+				ExpenseTypeID: etClear.ID,
+				AmountPaise:   339900,
+				CGSTRateBP:    900,
+				SGSTRateBP:    900,
+				RoundOff:      true,
+				Remarks:       "Customs clearance portion",
+			},
+		},
+	}
+	inv2, err := rt.Expenses.CreateExpenseInvoice(multiReq)
+	if err != nil {
+		t.Fatalf("CreateExpenseInvoice on soft-deleted invoice_no failed: %v", err)
+	}
+
+	if inv2.InvoiceNo != "377" {
+		t.Fatalf("expected invoice 377, got %s", inv2.InvoiceNo)
+	}
+	if inv2.BaseAmountPaise != 964900 {
+		t.Fatalf("expected base 964900, got %d", inv2.BaseAmountPaise)
+	}
+	// Verify integer rupee paise (no digits / fractions)
+	if inv2.TotalCGSTPaise%100 != 0 || inv2.TotalSGSTPaise%100 != 0 {
+		t.Fatalf("expected integer rupee taxes without fractional paise, got CGST=%d SGST=%d", inv2.TotalCGSTPaise, inv2.TotalSGSTPaise)
+	}
+	if inv2.TotalCGSTPaise != 86900 || inv2.TotalSGSTPaise != 86900 {
+		t.Fatalf("expected rounded CGST=86900 SGST=86900, got CGST=%d SGST=%d", inv2.TotalCGSTPaise, inv2.TotalSGSTPaise)
+	}
+	if inv2.RoundOffPaise != -100 {
+		t.Fatalf("expected roundOffPaise=-100, got %d", inv2.RoundOffPaise)
+	}
+	if inv2.NetAmountPaise != 1138600 {
+		t.Fatalf("expected net 1138600, got %d", inv2.NetAmountPaise)
+	}
+
+	// Verify GetExpenseInvoice returns the roundoff
+	fetched, err := rt.Expenses.GetExpenseInvoice(inv2.ID)
+	if err != nil {
+		t.Fatalf("GetExpenseInvoice failed: %v", err)
+	}
+	if fetched.RoundOffPaise != -100 || fetched.NetAmountPaise != 1138600 {
+		t.Fatalf("fetched roundoff mismatch: %+v", fetched)
 	}
 }

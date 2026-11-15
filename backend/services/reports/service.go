@@ -33,7 +33,7 @@ func (s *Service) GetLandedCostReport(filter models.LandedCostFilter) (models.La
 	             COALESCE(part_no,''), COALESCE(description,''), COALESCE(unit,''),
 	             COALESCE(qty, 0), COALESCE(unit_price, 0), COALESCE(assessable_value, 0),
 	             COALESCE(bcd_amount, 0), COALESCE(sws_amount, 0), COALESCE(igst_amount, 0),
-	             COALESCE(expenses_total, 0), COALESCE(ldc_per_qty, 0)
+	             COALESCE(boe_interest, 0), COALESCE(expenses_total, 0), COALESCE(ldc_per_qty, 0)
 	      FROM report_view
 	      WHERE 1=1`
 
@@ -81,7 +81,7 @@ func (s *Service) GetLandedCostReport(filter models.LandedCostFilter) (models.La
 			&r.PartNo, &r.Description, &r.Unit,
 			&r.Qty, &r.UnitPrice, &r.AssessableValue,
 			&r.BCDAmount, &r.SWSAmount, &r.IGSTAmount,
-			&r.ExpensesTotal, &r.LDCPerQty,
+			&r.BoeInterest, &r.ExpensesTotal, &r.LDCPerQty,
 		); err != nil {
 			return models.LandedCostReport{}, err
 		}
@@ -91,8 +91,9 @@ func (s *Service) GetLandedCostReport(filter models.LandedCostFilter) (models.La
 		report.Summary.TotalAssessableValue += r.AssessableValue
 		report.Summary.TotalBasicDuties += r.BCDAmount + r.SWSAmount
 		report.Summary.TotalIGST += r.IGSTAmount
+		report.Summary.TotalBoeInterest += r.BoeInterest
 		report.Summary.TotalBasicExpenses += r.ExpensesTotal
-		report.Summary.TotalLandedCostExIGST += r.AssessableValue + r.BCDAmount + r.SWSAmount + r.ExpensesTotal
+		report.Summary.TotalLandedCostExIGST += r.AssessableValue + r.BCDAmount + r.SWSAmount + r.BoeInterest + r.ExpensesTotal
 	}
 	if err := rows.Err(); err != nil {
 		return models.LandedCostReport{}, err
@@ -100,7 +101,7 @@ func (s *Service) GetLandedCostReport(filter models.LandedCostFilter) (models.La
 	return report, nil
 }
 
-// ExportLandedCostCSV exports the exact 14-column Landed Cost CSV with formula-cell protection.
+// ExportLandedCostCSV exports the 15-column Landed Cost CSV with formula-cell protection.
 func (s *Service) ExportLandedCostCSV(filter models.LandedCostFilter) (string, error) {
 	rep, err := s.GetLandedCostReport(filter)
 	if err != nil {
@@ -109,7 +110,7 @@ func (s *Service) ExportLandedCostCSV(filter models.LandedCostFilter) (string, e
 	headers := []string{
 		"Supplier", "Invoice No", "Date", "Part No", "Description", "Unit",
 		"Qty", "Unit Price", "Assessable Value", "BCD", "SWS", "IGST",
-		"Expenses (Basic)", "LDC per qty",
+		"BOE Interest", "Expenses (Basic)", "LDC per qty",
 	}
 	records := make([][]string, 0, len(rep.Rows))
 	for _, r := range rep.Rows {
@@ -126,6 +127,7 @@ func (s *Service) ExportLandedCostCSV(filter models.LandedCostFilter) (string, e
 			fmt.Sprintf("%.2f", r.BCDAmount),
 			fmt.Sprintf("%.2f", r.SWSAmount),
 			fmt.Sprintf("%.2f", r.IGSTAmount),
+			fmt.Sprintf("%.2f", r.BoeInterest),
 			fmt.Sprintf("%.2f", r.ExpensesTotal),
 			fmt.Sprintf("%.4f", r.LDCPerQty),
 		})

@@ -256,10 +256,10 @@ export function BOERegistryPage() {
                           {row.assessableTotal.toLocaleString()}
                         </TableCell>
                         <TableCell className="font-mono text-xs font-semibold">
-                          {row.customsDutyTotal.toLocaleString()}
+                          {row.customsDutyTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </TableCell>
                         <TableCell className="font-mono text-xs">
-                          {row.dutyPaid.toLocaleString()}
+                          {row.dutyPaid.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </TableCell>
                         <TableCell className="w-48">
                           <Select

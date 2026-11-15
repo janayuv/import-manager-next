@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Lock, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { CheckCircle2, Eye, Lock, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import {
   invoiceService,
+  invoiceWizardService,
   type InvoiceDetail,
   type InvoiceSummary,
 } from '@/services/shipment-invoice-service';
@@ -36,6 +37,7 @@ export function InvoicesPage() {
   const [search, setSearch] = React.useState('');
   const [detail, setDetail] = React.useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [actionLoading, setActionLoading] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -59,6 +61,35 @@ export function InvoicesPage() {
       setDetail(d);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleQuickFinalize = async (inv: InvoiceSummary) => {
+    try {
+      setActionLoading(inv.id);
+      const d = await invoiceService.getDetail(inv.id);
+      await invoiceWizardService.saveInvoice({
+        invoiceId: d.invoice.id,
+        shipmentId: d.invoice.shipmentId,
+        finalize: true,
+        freezeShipment: false,
+        lineTotalDecimals: d.invoice.lineTotalDecimals,
+        invoiceTotalDecimals: d.invoice.invoiceTotalDecimals,
+        lines: (d.lines ?? []).map((ln) => ({
+          itemId: ln.itemId,
+          quantity: ln.quantity,
+          unitPrice: ln.unitPrice,
+          dutyPercent: ln.dutyPercent,
+          swsPercent: ln.swsPercent,
+          igstPercent: ln.igstPercent,
+        })),
+      });
+      toast.success(`Invoice ${inv.id} finalized successfully!`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -172,11 +203,29 @@ export function InvoicesPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => void handleInspect(inv.id)}>
+                          <Button size="sm" variant="ghost" onClick={() => void handleInspect(inv.id)} title="View Details">
                             <Eye className="h-4 w-4" />
                           </Button>
+                          {inv.status === 'Draft' && !inv.shipmentFrozen && (
+                            <Button size="sm" variant="ghost" asChild title="Edit Draft in Wizard">
+                              <Link to={`/invoice-wizard?id=${inv.id}`}>
+                                <Pencil className="h-4 w-4 text-primary" />
+                              </Link>
+                            </Button>
+                          )}
+                          {inv.status === 'Draft' && !inv.shipmentFrozen && matched && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => void handleQuickFinalize(inv)}
+                              disabled={actionLoading === inv.id}
+                              title="Finalize Invoice (Exact Cent Match)"
+                            >
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            </Button>
+                          )}
                           {canDelete && !inv.shipmentFrozen && (
-                            <Button size="sm" variant="ghost" onClick={() => void handleDelete(inv)}>
+                            <Button size="sm" variant="ghost" onClick={() => void handleDelete(inv)} title="Delete">
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           )}
@@ -203,39 +252,74 @@ export function InvoicesPage() {
             </DialogDescription>
           </DialogHeader>
           {detail && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Part No</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Unit Price</TableHead>
-                  <TableHead>Line Total</TableHead>
-                  <TableHead>BCD/SWS/IGST</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(detail.lines ?? []).map((ln) => (
-                  <TableRow key={ln.id}>
-                    <TableCell className="font-mono text-xs">{ln.partNumber}</TableCell>
-                    <TableCell>{ln.itemDescription}</TableCell>
-                    <TableCell>{ln.quantity}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {ln.unitPrice.toFixed(2)}
-                      {ln.priceDiverged && (
-                        <Badge variant="warning" className="ml-1">
-                          Master {ln.masterUnitPrice.toFixed(2)}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{ln.lineTotal.toFixed(detail.invoice.lineTotalDecimals)}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {ln.dutyPercent}% / {ln.swsPercent}% / {ln.igstPercent}%
-                    </TableCell>
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Part No</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Unit Price</TableHead>
+                    <TableHead>Line Total</TableHead>
+                    <TableHead>BCD/SWS/IGST</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {(detail.lines ?? []).map((ln) => (
+                    <TableRow key={ln.id}>
+                      <TableCell className="font-mono text-xs">{ln.partNumber}</TableCell>
+                      <TableCell>{ln.itemDescription}</TableCell>
+                      <TableCell>{ln.quantity}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {ln.unitPrice.toFixed(2)}
+                        {ln.priceDiverged && (
+                          <Badge variant="warning" className="ml-1">
+                            Master {ln.masterUnitPrice.toFixed(2)}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{ln.lineTotal.toFixed(detail.invoice.lineTotalDecimals)}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {ln.dutyPercent}% / {ln.swsPercent}% / {ln.igstPercent}%
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                <div className="text-xs text-muted-foreground">
+                  Shipment Value: {detail.invoice.currency} {detail.invoice.shipmentInvoiceValue.toFixed(2)} • Line Total: {detail.invoice.currency} {detail.invoice.computedTotal.toFixed(detail.invoice.invoiceTotalDecimals)}
+                </div>
+                <div className="flex gap-2">
+                  {detail.invoice.status === 'Draft' && !detail.invoice.shipmentFrozen && (
+                    <>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to={`/invoice-wizard?id=${detail.invoice.id}`}>
+                          <Pencil className="mr-1.5 h-4 w-4" />
+                          Edit in Wizard
+                        </Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={
+                          actionLoading === detail.invoice.id ||
+                          Math.round(detail.invoice.computedTotal * 100) !==
+                            Math.round(detail.invoice.shipmentInvoiceValue * 100)
+                        }
+                        onClick={async () => {
+                          await handleQuickFinalize(detail.invoice);
+                          setDetail(null);
+                        }}
+                      >
+                        <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                        Finalize Invoice
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

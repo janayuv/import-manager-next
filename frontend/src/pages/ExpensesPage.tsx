@@ -81,14 +81,14 @@ interface DraftLine {
 
 const emptyLine = (et?: ExpenseType, isManualGst = false): DraftLine => ({
   expenseTypeId: et?.id ?? '',
-  amountInr: '0.00',
+  amountInr: '0',
   isManualGst,
   cgstPct: et ? (et.defaultCgstRateBp / 100).toFixed(2) : '0',
   sgstPct: et ? (et.defaultSgstRateBp / 100).toFixed(2) : '0',
   igstPct: et ? (et.defaultIgstRateBp / 100).toFixed(2) : '0',
-  manualCgstInr: '0.00',
-  manualSgstInr: '0.00',
-  manualIgstInr: '0.00',
+  manualCgstInr: '0',
+  manualSgstInr: '0',
+  manualIgstInr: '0',
   tdsPct: et ? (et.defaultTdsRateBp / 100).toFixed(2) : '0',
   remarks: '',
 });
@@ -98,14 +98,15 @@ function toLineInputs(lines: DraftLine[]): ExpenseLineInput[] {
     expenseTypeId: l.expenseTypeId,
     amountPaise: Math.round((Number.parseFloat(l.amountInr) || 0) * 100),
     isManualGst: l.isManualGst,
-    cgstPaise: l.isManualGst ? Math.round((Number.parseFloat(l.manualCgstInr) || 0) * 100) : 0,
-    sgstPaise: l.isManualGst ? Math.round((Number.parseFloat(l.manualSgstInr) || 0) * 100) : 0,
-    igstPaise: l.isManualGst ? Math.round((Number.parseFloat(l.manualIgstInr) || 0) * 100) : 0,
+    cgstPaise: l.isManualGst ? Math.round(Number.parseFloat(l.manualCgstInr) || 0) * 100 : 0,
+    sgstPaise: l.isManualGst ? Math.round(Number.parseFloat(l.manualSgstInr) || 0) * 100 : 0,
+    igstPaise: l.isManualGst ? Math.round(Number.parseFloat(l.manualIgstInr) || 0) * 100 : 0,
     cgstRateBp: Math.round((Number.parseFloat(l.cgstPct) || 0) * 100),
     sgstRateBp: Math.round((Number.parseFloat(l.sgstPct) || 0) * 100),
     igstRateBp: Math.round((Number.parseFloat(l.igstPct) || 0) * 100),
     tdsRateBp: Math.round((Number.parseFloat(l.tdsPct) || 0) * 100),
     remarks: l.remarks,
+    roundOff: true,
   }));
 }
 
@@ -133,6 +134,7 @@ export function ExpensesPage() {
   const [idempotencyKey, setIdempotencyKey] = React.useState('');
   const [draftLines, setDraftLines] = React.useState<DraftLine[]>([]);
   const [preview, setPreview] = React.useState<ExpenseInvoiceCalculation | null>(null);
+  const [roundOffInr, setRoundOffInr] = React.useState('0');
   const [savingInv, setSavingInv] = React.useState(false);
 
   // Bulk import dialog
@@ -231,6 +233,17 @@ export function ExpensesPage() {
     const ids = draftLines.map((l) => l.expenseTypeId).filter(Boolean);
     return new Set(ids).size !== ids.length;
   }, [draftLines]);
+
+  const matchingExistingInvoice = React.useMemo(() => {
+    if (editingInv) return null;
+    const cleanNo = invoiceNo.trim().toLowerCase();
+    if (!cleanNo || !serviceProviderId) return null;
+    return invoices.find(
+      (inv) =>
+        inv.serviceProviderId === serviceProviderId &&
+        inv.invoiceNo.trim().toLowerCase() === cleanNo
+    );
+  }, [editingInv, invoiceNo, serviceProviderId, invoices]);
 
   const toggleInvoiceExpand = (id: string) => {
     setExpandedInvoices((prev) => {
@@ -392,16 +405,16 @@ export function ExpensesPage() {
       `"${l.serviceProviderName.replaceAll('"', '""')}"`,
       `"${l.shipmentInvoiceNo.replaceAll('"', '""')}"`,
       `"${l.expenseTypeName.replaceAll('"', '""')}"`,
-      (l.amountPaise / 100).toFixed(2),
+      Math.round(l.amountPaise / 100).toString(),
       (l.cgstRateBp / 100).toFixed(2),
-      (l.cgstPaise / 100).toFixed(2),
+      Math.round(l.cgstPaise / 100).toString(),
       (l.sgstRateBp / 100).toFixed(2),
-      (l.sgstPaise / 100).toFixed(2),
+      Math.round(l.sgstPaise / 100).toString(),
       (l.igstRateBp / 100).toFixed(2),
-      (l.igstPaise / 100).toFixed(2),
+      Math.round(l.igstPaise / 100).toString(),
       (l.tdsRateBp / 100).toFixed(2),
-      (l.tdsPaise / 100).toFixed(2),
-      (l.netPaise / 100).toFixed(2),
+      Math.round(l.tdsPaise / 100).toString(),
+      Math.round(l.netPaise / 100).toString(),
       `"${(l.remarks || '').replaceAll('"', '""')}"`,
     ]);
     downloadTextFile(
@@ -418,6 +431,7 @@ export function ExpensesPage() {
     setInvoiceNo('');
     setInvoiceDate(new Date().toISOString().slice(0, 10));
     setRemarks('');
+    setRoundOffInr('0');
     setIdempotencyKey(`exp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
     const initial = [emptyLine(types[0])];
     setDraftLines(initial);
@@ -432,17 +446,18 @@ export function ExpensesPage() {
     setInvoiceNo(inv.invoiceNo);
     setInvoiceDate(inv.invoiceDate);
     setRemarks(inv.remarks);
+    setRoundOffInr(Math.round((inv.roundOffPaise || 0) / 100).toString());
     setIdempotencyKey(inv.idempotencyKey);
     const lines: DraftLine[] = (inv.lines || []).map((l) => ({
       expenseTypeId: l.expenseTypeId,
-      amountInr: (l.amountPaise / 100).toFixed(2),
+      amountInr: Math.round(l.amountPaise / 100).toString(),
       isManualGst: Boolean(l.isManualGst),
       cgstPct: (l.cgstRateBp / 100).toFixed(2),
       sgstPct: (l.sgstRateBp / 100).toFixed(2),
       igstPct: (l.igstRateBp / 100).toFixed(2),
-      manualCgstInr: (l.cgstPaise / 100).toFixed(2),
-      manualSgstInr: (l.sgstPaise / 100).toFixed(2),
-      manualIgstInr: (l.igstPaise / 100).toFixed(2),
+      manualCgstInr: Math.round(l.cgstPaise / 100).toString(),
+      manualSgstInr: Math.round(l.sgstPaise / 100).toString(),
+      manualIgstInr: Math.round(l.igstPaise / 100).toString(),
       tdsPct: (l.tdsRateBp / 100).toFixed(2),
       remarks: l.remarks,
     }));
@@ -462,14 +477,14 @@ export function ExpensesPage() {
       const merged = await expenseService.mergeDuplicateLines(toLineInputs(draftLines));
       const next: DraftLine[] = merged.map((m) => ({
         expenseTypeId: m.expenseTypeId,
-        amountInr: (m.amountPaise / 100).toFixed(2),
+        amountInr: Math.round(m.amountPaise / 100).toString(),
         isManualGst: Boolean(m.isManualGst),
         cgstPct: (m.cgstRateBp / 100).toFixed(2),
         sgstPct: (m.sgstRateBp / 100).toFixed(2),
         igstPct: (m.igstRateBp / 100).toFixed(2),
-        manualCgstInr: (m.cgstPaise / 100).toFixed(2),
-        manualSgstInr: (m.sgstPaise / 100).toFixed(2),
-        manualIgstInr: (m.igstPaise / 100).toFixed(2),
+        manualCgstInr: Math.round(m.cgstPaise / 100).toString(),
+        manualSgstInr: Math.round(m.sgstPaise / 100).toString(),
+        manualIgstInr: Math.round(m.igstPaise / 100).toString(),
         tdsPct: (m.tdsRateBp / 100).toFixed(2),
         remarks: m.remarks,
       }));
@@ -484,6 +499,7 @@ export function ExpensesPage() {
   const handleSaveInvoice = async () => {
     setSavingInv(true);
     try {
+      const roundOffVal = Math.round(Number.parseFloat(roundOffInr) || 0);
       const req = {
         id: editingInv?.id ?? '',
         shipmentId,
@@ -495,6 +511,7 @@ export function ExpensesPage() {
         idempotencyKey,
         version: editingInv?.version ?? 1,
         mergeDuplicates: false,
+        roundOffPaise: roundOffVal * 100,
         lines: toLineInputs(draftLines),
       };
       if (editingInv) {
@@ -658,6 +675,25 @@ export function ExpensesPage() {
             </CardContent>
           </Card>
 
+          {matchingExistingInvoice && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-xs">
+              <span className="flex items-center gap-2 font-medium text-blue-900 dark:text-blue-200">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                Invoice &ldquo;{matchingExistingInvoice.invoiceNo}&rdquo; already exists for this service provider ({matchingExistingInvoice.lines?.length ?? 0} line(s) recorded).
+                To add multiple services (transport, customs clearance, etc.) to this bill, edit the existing invoice.
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-blue-500/40 hover:bg-blue-500/20 text-xs shrink-0"
+                onClick={() => openEditInvoice(matchingExistingInvoice)}
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1" />
+                Edit Existing Invoice #{matchingExistingInvoice.invoiceNo}
+              </Button>
+            </div>
+          )}
+
           {hasDuplicateType && (
             <div className="flex items-center justify-between rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs">
               <span className="flex items-center gap-2 font-medium text-amber-800 dark:text-amber-300">
@@ -712,17 +748,17 @@ export function ExpensesPage() {
                             ...l,
                             isManualGst: true,
                             manualCgstInr:
-                              l.manualCgstInr && l.manualCgstInr !== '0.00'
-                                ? l.manualCgstInr
-                                : ((amt * cPct) / 100).toFixed(2),
+                              l.manualCgstInr && l.manualCgstInr !== '0' && l.manualCgstInr !== '0.00'
+                                ? Math.round(Number.parseFloat(l.manualCgstInr)).toString()
+                                : Math.round((amt * cPct) / 100).toString(),
                             manualSgstInr:
-                              l.manualSgstInr && l.manualSgstInr !== '0.00'
-                                ? l.manualSgstInr
-                                : ((amt * sPct) / 100).toFixed(2),
+                              l.manualSgstInr && l.manualSgstInr !== '0' && l.manualSgstInr !== '0.00'
+                                ? Math.round(Number.parseFloat(l.manualSgstInr)).toString()
+                                : Math.round((amt * sPct) / 100).toString(),
                             manualIgstInr:
-                              l.manualIgstInr && l.manualIgstInr !== '0.00'
-                                ? l.manualIgstInr
-                                : ((amt * iPct) / 100).toFixed(2),
+                              l.manualIgstInr && l.manualIgstInr !== '0' && l.manualIgstInr !== '0.00'
+                                ? Math.round(Number.parseFloat(l.manualIgstInr)).toString()
+                                : Math.round((amt * iPct) / 100).toString(),
                           };
                         });
                         setDraftLines(next);
@@ -816,9 +852,9 @@ export function ExpensesPage() {
                                 const cPct = Number.parseFloat(line.cgstPct) || 0;
                                 const sPct = Number.parseFloat(line.sgstPct) || 0;
                                 const iPct = Number.parseFloat(line.igstPct) || 0;
-                                mCgst = ((amt * cPct) / 100).toFixed(2);
-                                mSgst = ((amt * sPct) / 100).toFixed(2);
-                                mIgst = ((amt * iPct) / 100).toFixed(2);
+                                mCgst = Math.round((amt * cPct) / 100).toString();
+                                mSgst = Math.round((amt * sPct) / 100).toString();
+                                mIgst = Math.round((amt * iPct) / 100).toString();
                               }
                               updateLine(idx, {
                                 isManualGst: nextManual,
@@ -856,9 +892,9 @@ export function ExpensesPage() {
                             cgstPct: cPct,
                             sgstPct: sPct,
                             igstPct: iPct,
-                            manualCgstInr: line.isManualGst ? ((amt * Number.parseFloat(cPct)) / 100).toFixed(2) : line.manualCgstInr,
-                            manualSgstInr: line.isManualGst ? ((amt * Number.parseFloat(sPct)) / 100).toFixed(2) : line.manualSgstInr,
-                            manualIgstInr: line.isManualGst ? ((amt * Number.parseFloat(iPct)) / 100).toFixed(2) : line.manualIgstInr,
+                            manualCgstInr: line.isManualGst ? Math.round((amt * Number.parseFloat(cPct)) / 100).toString() : line.manualCgstInr,
+                            manualSgstInr: line.isManualGst ? Math.round((amt * Number.parseFloat(sPct)) / 100).toString() : line.manualSgstInr,
+                            manualIgstInr: line.isManualGst ? Math.round((amt * Number.parseFloat(iPct)) / 100).toString() : line.manualIgstInr,
                             tdsPct: et ? (et.defaultTdsRateBp / 100).toFixed(2) : line.tdsPct,
                           });
                         }}
@@ -882,7 +918,7 @@ export function ExpensesPage() {
                       <Input
                         className="h-9 text-xs font-mono"
                         type="number"
-                        step="0.01"
+                        step="1"
                         aria-label="Basic (INR)"
                         value={line.amountInr}
                         onChange={(e) => updateLine(idx, { amountInr: e.target.value })}
@@ -930,8 +966,8 @@ export function ExpensesPage() {
                           <Input
                             className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
                             type="number"
-                            step="0.01"
-                            placeholder="0.00"
+                            step="1"
+                            placeholder="0"
                             aria-label="CGST Amount (INR)"
                             value={line.manualCgstInr}
                             onChange={(e) => updateLine(idx, { manualCgstInr: e.target.value })}
@@ -952,8 +988,8 @@ export function ExpensesPage() {
                           <Input
                             className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
                             type="number"
-                            step="0.01"
-                            placeholder="0.00"
+                            step="1"
+                            placeholder="0"
                             aria-label="SGST Amount (INR)"
                             value={line.manualSgstInr}
                             onChange={(e) => updateLine(idx, { manualSgstInr: e.target.value })}
@@ -964,8 +1000,8 @@ export function ExpensesPage() {
                           <Input
                             className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
                             type="number"
-                            step="0.01"
-                            placeholder="0.00"
+                            step="1"
+                            placeholder="0"
                             aria-label="IGST Amount (INR)"
                             value={line.manualIgstInr}
                             onChange={(e) => updateLine(idx, { manualIgstInr: e.target.value })}
@@ -1058,11 +1094,11 @@ export function ExpensesPage() {
             <Card className="border-primary/20 bg-muted/20">
               <CardHeader className="py-3 px-6 border-b">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Computed Totals (Paise Exact)
+                  Computed Totals (Whole Rupee / Rounded)
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   <div className="rounded-lg border bg-card p-4 shadow-xs">
                     <span className="text-xs text-muted-foreground font-medium">Base (Excl. GST)</span>
                     <div className="font-mono text-lg font-bold text-foreground mt-1">
@@ -1087,10 +1123,25 @@ export function ExpensesPage() {
                       INR {formatPaiseINR(preview.totalTdsPaise)}
                     </div>
                   </div>
+                  <div className="rounded-lg border bg-card p-4 shadow-xs">
+                    <span className="text-xs text-muted-foreground font-medium">Round Off (₹)</span>
+                    <div className="mt-1">
+                      <Input
+                        className="h-8 text-sm font-mono font-bold"
+                        type="number"
+                        step="1"
+                        placeholder="0"
+                        aria-label="Round Off (INR)"
+                        value={roundOffInr}
+                        onChange={(e) => setRoundOffInr(e.target.value)}
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground mt-0.5 block">Whole rupee adj</span>
+                  </div>
                   <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 shadow-xs">
                     <span className="text-xs text-primary font-semibold">Net Payable</span>
                     <div className="font-mono text-xl font-extrabold text-primary mt-1">
-                      INR {formatPaiseINR(preview.netAmountPaise)}
+                      INR {formatPaiseINR(preview.netAmountPaise + Math.round((Number.parseFloat(roundOffInr) || 0) * 100))}
                     </div>
                   </div>
                 </div>
@@ -1325,6 +1376,11 @@ export function ExpensesPage() {
                             </TableCell>
                             <TableCell className="text-right font-mono font-semibold">
                               {formatPaiseINR(inv.netAmountPaise)}
+                              {Boolean(inv.roundOffPaise) && (
+                                <div className="text-[10px] text-muted-foreground font-normal">
+                                  (Round off: {(inv.roundOffPaise ?? 0) > 0 ? '+' : ''}{formatPaiseINR(inv.roundOffPaise ?? 0)})
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
@@ -1372,6 +1428,11 @@ export function ExpensesPage() {
                                       <Badge variant="outline" className="text-[11px]">
                                         {lineCount} line item{lineCount === 1 ? '' : 's'}
                                       </Badge>
+                                      {Boolean(inv.roundOffPaise) && (
+                                        <Badge variant="outline" className="text-[11px] text-muted-foreground">
+                                          Round Off: {(inv.roundOffPaise ?? 0) > 0 ? '+' : ''}{formatPaiseINR(inv.roundOffPaise ?? 0)}
+                                        </Badge>
+                                      )}
                                       {inv.remarks && (
                                         <span className="text-muted-foreground italic">
                                           &ldquo;{inv.remarks}&rdquo;

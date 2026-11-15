@@ -400,6 +400,7 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 	             COALESCE(ei.total_sgst_amount_paise, CAST(ROUND(ei.total_sgst_amount*100) AS INTEGER)),
 	             COALESCE(ei.total_igst_amount_paise, CAST(ROUND(ei.total_igst_amount*100) AS INTEGER)),
 	             COALESCE(ei.total_tds_amount_paise, 0),
+	             COALESCE(ei.round_off_paise, 0),
 	             COALESCE(ei.net_amount_paise, CAST(ROUND(ei.total_amount*100) AS INTEGER)),
 	             COALESCE(ei.remarks,''), COALESCE(ei.idempotency_key,''), COALESCE(ei.version, 1),
 	             COALESCE(ei.created_at,''), COALESCE(ei.updated_at,'')
@@ -432,7 +433,7 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 			&inv.ServiceProviderID, &inv.ServiceProviderName,
 			&inv.InvoiceNo, &inv.InvoiceDate, &inv.Currency,
 			&inv.TotalAmountPaise, &inv.TotalCGSTPaise, &inv.TotalSGSTPaise,
-			&inv.TotalIGSTPaise, &inv.TotalTDSPaise, &inv.NetAmountPaise,
+			&inv.TotalIGSTPaise, &inv.TotalTDSPaise, &inv.RoundOffPaise, &inv.NetAmountPaise,
 			&inv.Remarks, &inv.IdempotencyKey, &inv.Version, &inv.CreatedAt, &inv.UpdatedAt,
 		); err != nil {
 			_ = rows.Close()
@@ -477,6 +478,7 @@ func (s *Service) GetExpenseInvoice(id string) (models.ExpenseInvoice, error) {
 		       COALESCE(ei.total_sgst_amount_paise, CAST(ROUND(ei.total_sgst_amount*100) AS INTEGER)),
 		       COALESCE(ei.total_igst_amount_paise, CAST(ROUND(ei.total_igst_amount*100) AS INTEGER)),
 		       COALESCE(ei.total_tds_amount_paise, 0),
+		       COALESCE(ei.round_off_paise, 0),
 		       COALESCE(ei.net_amount_paise, CAST(ROUND(ei.total_amount*100) AS INTEGER)),
 		       COALESCE(ei.remarks,''), COALESCE(ei.idempotency_key,''), COALESCE(ei.version, 1),
 		       COALESCE(ei.created_at,''), COALESCE(ei.updated_at,'')
@@ -489,7 +491,7 @@ func (s *Service) GetExpenseInvoice(id string) (models.ExpenseInvoice, error) {
 		&inv.ServiceProviderID, &inv.ServiceProviderName,
 		&inv.InvoiceNo, &inv.InvoiceDate, &inv.Currency,
 		&inv.TotalAmountPaise, &inv.TotalCGSTPaise, &inv.TotalSGSTPaise,
-		&inv.TotalIGSTPaise, &inv.TotalTDSPaise, &inv.NetAmountPaise,
+		&inv.TotalIGSTPaise, &inv.TotalTDSPaise, &inv.RoundOffPaise, &inv.NetAmountPaise,
 		&inv.Remarks, &inv.IdempotencyKey, &inv.Version, &inv.CreatedAt, &inv.UpdatedAt,
 	)
 	if err != nil {
@@ -591,7 +593,7 @@ func (s *Service) CreateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 			return err
 		}
 		if dupCount > 0 {
-			return fmt.Errorf("duplicate expense invoice %q already exists for this service provider", req.InvoiceNo)
+			return fmt.Errorf("duplicate expense invoice %q already exists for this service provider. To add services, edit the existing invoice", req.InvoiceNo)
 		}
 
 		now := time.Now().UTC().Format(time.RFC3339)
@@ -600,15 +602,15 @@ func (s *Service) CreateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 				id, shipment_id, service_provider_id, invoice_no, invoice_number, invoice_date, currency,
 				total_amount, total_cgst_amount, total_sgst_amount, total_igst_amount,
 				total_amount_paise, total_cgst_amount_paise, total_sgst_amount_paise,
-				total_igst_amount_paise, total_tds_amount_paise, net_amount_paise,
+				total_igst_amount_paise, total_tds_amount_paise, net_amount_paise, round_off_paise,
 				remarks, idempotency_key, version, created_by, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
 			invID, req.ShipmentID, req.ServiceProviderID,
 			strings.TrimSpace(req.InvoiceNo), strings.TrimSpace(req.InvoiceNo), normDate, cur,
 			float64(calc.TotalAmountPaise)/100.0, float64(calc.TotalCGSTPaise)/100.0,
 			float64(calc.TotalSGSTPaise)/100.0, float64(calc.TotalIGSTPaise)/100.0,
 			calc.TotalAmountPaise, calc.TotalCGSTPaise, calc.TotalSGSTPaise,
-			calc.TotalIGSTPaise, calc.TotalTDSPaise, calc.NetAmountPaise,
+			calc.TotalIGSTPaise, calc.TotalTDSPaise, calc.NetAmountPaise, calc.RoundOffPaise,
 			strings.TrimSpace(req.Remarks), idemArg, sess.Username, now, now,
 		); err != nil {
 			return err
@@ -674,7 +676,7 @@ func (s *Service) UpdateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 			return err
 		}
 		if dupCount > 0 {
-			return fmt.Errorf("duplicate expense invoice %q already exists for this service provider", req.InvoiceNo)
+			return fmt.Errorf("duplicate expense invoice %q already exists for this service provider. To add services, edit the existing invoice", req.InvoiceNo)
 		}
 
 		now := time.Now().UTC().Format(time.RFC3339)
@@ -683,14 +685,14 @@ func (s *Service) UpdateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 			SET shipment_id = ?, service_provider_id = ?, invoice_no = ?, invoice_number = ?, invoice_date = ?, currency = ?,
 			    total_amount = ?, total_cgst_amount = ?, total_sgst_amount = ?, total_igst_amount = ?,
 			    total_amount_paise = ?, total_cgst_amount_paise = ?, total_sgst_amount_paise = ?,
-			    total_igst_amount_paise = ?, total_tds_amount_paise = ?, net_amount_paise = ?,
+			    total_igst_amount_paise = ?, total_tds_amount_paise = ?, net_amount_paise = ?, round_off_paise = ?,
 			    remarks = ?, version = version + 1, updated_at = ?
 			WHERE id = ? AND deleted_at IS NULL`,
 			req.ShipmentID, req.ServiceProviderID, strings.TrimSpace(req.InvoiceNo), strings.TrimSpace(req.InvoiceNo), normDate, cur,
 			float64(calc.TotalAmountPaise)/100.0, float64(calc.TotalCGSTPaise)/100.0,
 			float64(calc.TotalSGSTPaise)/100.0, float64(calc.TotalIGSTPaise)/100.0,
 			calc.TotalAmountPaise, calc.TotalCGSTPaise, calc.TotalSGSTPaise,
-			calc.TotalIGSTPaise, calc.TotalTDSPaise, calc.NetAmountPaise,
+			calc.TotalIGSTPaise, calc.TotalTDSPaise, calc.NetAmountPaise, calc.RoundOffPaise,
 			strings.TrimSpace(req.Remarks), now, invID,
 		); err != nil {
 			return err
@@ -781,6 +783,13 @@ func (s *Service) prepareAndValidateInvoice(req models.ExpenseInvoiceRequest) ([
 	calc, err := CalculateInvoice(lines)
 	if err != nil {
 		return nil, models.ExpenseInvoiceCalculation{}, "", "", err
+	}
+	if req.RoundOffPaise != 0 {
+		calc.RoundOffPaise = req.RoundOffPaise
+		calc.TotalAmountPaise += req.RoundOffPaise
+		calc.NetAmountPaise += req.RoundOffPaise
+		calc.TotalAmountINR = float64(calc.TotalAmountPaise) / 100.0
+		calc.NetAmountINR = float64(calc.NetAmountPaise) / 100.0
 	}
 	return lines, calc, normDate, cur, nil
 }

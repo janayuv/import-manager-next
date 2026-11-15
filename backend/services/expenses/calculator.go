@@ -38,6 +38,11 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 		cgst = in.CGSTPaise
 		sgst = in.SGSTPaise
 		igst = in.IGSTPaise
+		if in.RoundOff {
+			cgst = int64(math.Round(float64(cgst)/100.0)) * 100
+			sgst = int64(math.Round(float64(sgst)/100.0)) * 100
+			igst = int64(math.Round(float64(igst)/100.0)) * 100
+		}
 
 		// If nominal rates weren't explicitly supplied, derive effective basis points from amount
 		if cgstRateBP == 0 && in.AmountPaise > 0 && cgst > 0 {
@@ -56,12 +61,23 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 		if in.CGSTRateBP > 10000 || in.SGSTRateBP > 10000 || in.IGSTRateBP > 10000 {
 			return models.ExpenseLineCalculation{}, errors.New("tax and TDS rates cannot exceed 100% (10000 bp)")
 		}
-		cgst = (in.AmountPaise * in.CGSTRateBP) / BasisPointsScale
-		sgst = (in.AmountPaise * in.SGSTRateBP) / BasisPointsScale
-		igst = (in.AmountPaise * in.IGSTRateBP) / BasisPointsScale
+		if in.RoundOff {
+			cgst = int64(math.Round(float64(in.AmountPaise*in.CGSTRateBP)/1_000_000.0)) * 100
+			sgst = int64(math.Round(float64(in.AmountPaise*in.SGSTRateBP)/1_000_000.0)) * 100
+			igst = int64(math.Round(float64(in.AmountPaise*in.IGSTRateBP)/1_000_000.0)) * 100
+		} else {
+			cgst = (in.AmountPaise * in.CGSTRateBP) / BasisPointsScale
+			sgst = (in.AmountPaise * in.SGSTRateBP) / BasisPointsScale
+			igst = (in.AmountPaise * in.IGSTRateBP) / BasisPointsScale
+		}
 	}
 
-	tds := (in.AmountPaise * in.TDSRateBP) / BasisPointsScale
+	var tds int64
+	if in.RoundOff {
+		tds = int64(math.Round(float64(in.AmountPaise*in.TDSRateBP)/1_000_000.0)) * 100
+	} else {
+		tds = (in.AmountPaise * in.TDSRateBP) / BasisPointsScale
+	}
 
 	total := in.AmountPaise + cgst + sgst + igst
 	net := total - tds
@@ -125,6 +141,7 @@ func MergeDuplicateLines(lines []models.ExpenseLineInput) ([]models.ExpenseLineI
 		if cur.TDSRateBP != raw.TDSRateBP {
 			return nil, fmt.Errorf("cannot merge duplicate expense type %q with differing TDS rates", key)
 		}
+		cur.RoundOff = cur.RoundOff || raw.RoundOff
 		if !cur.IsManualGST {
 			if cur.CGSTRateBP != raw.CGSTRateBP ||
 				cur.SGSTRateBP != raw.SGSTRateBP ||

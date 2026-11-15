@@ -34,6 +34,7 @@ import { exportBOEExcel, exportBOEPdf } from '@/lib/boe-export';
 import {
   boeEntryService,
   boeService,
+  boeSummaryService,
   type BOECalcParams,
   type BOECalculationResult,
   type BOEDetail,
@@ -43,6 +44,7 @@ import { shipmentService, type Shipment } from '@/services/shipment-invoice-serv
 export function BOEEntryPage() {
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
   const [boes, setBoes] = React.useState<BOEDetail[]>([]);
+  const [allBoes, setAllBoes] = React.useState<BOEDetail[]>([]);
   const [selectedShipmentId, setSelectedShipmentId] = React.useState('');
   const [params, setParams] = React.useState<BOECalcParams | null>(null);
   const [result, setResult] = React.useState<BOECalculationResult | null>(null);
@@ -51,36 +53,76 @@ export function BOEEntryPage() {
   const [overrideCsv, setOverrideCsv] = React.useState('');
   const [saving, setSaving] = React.useState(false);
 
-  React.useEffect(() => {
-    void (async () => {
-      try {
-        const [shPage, boeList] = await Promise.all([
-          shipmentService.list({
-            search: '',
-            supplierId: '',
-            status: '',
-            frozenOnly: false,
-            sortBy: 'invoiceDate',
-            sortDir: 'desc',
-            page: 1,
-            pageSize: 500,
-          }),
-          boeService.list(''),
-        ]);
-        const list = shPage.items ?? [];
-        setShipments(list);
-        setBoes(boeList);
-        if (list[0]) {
-          setSelectedShipmentId(list[0].id);
+  const loadData = React.useCallback(async (keepSelectedShipmentId?: string) => {
+    try {
+      const [shPage, boeList, summaries] = await Promise.all([
+        shipmentService.list({
+          search: '',
+          supplierId: '',
+          status: '',
+          frozenOnly: false,
+          sortBy: 'invoiceDate',
+          sortDir: 'desc',
+          page: 1,
+          pageSize: 500,
+        }),
+        boeService.list(''),
+        boeSummaryService.list('', '').catch(() => []),
+      ]);
+
+      const sumList = summaries ?? [];
+      const finalizedShipmentIds = new Set(
+        sumList
+          .filter((s) => s.status === 'Reconciled' || s.status === 'Closed' || s.status === 'Finalized')
+          .map((s) => s.shipmentId),
+      );
+      const linkedBoeIds = new Set(
+        sumList
+          .filter((s) => s.boeId && (s.status === 'Reconciled' || s.status === 'Closed' || s.status === 'Finalized'))
+          .map((s) => s.boeId),
+      );
+
+      const terminalStatuses = new Set(['delivered', 'cancelled', 'closed', 'completed', 'finalized']);
+
+      const eligibleShipments = (shPage.items ?? []).filter((sh) => {
+        if (keepSelectedShipmentId && sh.id === keepSelectedShipmentId) return true;
+        if (finalizedShipmentIds.has(sh.id)) return false;
+        if (terminalStatuses.has((sh.status || '').toLowerCase())) return false;
+        return true;
+      });
+
+      const eligibleBoes = (boeList ?? []).filter((b) => {
+        return !linkedBoeIds.has(b.id);
+      });
+
+      setShipments(eligibleShipments);
+      setBoes(eligibleBoes);
+      setAllBoes(boeList ?? []);
+
+      setSelectedShipmentId((prev) => {
+        if (keepSelectedShipmentId && eligibleShipments.some((s) => s.id === keepSelectedShipmentId)) {
+          return keepSelectedShipmentId;
         }
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      }
-    })();
+        if (prev && eligibleShipments.some((s) => s.id === prev)) {
+          return prev;
+        }
+        return eligibleShipments[0]?.id ?? '';
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
   }, []);
 
   React.useEffect(() => {
-    if (!selectedShipmentId) return;
+    void loadData();
+  }, [loadData]);
+
+  React.useEffect(() => {
+    if (!selectedShipmentId) {
+      setParams(null);
+      setResult(null);
+      return;
+    }
     void (async () => {
       try {
         const ctx = await boeEntryService.loadShipmentContext(selectedShipmentId);
@@ -104,14 +146,22 @@ export function BOEEntryPage() {
     }
   }, []);
 
+  const displayBoes = React.useMemo(() => {
+    if (params?.boeId && !boes.some((b) => b.id === params.boeId)) {
+      const current = allBoes.find((b) => b.id === params.boeId);
+      if (current) return [current, ...boes];
+    }
+    return boes;
+  }, [boes, params?.boeId, allBoes]);
+
   const linkedBoe = React.useMemo(
-    () => boes.find((b) => b.id === params?.boeId) ?? null,
-    [boes, params?.boeId],
+    () => displayBoes.find((b) => b.id === params?.boeId) ?? null,
+    [displayBoes, params?.boeId],
   );
 
   const dutyPaidMismatch = React.useMemo(() => {
     if (!linkedBoe || !result) return false;
-    return Math.round(linkedBoe.dutyPaid * 100) !== Math.round(result.customsDutyTotal * 100);
+    return Math.round(linkedBoe.dutyPaid) !== Math.round(result.customsDutyTotal);
   }, [linkedBoe, result]);
 
   const handleApplyOverride = async () => {
@@ -140,6 +190,7 @@ export function BOEEntryPage() {
     try {
       const saved = await boeEntryService.saveCalculation(params);
       toast.success(`Saved BOE calculation (${saved.status})`);
+      await loadData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -199,14 +250,18 @@ export function BOEEntryPage() {
               <Label>Shipment *</Label>
               <Select value={selectedShipmentId} onValueChange={setSelectedShipmentId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose shipment" />
+                  <SelectValue placeholder={shipments.length === 0 ? 'No pending shipments' : 'Choose shipment'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {shipments.map((sh) => (
-                    <SelectItem key={sh.id} value={sh.id}>
-                      {sh.invoiceNumber} — {sh.supplierName} ({sh.incoterm})
-                    </SelectItem>
-                  ))}
+                  {shipments.length === 0 ? (
+                    <div className="p-2 text-xs text-muted-foreground">No pending shipments to calculate</div>
+                  ) : (
+                    shipments.map((sh) => (
+                      <SelectItem key={sh.id} value={sh.id}>
+                        {sh.invoiceNumber} — {sh.supplierName} ({sh.incoterm})
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -224,9 +279,9 @@ export function BOEEntryPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Unlinked (Awaiting BOE Data)</SelectItem>
-                  {boes.map((b) => (
+                  {displayBoes.map((b) => (
                     <SelectItem key={b.id} value={b.id}>
-                      {b.beNumber} ({b.beDate}) — Paid: INR {b.dutyPaid.toLocaleString()}
+                      {b.beNumber} ({b.beDate}) — Paid: INR {Math.round(b.dutyPaid).toLocaleString()}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -317,7 +372,7 @@ export function BOEEntryPage() {
           {dutyPaidMismatch && linkedBoe && result && (
             <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              Save blocked: Linked BOE duty paid (INR {linkedBoe.dutyPaid.toFixed(2)}) does not match computed Customs Duty Total (INR {result.customsDutyTotal.toFixed(2)}).
+              Save blocked: Linked BOE duty paid (INR {Math.round(linkedBoe.dutyPaid).toLocaleString()}) does not match computed Customs Duty Total (INR {Math.round(result.customsDutyTotal).toLocaleString()}).
             </div>
           )}
         </CardContent>
@@ -329,32 +384,40 @@ export function BOEEntryPage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>Assessable Value (INR)</CardDescription>
-                <CardTitle className="text-xl">{result.totalAssessableValue.toLocaleString()}</CardTitle>
+                <CardTitle className="text-xl">
+                  {result.totalAssessableValue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>BCD Total (INR)</CardDescription>
-                <CardTitle className="text-xl">{result.bcdTotal.toLocaleString()}</CardTitle>
+                <CardTitle className="text-xl">
+                  {result.bcdTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>SWS Total (INR)</CardDescription>
-                <CardTitle className="text-xl">{result.swsTotal.toLocaleString()}</CardTitle>
+                <CardTitle className="text-xl">
+                  {result.swsTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>IGST Total (INR)</CardDescription>
-                <CardTitle className="text-xl">{result.igstTotal.toLocaleString()}</CardTitle>
+                <CardTitle className="text-xl">
+                  {result.igstTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </CardTitle>
               </CardHeader>
             </Card>
             <Card className="border-primary/40">
               <CardHeader className="pb-2">
                 <CardDescription>Customs Duty Grand Total</CardDescription>
                 <CardTitle className="text-xl text-primary">
-                  INR {result.customsDutyTotal.toLocaleString()}
+                  INR {result.customsDutyTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </CardTitle>
               </CardHeader>
             </Card>
@@ -376,6 +439,7 @@ export function BOEEntryPage() {
                     <TableHead>BOE SWS %</TableHead>
                     <TableHead>IGST % (Readonly)</TableHead>
                     <TableHead>BCD / SWS / IGST (INR)</TableHead>
+                    <TableHead className="text-right">Line Duty (INR)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -443,6 +507,9 @@ export function BOEEntryPage() {
                       <TableCell className="font-mono text-xs">{ln.boeIgstRate}%</TableCell>
                       <TableCell className="font-mono text-xs">
                         {ln.bcdValue.toFixed(1)} / {ln.swsValue.toFixed(1)} / {ln.igstValue.toFixed(1)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs font-semibold">
+                        {ln.totalLineDuty.toFixed(1)}
                       </TableCell>
                     </TableRow>
                   ))}

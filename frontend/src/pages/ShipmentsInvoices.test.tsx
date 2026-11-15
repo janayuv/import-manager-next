@@ -2,12 +2,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { InvoicesPage } from '@/pages/InvoicesPage';
 import { InvoiceWizardPage } from '@/pages/InvoiceWizardPage';
 import { ShipmentsPage } from '@/pages/ShipmentsPage';
 import { itemService, optionsService, supplierService } from '@/services/master-service';
 import { securityService } from '@/services/security-service';
 import {
   invoiceService,
+  invoiceWizardService,
   shipmentService,
 } from '@/services/shipment-invoice-service';
 
@@ -240,6 +242,213 @@ describe('Stage 5 Shipments & Invoice Wizard UI', () => {
       expect(screen.getByText(/Delta -100\.00 \(Draft Only\)/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Finalize Invoice/i })).toBeDisabled();
       expect(screen.getByRole('button', { name: /Save Draft/i })).not.toBeDisabled();
+    });
+  });
+
+  it('renders InvoicesPage with Edit Draft and Quick Finalize actions', async () => {
+    vi.mocked(invoiceService.list).mockResolvedValue([
+      {
+        id: 'INV-002',
+        shipmentId: 'SHP-002',
+        supplierId: 'SUP-001',
+        supplierName: 'DY ELACEN CO LTD - VIETNAM',
+        invoiceNumber: 'DEVP/INZI260827-01',
+        invoiceDate: '2026-08-27',
+        currency: 'USD',
+        shipmentInvoiceValue: 47379.40,
+        computedTotal: 47379.40,
+        lineCount: 6,
+        status: 'Draft',
+        lineTotalDecimals: 2,
+        invoiceTotalDecimals: 2,
+        shipmentFrozen: false,
+      },
+    ]);
+    vi.mocked(invoiceService.getDetail).mockResolvedValue({
+      invoice: {
+        id: 'INV-002',
+        shipmentId: 'SHP-002',
+        supplierId: 'SUP-001',
+        supplierName: 'DY ELACEN CO LTD - VIETNAM',
+        invoiceNumber: 'DEVP/INZI260827-01',
+        invoiceDate: '2026-08-27',
+        currency: 'USD',
+        shipmentInvoiceValue: 47379.40,
+        computedTotal: 47379.40,
+        lineCount: 1,
+        status: 'Draft',
+        lineTotalDecimals: 2,
+        invoiceTotalDecimals: 2,
+        shipmentFrozen: false,
+      },
+      lines: [
+        {
+          id: 'IL-1',
+          invoiceId: 'INV-002',
+          itemId: 'ITM-001',
+          partNumber: 'PN-1',
+          itemDescription: 'Control Unit',
+          unit: 'PCS',
+          hsnCode: '85371000',
+          quantity: 473.794,
+          unitPrice: 100,
+          masterUnitPrice: 100,
+          lineTotal: 47379.40,
+          dutyPercent: 7.5,
+          swsPercent: 10,
+          igstPercent: 18,
+          priceDiverged: false,
+        },
+      ],
+    });
+    vi.mocked(invoiceWizardService.saveInvoice).mockResolvedValue({
+      invoice: {
+        id: 'INV-002',
+        shipmentId: 'SHP-002',
+        supplierId: 'SUP-001',
+        supplierName: 'DY ELACEN CO LTD - VIETNAM',
+        invoiceNumber: 'DEVP/INZI260827-01',
+        invoiceDate: '2026-08-27',
+        currency: 'USD',
+        shipmentInvoiceValue: 47379.40,
+        computedTotal: 47379.40,
+        lineCount: 1,
+        status: 'Finalized',
+        lineTotalDecimals: 2,
+        invoiceTotalDecimals: 2,
+        shipmentFrozen: false,
+      },
+      lines: [],
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <InvoicesPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('INV-002')).toBeInTheDocument();
+      expect(screen.getByText('Draft')).toBeInTheDocument();
+    });
+
+    // Check Edit Draft button exists with correct link
+    const editLink = screen.getByTitle('Edit Draft in Wizard');
+    expect(editLink).toBeInTheDocument();
+    expect(editLink.closest('a')).toHaveAttribute('href', '/invoice-wizard?id=INV-002');
+
+    // Check Quick Finalize button exists and triggers saveInvoice with finalize: true
+    const finalizeBtn = screen.getByTitle('Finalize Invoice (Exact Cent Match)');
+    expect(finalizeBtn).toBeInTheDocument();
+    fireEvent.click(finalizeBtn);
+
+    await waitFor(() => {
+      expect(invoiceWizardService.saveInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          invoiceId: 'INV-002',
+          finalize: true,
+          shipmentId: 'SHP-002',
+        }),
+      );
+    });
+  });
+
+  it('loads draft invoice into InvoiceWizardPage when ?id= query param is provided', async () => {
+    vi.mocked(invoiceService.listActiveShipments).mockResolvedValue([]);
+    vi.mocked(invoiceService.list).mockResolvedValue([]);
+    vi.mocked(invoiceService.getDetail).mockResolvedValue({
+      invoice: {
+        id: 'INV-002',
+        shipmentId: 'SHP-002',
+        supplierId: 'SUP-001',
+        supplierName: 'DY ELACEN CO LTD - VIETNAM',
+        invoiceNumber: 'DEVP/INZI260827-01',
+        invoiceDate: '2026-08-27',
+        currency: 'USD',
+        shipmentInvoiceValue: 200,
+        computedTotal: 200,
+        lineCount: 1,
+        status: 'Draft',
+        lineTotalDecimals: 2,
+        invoiceTotalDecimals: 2,
+        shipmentFrozen: false,
+      },
+      lines: [
+        {
+          id: 'IL-1',
+          invoiceId: 'INV-002',
+          itemId: 'ITM-001',
+          partNumber: 'PN-1',
+          itemDescription: 'Control Unit',
+          unit: 'PCS',
+          hsnCode: '85371000',
+          quantity: 2,
+          unitPrice: 100,
+          masterUnitPrice: 100,
+          lineTotal: 200,
+          dutyPercent: 7.5,
+          swsPercent: 10,
+          igstPercent: 18,
+          priceDiverged: false,
+        },
+      ],
+    });
+    vi.mocked(invoiceWizardService.saveInvoice).mockResolvedValue({
+      invoice: {
+        id: 'INV-002',
+        shipmentId: 'SHP-002',
+        supplierId: 'SUP-001',
+        supplierName: 'DY ELACEN CO LTD - VIETNAM',
+        invoiceNumber: 'DEVP/INZI260827-01',
+        invoiceDate: '2026-08-27',
+        currency: 'USD',
+        shipmentInvoiceValue: 200,
+        computedTotal: 200,
+        lineCount: 1,
+        status: 'Finalized',
+        lineTotalDecimals: 2,
+        invoiceTotalDecimals: 2,
+        shipmentFrozen: false,
+      },
+      lines: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/invoice-wizard?id=INV-002']}>
+        <AuthProvider>
+          <InvoiceWizardPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    // Should load the draft and automatically jump to Step 2 (lines)
+    await waitFor(() => {
+      expect(screen.getByText(/Editing Draft: INV-002/i)).toBeInTheDocument();
+      expect(screen.getByText('Control Unit')).toBeInTheDocument();
+    });
+
+    // Navigate to Step 3
+    fireEvent.click(screen.getByRole('button', { name: /Review & Save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Exact Cent Match/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Finalize Invoice/i })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: /Update Draft/i })).not.toBeDisabled();
+    });
+
+    // Finalize invoice
+    fireEvent.click(screen.getByRole('button', { name: /Finalize Invoice/i }));
+
+    await waitFor(() => {
+      expect(invoiceWizardService.saveInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          invoiceId: 'INV-002',
+          finalize: true,
+          shipmentId: 'SHP-002',
+        }),
+      );
     });
   });
 });

@@ -17,11 +17,8 @@ const (
 
 // roundTo rounds n using half-up semantics matching JS Math.round(n * 10^d) / 10^d.
 func roundTo(n float64, decimals int) float64 {
-	if decimals <= 0 {
-		return math.Round(n)
-	}
 	factor := math.Pow(10, float64(decimals))
-	return math.Round((n+math.Copysign(1e-12, n))*factor) / factor
+	return math.Round((n+math.Copysign(1e-9, n))*factor) / factor
 }
 
 // NormalizeMethod canonicalizes customs duty calculation method names.
@@ -95,22 +92,19 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 		rBoeIGST := it.BOEIGSTRate / 100.0
 		rActBCD := it.ActualBCDRate / 100.0
 
-		var bcdRaw, swsRaw, igstRaw float64
+		var bcdVal, swsVal, igstVal float64
 		switch method {
 		case "Rodtep":
-			bcdRaw = assessable * rBoeBCD
-			actualBCD := assessable * rActBCD
-			swsRaw = actualBCD * rBoeSWS
-			igstRaw = (assessable + actualBCD + swsRaw) * rBoeIGST
+			bcdVal = roundTo(assessable*rBoeBCD, 1)
+			actualBCD := roundTo(assessable*rActBCD, 1)
+			swsVal = roundTo(actualBCD*rBoeSWS, 1)
+			igstVal = roundTo((assessable+actualBCD+swsVal)*rBoeIGST, 1)
 		default: // Standard & CEPA
-			bcdRaw = assessable * rBoeBCD
-			swsRaw = bcdRaw * rBoeSWS
-			igstRaw = (assessable + bcdRaw + swsRaw) * rBoeIGST
+			bcdVal = roundTo(assessable*rBoeBCD, 1)
+			swsVal = roundTo(bcdVal*rBoeSWS, 1)
+			igstVal = roundTo((assessable+bcdVal+swsVal)*rBoeIGST, 1)
 		}
 
-		bcdVal := roundTo(bcdRaw, 1)
-		swsVal := roundTo(swsRaw, 1)
-		igstVal := roundTo(igstRaw, 1)
 		lineDutyTotal := roundTo(bcdVal+swsVal+igstVal, 1)
 
 		discrepancy := it.BOEBCDRate > 0 && it.BOEBCDRate > it.ActualBCDRate
@@ -124,17 +118,18 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 		res.TotalInsurance = roundTo(res.TotalInsurance+itemInsurance, 1)
 		res.TotalAssessableValue = roundTo(res.TotalAssessableValue+assessable, 1)
 
-		bcdSum += bcdVal
-		swsSum += swsVal
-		igstSum += igstVal
+		bcdSum = roundTo(bcdSum+bcdVal, 1)
+		swsSum = roundTo(swsSum+swsVal, 1)
+		igstSum = roundTo(igstSum+igstVal, 1)
 
 		res.Items = append(res.Items, BOECalcLineResultFromInput(it, method, itemForex, itemInr, itemFreight, itemExw, itemInsurance, assessable, bcdVal, swsVal, igstVal, lineDutyTotal, discrepancy))
 	}
 
-	res.BCDTotal = math.Round(bcdSum)
-	res.SWSTotal = math.Round(swsSum)
-	res.IGSTTotal = math.Round(igstSum)
-	res.CustomsDutyTotal = math.Round(res.BCDTotal + res.SWSTotal + res.IGSTTotal + params.Interest)
+	res.BCDTotal = roundTo(bcdSum, 0)
+	res.SWSTotal = roundTo(swsSum, 0)
+	res.IGSTTotal = roundTo(igstSum, 0)
+	res.Interest = roundTo(params.Interest, 0)
+	res.CustomsDutyTotal = roundTo(res.BCDTotal+res.SWSTotal+res.IGSTTotal+res.Interest, 0)
 
 	if blob, err := json.Marshal(res); err == nil {
 		res.PayloadBytes = len(blob)

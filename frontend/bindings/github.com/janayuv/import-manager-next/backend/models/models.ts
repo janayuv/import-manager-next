@@ -2280,6 +2280,7 @@ export class ExpenseInvoice {
     "totalIgstPaise": number;
     "totalTdsPaise": number;
     "totalAmountPaise": number;
+    "roundOffPaise": number;
     "netAmountPaise": number;
     "remarks": string;
     "idempotencyKey": string;
@@ -2332,6 +2333,9 @@ export class ExpenseInvoice {
         if (!("totalAmountPaise" in $$source)) {
             this["totalAmountPaise"] = 0;
         }
+        if (!("roundOffPaise" in $$source)) {
+            this["roundOffPaise"] = 0;
+        }
         if (!("netAmountPaise" in $$source)) {
             this["netAmountPaise"] = 0;
         }
@@ -2361,10 +2365,10 @@ export class ExpenseInvoice {
      * Creates a new ExpenseInvoice instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoice {
-        const $$createField20_0 = $$createType29;
+        const $$createField21_0 = $$createType29;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
-            $$parsedSource["lines"] = $$createField20_0($$parsedSource["lines"]);
+            $$parsedSource["lines"] = $$createField21_0($$parsedSource["lines"]);
         }
         return new ExpenseInvoice($$parsedSource as Partial<ExpenseInvoice>);
     }
@@ -2380,6 +2384,7 @@ export class ExpenseInvoiceCalculation {
     "totalSgstPaise": number;
     "totalIgstPaise": number;
     "totalTdsPaise": number;
+    "roundOffPaise": number;
     "totalAmountPaise": number;
     "netAmountPaise": number;
     "totalAmountInr": number;
@@ -2405,6 +2410,9 @@ export class ExpenseInvoiceCalculation {
         }
         if (!("totalTdsPaise" in $$source)) {
             this["totalTdsPaise"] = 0;
+        }
+        if (!("roundOffPaise" in $$source)) {
+            this["roundOffPaise"] = 0;
         }
         if (!("totalAmountPaise" in $$source)) {
             this["totalAmountPaise"] = 0;
@@ -2452,6 +2460,7 @@ export class ExpenseInvoiceRequest {
     "idempotencyKey": string;
     "version": number;
     "mergeDuplicates": boolean;
+    "roundOffPaise": number;
     "lines": ExpenseLineInput[];
 
     /** Creates a new ExpenseInvoiceRequest instance. */
@@ -2483,6 +2492,9 @@ export class ExpenseInvoiceRequest {
         if (!("mergeDuplicates" in $$source)) {
             this["mergeDuplicates"] = false;
         }
+        if (!("roundOffPaise" in $$source)) {
+            this["roundOffPaise"] = 0;
+        }
         if (!("lines" in $$source)) {
             this["lines"] = [];
         }
@@ -2494,10 +2506,10 @@ export class ExpenseInvoiceRequest {
      * Creates a new ExpenseInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoiceRequest {
-        const $$createField10_0 = $$createType33;
+        const $$createField11_0 = $$createType33;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
-            $$parsedSource["lines"] = $$createField10_0($$parsedSource["lines"]);
+            $$parsedSource["lines"] = $$createField11_0($$parsedSource["lines"]);
         }
         return new ExpenseInvoiceRequest($$parsedSource as Partial<ExpenseInvoiceRequest>);
     }
@@ -2694,6 +2706,7 @@ export class ExpenseLineInput {
     "expenseTypeId": string;
     "amountPaise": number;
     "isManualGst": boolean;
+    "roundOff": boolean;
     "cgstPaise": number;
     "sgstPaise": number;
     "igstPaise": number;
@@ -2713,6 +2726,9 @@ export class ExpenseLineInput {
         }
         if (!("isManualGst" in $$source)) {
             this["isManualGst"] = false;
+        }
+        if (!("roundOff" in $$source)) {
+            this["roundOff"] = false;
         }
         if (!("cgstPaise" in $$source)) {
             this["cgstPaise"] = 0;
@@ -4026,7 +4042,7 @@ export class LandedCostReport {
 }
 
 /**
- * LandedCostRow mirrors the 15 columns exposed by report_view (14 export columns + supplierId).
+ * LandedCostRow mirrors the 16 columns exposed by report_view (15 export columns + supplierId).
  */
 export class LandedCostRow {
     "supplier": string;
@@ -4042,6 +4058,7 @@ export class LandedCostRow {
     "bcdAmount": number;
     "swsAmount": number;
     "igstAmount": number;
+    "boeInterest": number;
     "expensesTotal": number;
     "ldcPerQty": number;
 
@@ -4086,6 +4103,9 @@ export class LandedCostRow {
         if (!("igstAmount" in $$source)) {
             this["igstAmount"] = 0;
         }
+        if (!("boeInterest" in $$source)) {
+            this["boeInterest"] = 0;
+        }
         if (!("expensesTotal" in $$source)) {
             this["expensesTotal"] = 0;
         }
@@ -4118,6 +4138,7 @@ export class LandedCostSummary {
      */
     "totalBasicDuties": number;
     "totalIgst": number;
+    "totalBoeInterest": number;
     "totalBasicExpenses": number;
     "totalLandedCostExIgst": number;
 
@@ -4137,6 +4158,9 @@ export class LandedCostSummary {
         }
         if (!("totalIgst" in $$source)) {
             this["totalIgst"] = 0;
+        }
+        if (!("totalBoeInterest" in $$source)) {
+            this["totalBoeInterest"] = 0;
         }
         if (!("totalBasicExpenses" in $$source)) {
             this["totalBasicExpenses"] = 0;
