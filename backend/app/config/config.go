@@ -9,7 +9,7 @@ import (
 
 const (
 	AppName    = "Import Manager"
-	AppVersion = "1.0.4"
+	AppVersion = "1.0.5"
 )
 
 // Config holds immutable startup configuration derived from CLI args, environment, and Windows AppData paths.

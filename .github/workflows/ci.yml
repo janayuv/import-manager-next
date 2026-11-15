@@ -52,7 +52,7 @@ jobs:
 
       - name: Build Windows Desktop Binary (Wails 3)
         shell: pwsh
-        run: wails3 build -config build/config.yml
+        run: wails3 task windows:build
 
       - name: Upload Playwright Report on Failure
         if: failure()

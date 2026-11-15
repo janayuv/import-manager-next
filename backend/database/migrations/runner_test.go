@@ -113,3 +113,36 @@ func TestMigrationGuardsChecksumDowngradeFailureAndPreBackup(t *testing.T) {
 		t.Fatalf("expected blocked FAILED status error, got %v", err)
 	}
 }
+
+func TestMigrationLineEndingChecksumEquivalence(t *testing.T) {
+	mgr, err := connection.OpenEncrypted(filepath.Join(t.TempDir(), "line_endings.db"), "strong-key-003")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer mgr.Close()
+	ctx := context.Background()
+
+	// Apply migration with CRLF
+	crlfSQL := "CREATE TABLE t_crlf (\r\n  id INTEGER PRIMARY KEY,\r\n  val TEXT\r\n);"
+	m1CRLF := migrations.Migration{
+		Version:  1,
+		Name:     "0001_crlf.sql",
+		SQL:      crlfSQL,
+		Checksum: sha(crlfSQL),
+	}
+	if _, err := migrations.RunWithMigrations(ctx, mgr.DB(), "1.0.0", []migrations.Migration{m1CRLF}, nil); err != nil {
+		t.Fatalf("apply v1 CRLF: %v", err)
+	}
+
+	// Verify using LF version of the same SQL succeeds without SHA-256 mismatch
+	lfSQL := "CREATE TABLE t_crlf (\n  id INTEGER PRIMARY KEY,\n  val TEXT\n);"
+	m1LF := migrations.Migration{
+		Version:  1,
+		Name:     "0001_crlf.sql",
+		SQL:      lfSQL,
+		Checksum: sha(lfSQL),
+	}
+	if _, err := migrations.RunWithMigrations(ctx, mgr.DB(), "1.0.0", []migrations.Migration{m1LF}, nil); err != nil {
+		t.Fatalf("expected LF version to match CRLF applied record, got error: %v", err)
+	}
+}

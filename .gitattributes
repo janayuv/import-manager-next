@@ -1,0 +1,10 @@
+# Enforce consistent LF line endings across all OS environments and git configurations
+* text=auto eol=lf
+*.sql text eol=lf
+*.go text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

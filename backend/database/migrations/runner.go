@@ -166,7 +166,7 @@ func RunWithMigrations(ctx context.Context, db *sql.DB, appVersion string, migs 
 	var pending []Migration
 	for _, m := range migs {
 		if rec, ok := appliedMap[m.Version]; ok {
-			if rec.Checksum != m.Checksum {
+			if !matchesChecksum(m, rec.Checksum) {
 				return RunResult{}, fmt.Errorf("migration v%d (%s) SHA-256 mismatch: applied=%s current=%s", m.Version, m.Name, rec.Checksum, m.Checksum)
 			}
 		} else {
@@ -266,4 +266,25 @@ func listAppliedRecords(ctx context.Context, db *sql.DB) ([]AppliedRecord, error
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// matchesChecksum checks if appliedChecksum matches m.Checksum directly,
+// or if it matches after normalizing line endings (LF vs CRLF).
+func matchesChecksum(m Migration, appliedChecksum string) bool {
+	if m.Checksum == appliedChecksum {
+		return true
+	}
+	// Normalize to LF
+	lfSQL := strings.ReplaceAll(m.SQL, "\r\n", "\n")
+	sumLF := sha256.Sum256([]byte(lfSQL))
+	if hex.EncodeToString(sumLF[:]) == appliedChecksum {
+		return true
+	}
+	// Normalize to CRLF
+	crlfSQL := strings.ReplaceAll(lfSQL, "\n", "\r\n")
+	sumCRLF := sha256.Sum256([]byte(crlfSQL))
+	if hex.EncodeToString(sumCRLF[:]) == appliedChecksum {
+		return true
+	}
+	return false
 }
