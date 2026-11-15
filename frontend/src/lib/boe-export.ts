@@ -31,15 +31,23 @@ export async function exportBOEExcel(
     { metric: 'Supplier Name', value: params.supplierName },
     { metric: 'Invoice Number', value: params.invoiceNumber },
     { metric: 'Shipment ID', value: params.shipmentId },
+    { metric: 'Incoterm (Incoterms 2020)', value: params.incoterm },
     { metric: 'Invoice Currency', value: params.invoiceCurrency || 'USD' },
+    { metric: 'Exchange Rate (INR)', value: params.exchangeRate },
     { metric: 'Total Invoice Value (Forex)', value: result.totalInvoiceValue },
     { metric: 'Total Invoice Value (INR)', value: result.totalValueInr },
+    { metric: 'Total Freight (INR)', value: result.totalFreight },
+    { metric: 'Total Origin / Rule 10 Charges (INR)', value: result.totalOriginCharges ?? result.totalExw },
+    { metric: 'Total Insurance (INR)', value: result.totalInsurance },
     { metric: 'Total Assessable Value (INR)', value: result.totalAssessableValue },
-    { metric: 'BCD Total (INR)', value: result.bcdTotal },
+    { metric: 'Gross BCD Total (INR)', value: result.grossBcdTotal ?? result.bcdTotal },
+    { metric: 'RoDTEP Scrip Debited (INR)', value: result.rodtepScripUtilized ?? 0 },
+    { metric: 'BCD Cash Payable (INR)', value: result.bcdCashTotal ?? result.bcdTotal },
     { metric: 'SWS Total (INR)', value: result.swsTotal },
     { metric: 'IGST Total (INR)', value: result.igstTotal },
     { metric: 'Interest (INR)', value: result.interest },
-    { metric: 'Customs Duty Grand Total (INR)', value: result.customsDutyTotal },
+    { metric: 'Customs Duty Assessed Liability (INR)', value: result.customsDutyTotal },
+    { metric: 'Net Cash Challan Amount Payable (INR)', value: result.cashCustomsDutyTotal ?? result.customsDutyTotal },
   ]);
 
   const itemsSheet = wb.addWorksheet('Item Duties');
@@ -69,12 +77,21 @@ export async function exportBOEExcel(
     { header: 'Value', key: 'value', width: 24 },
   ];
   inputSheet.addRows([
-    { param: 'Incoterm', value: params.incoterm },
+    { param: 'Incoterm (Incoterms 2020)', value: params.incoterm },
     { param: 'CIF Zero Lock Active', value: result.cifZeroLocked ? 'YES' : 'NO' },
     { param: 'Exchange Rate (INR)', value: params.exchangeRate },
     { param: 'Freight Cost (INR)', value: params.freightCost },
-    { param: 'EXW Cost (INR)', value: params.exwCost },
+    { param: 'EXW / Total Origin Charges (INR)', value: params.exwCost },
+    { param: 'Origin Inland Freight (INR)', value: params.originInlandFreight || 0 },
+    { param: 'Export Handling (INR)', value: params.exportHandling || 0 },
+    { param: 'Loading Charges (INR)', value: params.loadingCharges || 0 },
+    { param: 'Packing Charges (INR)', value: params.packingCharges || 0 },
+    { param: 'Other Rule 10 Additions (INR)', value: params.otherRule10Additions || 0 },
+    { param: 'Insurance Mode', value: params.insuranceMode || 'deemed_1.125' },
+    { param: 'Actual Marine Insurance (INR)', value: params.actualInsurance || 0 },
     { param: 'Insurance Rate (%)', value: params.insuranceRate },
+    { param: 'RoDTEP Scrip Balance (INR)', value: params.rodtepScripBalance || 0 },
+    { param: 'RoDTEP Scrip Utilized (INR)', value: result.rodtepScripUtilized || 0 },
     { param: 'Interest (INR)', value: params.interest },
     { param: 'Reconciliation Status', value: params.status },
   ]);
@@ -132,8 +149,11 @@ export function exportBOEPdf(params: BOECalcParams, result: BOECalculationResult
 
   const finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 120;
   doc.setFontSize(10);
+  const totalsSummary = (result.rodtepScripUtilized ?? 0) > 0
+    ? `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | Gross BCD ${(result.grossBcdTotal ?? result.bcdTotal).toFixed(0)} | RoDTEP Debited -${result.rodtepScripUtilized.toFixed(0)} | Cash BCD ${(result.bcdCashTotal ?? result.bcdTotal).toFixed(0)} | SWS ${result.swsTotal.toFixed(0)} | IGST ${result.igstTotal.toFixed(0)} | Assessed Duty: ${result.customsDutyTotal.toFixed(0)} | Cash Challan: ${(result.cashCustomsDutyTotal ?? result.customsDutyTotal).toFixed(0)}`
+    : `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | BCD ${result.bcdTotal.toFixed(0)} | SWS ${result.swsTotal.toFixed(0)} | IGST ${result.igstTotal.toFixed(0)} | Interest ${result.interest.toFixed(0)} | Customs Duty Total: ${result.customsDutyTotal.toFixed(0)}`;
   doc.text(
-    `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | BCD ${result.bcdTotal.toFixed(0)} | SWS ${result.swsTotal.toFixed(0)} | IGST ${result.igstTotal.toFixed(0)} | Interest ${result.interest.toFixed(0)} | Customs Duty Total: ${result.customsDutyTotal.toFixed(0)}`,
+    totalsSummary,
     14,
     finalY + 10,
   );

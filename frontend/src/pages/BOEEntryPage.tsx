@@ -1,5 +1,16 @@
 import * as React from 'react';
-import { AlertTriangle, Calculator, FileDown, FileSpreadsheet, Save, Upload } from 'lucide-react';
+import {
+  AlertTriangle,
+  Calculator,
+  ChevronDown,
+  ChevronRight,
+  FileDown,
+  FileSpreadsheet,
+  Info,
+  Save,
+  ShieldCheck,
+  Upload,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +52,31 @@ import {
 } from '@/services/boe-service';
 import { shipmentService, type Shipment } from '@/services/shipment-invoice-service';
 
+const INCOTERMS = [
+  'EXW',
+  'FCA',
+  'FAS',
+  'FOB',
+  'CFR',
+  'CIF',
+  'CPT',
+  'CIP',
+  'DAP',
+  'DPU',
+  'DDP',
+] as const;
+
+const TRADE_AGREEMENTS = [
+  'India-Japan CEPA (Comprehensive Economic Partnership Agreement)',
+  'India-Korea CEPA (Comprehensive Economic Partnership Agreement)',
+  'India-ASEAN AIFTA (Free Trade Agreement)',
+  'India-UAE CEPA (Comprehensive Economic Partnership Agreement)',
+  'India-Australia ECTA (Economic Cooperation and Trade Agreement)',
+  'India-Singapore CECA (Comprehensive Economic Cooperation Agreement)',
+  'SAFTA (South Asian Free Trade Area)',
+  'Other Preferential Trade Agreement',
+] as const;
+
 export function BOEEntryPage() {
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
   const [boes, setBoes] = React.useState<BOEDetail[]>([]);
@@ -52,6 +88,7 @@ export function BOEEntryPage() {
   const [overrideOpen, setOverrideOpen] = React.useState(false);
   const [overrideCsv, setOverrideCsv] = React.useState('');
   const [saving, setSaving] = React.useState(false);
+  const [showOriginBreakdown, setShowOriginBreakdown] = React.useState(false);
 
   const loadData = React.useCallback(async (keepSelectedShipmentId?: string) => {
     try {
@@ -161,7 +198,10 @@ export function BOEEntryPage() {
 
   const dutyPaidMismatch = React.useMemo(() => {
     if (!linkedBoe || !result) return false;
-    return Math.round(linkedBoe.dutyPaid) !== Math.round(result.customsDutyTotal);
+    const paid = Math.round(linkedBoe.dutyPaid);
+    const gross = Math.round(result.customsDutyTotal);
+    const cash = Math.round(result.cashCustomsDutyTotal ?? result.customsDutyTotal);
+    return paid !== gross && paid !== cash;
   }, [linkedBoe, result]);
 
   const handleApplyOverride = async () => {
@@ -198,7 +238,10 @@ export function BOEEntryPage() {
     }
   };
 
-  const cifLocked = params?.incoterm?.toUpperCase() === 'CIF';
+  const incotermCode = (params?.incoterm || '').toUpperCase();
+  const cifLocked = incotermCode === 'CIF';
+  const freightIncluded = Boolean(cifLocked || result?.incotermRule?.freightIncluded);
+  const insuranceIncluded = Boolean(cifLocked || result?.incotermRule?.insuranceIncluded);
 
   return (
     <div className="space-y-6">
@@ -206,7 +249,7 @@ export function BOEEntryPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">BOE Duty Calculation Engine</h1>
           <p className="text-sm text-muted-foreground">
-            Interactive Standard / CEPA / RoDTEP customs duty calculator (all duty figures in INR).
+            Statutory 11-Incoterm Valuation (Rule 10), Standard / CEPA / RoDTEP E-Scrip customs duties in INR.
           </p>
         </div>
         {params && result && (
@@ -241,7 +284,7 @@ export function BOEEntryPage() {
             Shipment &amp; Valuation Parameters
           </CardTitle>
           <CardDescription>
-            Freight &amp; EXW inputs are entered in INR. Incoterm CIF automatically locks Freight/EXW/Insurance to 0.
+            Customs Valuation (Determination of Value of Imported Goods) Rules, 2007 under Section 14.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -288,78 +331,422 @@ export function BOEEntryPage() {
               </Select>
             </div>
 
-            <div className="flex items-end gap-2 pb-1">
+            <div className="flex flex-wrap items-end gap-2 pb-1">
               {cifLocked && <Badge variant="warning">CIF Zero-Locked</Badge>}
+              {!cifLocked && incotermCode && (
+                <Badge variant="outline">Incoterm: {incotermCode}</Badge>
+              )}
               {result?.payloadWarning && <Badge variant="destructive">Large Payload (&gt;768 KB)</Badge>}
             </div>
           </div>
 
           {params && (
-            <div className="grid gap-4 md:grid-cols-5">
-              <div className="space-y-1">
-                <Label htmlFor="exRate">Exchange Rate (INR per {params.invoiceCurrency})</Label>
-                <Input
-                  id="exRate"
-                  type="number"
-                  step="0.01"
-                  value={params.exchangeRate}
-                  onChange={(e) =>
-                    void recompute({ ...params, exchangeRate: Number.parseFloat(e.target.value) || 0 })
-                  }
-                />
+            <>
+              {/* Core 5-input valuation grid */}
+              <div className="grid gap-4 md:grid-cols-5">
+                <div className="space-y-1">
+                  <Label htmlFor="exRate">Exchange Rate (INR per {params.invoiceCurrency})</Label>
+                  <Input
+                    id="exRate"
+                    type="number"
+                    step="0.01"
+                    value={params.exchangeRate}
+                    onChange={(e) =>
+                      void recompute({ ...params, exchangeRate: Number.parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="freightCost">Freight (INR)</Label>
+                    {freightIncluded && <span className="text-[10px] text-muted-foreground">(Included)</span>}
+                  </div>
+                  <Input
+                    id="freightCost"
+                    type="number"
+                    step="0.01"
+                    disabled={freightIncluded}
+                    value={params.freightCost}
+                    onChange={(e) =>
+                      void recompute({ ...params, freightCost: Number.parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="exwCost">EXW (INR)</Label>
+                    {cifLocked && <span className="text-[10px] text-muted-foreground">(Locked)</span>}
+                  </div>
+                  <Input
+                    id="exwCost"
+                    type="number"
+                    step="0.01"
+                    disabled={cifLocked}
+                    value={params.exwCost}
+                    onChange={(e) => {
+                      const val = Number.parseFloat(e.target.value) || 0;
+                      void recompute({ ...params, exwCost: val });
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="insuranceRate">Insurance (%)</Label>
+                    {insuranceIncluded && <span className="text-[10px] text-muted-foreground">(Included)</span>}
+                  </div>
+                  <Input
+                    id="insuranceRate"
+                    type="number"
+                    step="0.001"
+                    disabled={insuranceIncluded || params.insuranceMode === 'actual'}
+                    value={params.insuranceRate}
+                    onChange={(e) =>
+                      void recompute({
+                        ...params,
+                        insuranceRate: Number.parseFloat(e.target.value) || 0,
+                        insuranceMode: 'rate',
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="interest">Interest (INR)</Label>
+                  <Input
+                    id="interest"
+                    type="number"
+                    step="0.01"
+                    value={params.interest}
+                    onChange={(e) =>
+                      void recompute({ ...params, interest: Number.parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="freightCost">Freight (INR)</Label>
-                <Input
-                  id="freightCost"
-                  type="number"
-                  step="0.01"
-                  disabled={cifLocked}
-                  value={params.freightCost}
-                  onChange={(e) =>
-                    void recompute({ ...params, freightCost: Number.parseFloat(e.target.value) || 0 })
-                  }
-                />
+
+              {/* Incoterm & Statutory Insurance Rules Bar */}
+              <div className="grid gap-4 rounded-lg border border-border/40 bg-muted/20 p-3 md:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Incoterm (Incoterms 2020)</Label>
+                  <Select
+                    value={params.incoterm || 'CIF'}
+                    onValueChange={(val) => void recompute({ ...params, incoterm: val })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INCOTERMS.map((term) => (
+                        <SelectItem key={term} value={term} className="text-xs">
+                          {term}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Insurance Basis (Rule 10(2))</Label>
+                  <Select
+                    value={insuranceIncluded ? 'included' : params.insuranceMode || 'deemed_1.125'}
+                    disabled={insuranceIncluded}
+                    onValueChange={(val) => {
+                      const nextRate = val === 'deemed_1.125' ? 1.125 : params.insuranceRate;
+                      void recompute({ ...params, insuranceMode: val, insuranceRate: nextRate });
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="included" disabled={!insuranceIncluded} className="text-xs">
+                        Included in Invoice ({params.incoterm})
+                      </SelectItem>
+                      <SelectItem value="deemed_1.125" className="text-xs">
+                        Statutory Deemed (1.125% of FOB)
+                      </SelectItem>
+                      <SelectItem value="actual" className="text-xs">
+                        Actual Marine Premium (INR)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {params.insuranceMode === 'actual' && !insuranceIncluded ? (
+                  <div className="space-y-1">
+                    <Label htmlFor="actualInsurance" className="text-xs font-semibold">
+                      Actual Policy Premium (INR)
+                    </Label>
+                    <Input
+                      id="actualInsurance"
+                      type="number"
+                      step="0.01"
+                      className="h-8 text-xs"
+                      placeholder="e.g. 3500"
+                      value={params.actualInsurance || 0}
+                      onChange={(e) =>
+                        void recompute({
+                          ...params,
+                          actualInsurance: Number.parseFloat(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center pt-5 text-xs text-muted-foreground">
+                    <Info className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    {result?.incotermRule?.description || 'Statutory Customs Valuation Rules apply.'}
+                  </div>
+                )}
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="exwCost">EXW (INR)</Label>
-                <Input
-                  id="exwCost"
-                  type="number"
-                  step="0.01"
-                  disabled={cifLocked}
-                  value={params.exwCost}
-                  onChange={(e) =>
-                    void recompute({ ...params, exwCost: Number.parseFloat(e.target.value) || 0 })
-                  }
-                />
+
+              {/* Origin & Rule 10 Additions Section */}
+              <div className="rounded-lg border border-border/40 p-3">
+                <div
+                  className="flex cursor-pointer items-center justify-between"
+                  onClick={() => setShowOriginBreakdown((prev) => !prev)}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold">
+                    {showOriginBreakdown ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    Origin &amp; Rule 10(1) Additions (Inland Freight, Handling, Packing, Assists)
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Total Origin: INR {(result?.totalOriginCharges ?? params.exwCost).toLocaleString()}
+                  </div>
+                </div>
+
+                {showOriginBreakdown && (
+                  <div className="mt-3 grid gap-3 border-t border-border/30 pt-3 md:grid-cols-5">
+                    <div className="space-y-1">
+                      <Label htmlFor="originFreight" className="text-[11px]">
+                        Origin Inland Freight (INR)
+                      </Label>
+                      <Input
+                        id="originFreight"
+                        type="number"
+                        step="0.01"
+                        className="h-8 text-xs"
+                        disabled={cifLocked}
+                        value={params.originInlandFreight || 0}
+                        onChange={(e) => {
+                          const val = Number.parseFloat(e.target.value) || 0;
+                          const total =
+                            val +
+                            (params.exportHandling || 0) +
+                            (params.loadingCharges || 0) +
+                            (params.packingCharges || 0) +
+                            (params.otherRule10Additions || 0);
+                          void recompute({ ...params, originInlandFreight: val, exwCost: total });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="exportHandling" className="text-[11px]">
+                        Export Handling (INR)
+                      </Label>
+                      <Input
+                        id="exportHandling"
+                        type="number"
+                        step="0.01"
+                        className="h-8 text-xs"
+                        disabled={cifLocked}
+                        value={params.exportHandling || 0}
+                        onChange={(e) => {
+                          const val = Number.parseFloat(e.target.value) || 0;
+                          const total =
+                            (params.originInlandFreight || 0) +
+                            val +
+                            (params.loadingCharges || 0) +
+                            (params.packingCharges || 0) +
+                            (params.otherRule10Additions || 0);
+                          void recompute({ ...params, exportHandling: val, exwCost: total });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="loadingCharges" className="text-[11px]">
+                        Loading Charges (INR)
+                      </Label>
+                      <Input
+                        id="loadingCharges"
+                        type="number"
+                        step="0.01"
+                        className="h-8 text-xs"
+                        disabled={cifLocked}
+                        value={params.loadingCharges || 0}
+                        onChange={(e) => {
+                          const val = Number.parseFloat(e.target.value) || 0;
+                          const total =
+                            (params.originInlandFreight || 0) +
+                            (params.exportHandling || 0) +
+                            val +
+                            (params.packingCharges || 0) +
+                            (params.otherRule10Additions || 0);
+                          void recompute({ ...params, loadingCharges: val, exwCost: total });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="packingCharges" className="text-[11px]">
+                        Packing Charges (INR)
+                      </Label>
+                      <Input
+                        id="packingCharges"
+                        type="number"
+                        step="0.01"
+                        className="h-8 text-xs"
+                        disabled={cifLocked}
+                        value={params.packingCharges || 0}
+                        onChange={(e) => {
+                          const val = Number.parseFloat(e.target.value) || 0;
+                          const total =
+                            (params.originInlandFreight || 0) +
+                            (params.exportHandling || 0) +
+                            (params.loadingCharges || 0) +
+                            val +
+                            (params.otherRule10Additions || 0);
+                          void recompute({ ...params, packingCharges: val, exwCost: total });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="otherRule10" className="text-[11px]">
+                        Other Rule 10 Additions (INR)
+                      </Label>
+                      <Input
+                        id="otherRule10"
+                        type="number"
+                        step="0.01"
+                        className="h-8 text-xs"
+                        value={params.otherRule10Additions || 0}
+                        onChange={(e) => {
+                          const val = Number.parseFloat(e.target.value) || 0;
+                          const total =
+                            (params.originInlandFreight || 0) +
+                            (params.exportHandling || 0) +
+                            (params.loadingCharges || 0) +
+                            (params.packingCharges || 0) +
+                            val;
+                          void recompute({ ...params, otherRule10Additions: val, exwCost: total });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="insuranceRate">Insurance (%)</Label>
-                <Input
-                  id="insuranceRate"
-                  type="number"
-                  step="0.001"
-                  disabled={cifLocked}
-                  value={params.insuranceRate}
-                  onChange={(e) =>
-                    void recompute({ ...params, insuranceRate: Number.parseFloat(e.target.value) || 0 })
-                  }
-                />
+
+              {/* RoDTEP Scrip Debit Section */}
+              <div className="rounded-lg border border-border/40 bg-muted/10 p-3">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="rodtepScrip" className="text-xs font-semibold">
+                      ICEGATE RoDTEP E-Scrip Balance (INR)
+                    </Label>
+                    <Input
+                      id="rodtepScrip"
+                      type="number"
+                      step="1"
+                      className="h-8 text-xs"
+                      placeholder="0"
+                      value={params.rodtepScripBalance || 0}
+                      onChange={(e) =>
+                        void recompute({
+                          ...params,
+                          rodtepScripBalance: Number.parseFloat(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="col-span-2 flex items-center text-xs text-muted-foreground">
+                    {result && (result.rodtepScripUtilized ?? 0) > 0 ? (
+                      <div className="space-y-0.5">
+                        <div className="font-semibold text-emerald-500">
+                          RoDTEP E-Scrip Debited: INR {(result.rodtepScripUtilized ?? 0).toLocaleString()} against
+                          BCD Liability (Cash BCD: INR {(result.bcdCashTotal ?? result.bcdTotal).toLocaleString()}).
+                        </div>
+                        <div className="text-[11px]">
+                          SWS (INR {result.swsTotal.toLocaleString()}) and IGST (INR{' '}
+                          {result.igstTotal.toLocaleString()}) are payable in cash via duty challan.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[11px]">
+                        Transferable RoDTEP electronic duty-credit scrips debit Basic Customs Duty (BCD) on
+                        ICEGATE. SWS and IGST must be paid in cash.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="interest">Interest (INR)</Label>
-                <Input
-                  id="interest"
-                  type="number"
-                  step="0.01"
-                  value={params.interest}
-                  onChange={(e) =>
-                    void recompute({ ...params, interest: Number.parseFloat(e.target.value) || 0 })
-                  }
-                />
-              </div>
-            </div>
+
+              {/* CEPA Preferential Eligibility Details (if any CEPA line exists) */}
+              {params.lineItems?.some((it) => it.calculationMethod === 'CEPA') && (
+                <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
+                  <div className="flex items-center justify-between pb-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-400">
+                      <ShieldCheck className="h-4 w-4" />
+                      CEPA Preferential Duty Eligibility &amp; Certificate of Origin
+                    </div>
+                    {params.certificateOfOriginNo ? (
+                      <Badge variant="outline" className="border-emerald-500 text-emerald-400">
+                        CEPA Documented &amp; Eligible
+                      </Badge>
+                    ) : (
+                      <Badge variant="warning">COO Number Required</Badge>
+                    )}
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Trade Agreement</Label>
+                      <Select
+                        value={params.tradeAgreement || TRADE_AGREEMENTS[0]}
+                        onValueChange={(val) => void recompute({ ...params, tradeAgreement: val })}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TRADE_AGREEMENTS.map((ta) => (
+                            <SelectItem key={ta} value={ta} className="text-xs">
+                              {ta}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="cooNo" className="text-[11px]">
+                        Certificate of Origin (COO) Number *
+                      </Label>
+                      <Input
+                        id="cooNo"
+                        className="h-8 text-xs"
+                        placeholder="e.g. 260827-01-COO-JPN"
+                        value={params.certificateOfOriginNo || ''}
+                        onChange={(e) => void recompute({ ...params, certificateOfOriginNo: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="cooDate" className="text-[11px]">
+                        COO Issuance Date
+                      </Label>
+                      <Input
+                        id="cooDate"
+                        type="date"
+                        className="h-8 text-xs"
+                        value={params.certificateOfOriginDate || ''}
+                        onChange={(e) =>
+                          void recompute({ ...params, certificateOfOriginDate: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {result?.hasBlockingBcdOverride && (
@@ -372,7 +759,8 @@ export function BOEEntryPage() {
           {dutyPaidMismatch && linkedBoe && result && (
             <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              Save blocked: Linked BOE duty paid (INR {Math.round(linkedBoe.dutyPaid).toLocaleString()}) does not match computed Customs Duty Total (INR {Math.round(result.customsDutyTotal).toLocaleString()}).
+              Save blocked: Linked BOE duty paid (INR {Math.round(linkedBoe.dutyPaid).toLocaleString()}) does
+              not match computed Customs Duty Total (INR {Math.round(result.customsDutyTotal).toLocaleString()}).
             </div>
           )}
         </CardContent>
@@ -385,7 +773,10 @@ export function BOEEntryPage() {
               <CardHeader className="pb-2">
                 <CardDescription>Assessable Value (INR)</CardDescription>
                 <CardTitle className="text-xl">
-                  {result.totalAssessableValue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  {result.totalAssessableValue.toLocaleString(undefined, {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })}
                 </CardTitle>
               </CardHeader>
             </Card>
@@ -393,7 +784,10 @@ export function BOEEntryPage() {
               <CardHeader className="pb-2">
                 <CardDescription>BCD Total (INR)</CardDescription>
                 <CardTitle className="text-xl">
-                  {result.bcdTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  {result.bcdTotal.toLocaleString(undefined, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}
                 </CardTitle>
               </CardHeader>
             </Card>
@@ -401,7 +795,10 @@ export function BOEEntryPage() {
               <CardHeader className="pb-2">
                 <CardDescription>SWS Total (INR)</CardDescription>
                 <CardTitle className="text-xl">
-                  {result.swsTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  {result.swsTotal.toLocaleString(undefined, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}
                 </CardTitle>
               </CardHeader>
             </Card>
@@ -409,7 +806,10 @@ export function BOEEntryPage() {
               <CardHeader className="pb-2">
                 <CardDescription>IGST Total (INR)</CardDescription>
                 <CardTitle className="text-xl">
-                  {result.igstTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  {result.igstTotal.toLocaleString(undefined, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}
                 </CardTitle>
               </CardHeader>
             </Card>
@@ -417,15 +817,52 @@ export function BOEEntryPage() {
               <CardHeader className="pb-2">
                 <CardDescription>Customs Duty Grand Total</CardDescription>
                 <CardTitle className="text-xl text-primary">
-                  INR {result.customsDutyTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  INR{' '}
+                  {result.customsDutyTotal.toLocaleString(undefined, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}
                 </CardTitle>
               </CardHeader>
             </Card>
           </div>
 
+          {(result.rodtepScripUtilized ?? 0) > 0 && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="border-emerald-500/40 bg-emerald-500/5">
+                <CardHeader className="pb-2">
+                  <CardDescription className="text-emerald-400">
+                    RoDTEP Electronic Scrip Debited (from BCD)
+                  </CardDescription>
+                  <CardTitle className="text-xl text-emerald-400">
+                    - INR{' '}
+                    {(result.rodtepScripUtilized ?? 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    })}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card className="border-primary/60 bg-primary/5">
+                <CardHeader className="pb-2">
+                  <CardDescription>Net Cash Challan Payable (Duty Paid)</CardDescription>
+                  <CardTitle className="text-xl text-primary">
+                    INR{' '}
+                    {(result.cashCustomsDutyTotal ?? result.customsDutyTotal).toLocaleString(undefined, {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    })}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </div>
+          )}
+
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Line-by-Line Duty Breakdown ({result.items?.length ?? 0})</CardTitle>
+              <CardTitle className="text-base">
+                Line-by-Line Duty Breakdown ({result.items?.length ?? 0})
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -507,6 +944,11 @@ export function BOEEntryPage() {
                       <TableCell className="font-mono text-xs">{ln.boeIgstRate}%</TableCell>
                       <TableCell className="font-mono text-xs">
                         {ln.bcdValue.toFixed(1)} / {ln.swsValue.toFixed(1)} / {ln.igstValue.toFixed(1)}
+                        {(ln.rodtepUtilized ?? 0) > 0 && (
+                          <div className="text-[10px] text-emerald-400">
+                            Scrip: -{ln.rodtepUtilized.toFixed(1)}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs font-semibold">
                         {ln.totalLineDuty.toFixed(1)}
@@ -525,13 +967,16 @@ export function BOEEntryPage() {
           <DialogHeader>
             <DialogTitle>Import BOE Rate Override CSV</DialogTitle>
             <DialogDescription>
-              Required headers: partNo, calculationMethod, boeBcdRate, boeSwsRate, boeIgstRate. Rows with IGST mismatch are skipped cleanly.
+              Required headers: partNo, calculationMethod, boeBcdRate, boeSwsRate, boeIgstRate. Rows with IGST
+              mismatch are skipped cleanly.
             </DialogDescription>
           </DialogHeader>
           <Textarea
             rows={6}
             className="font-mono text-xs"
-            placeholder={'partNo,calculationMethod,boeBcdRate,boeSwsRate,boeIgstRate\nPN-100,CEPA,2.5,10,18'}
+            placeholder={
+              'partNo,calculationMethod,boeBcdRate,boeSwsRate,boeIgstRate\nPN-100,CEPA,2.5,10,18'
+            }
             value={overrideCsv}
             onChange={(e) => setOverrideCsv(e.target.value)}
           />

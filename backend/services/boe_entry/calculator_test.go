@@ -327,3 +327,214 @@ func TestCalculateDutiesUserScreenshotDEVP_INZI260827_01(t *testing.T) {
 		t.Fatalf("expected Customs Duty Grand Total 1422012, got %.0f", res.CustomsDutyTotal)
 	}
 }
+
+func Test11IncotermsValuationRules(t *testing.T) {
+	line := models.BOECalculationItemInput{
+		PartNumber: "ITEM-A", Quantity: 10, UnitPrice: 100, // Forex = 1000 USD
+		ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18,
+		CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18,
+	}
+
+	// 1. CIF: Freight and insurance locked to 0
+	resCIF, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm: "CIF", ExchangeRate: 80, FreightCost: 5000, EXWCost: 2000,
+		LineItems: []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("CIF error: %v", err)
+	}
+	if !resCIF.CIFZeroLocked || resCIF.TotalFreight != 0 || resCIF.TotalInsurance != 0 {
+		t.Fatalf("expected CIF freight & insurance locked to 0, got %+v", resCIF)
+	}
+	// Invoice INR = 1000 * 80 = 80000. AV = 80000.0
+	if resCIF.TotalAssessableValue != 80000.0 {
+		t.Fatalf("expected AV 80000, got %.1f", resCIF.TotalAssessableValue)
+	}
+
+	// 2. CFR: Freight included (locked to 0), but Insurance MUST be added (1.125% deemed)
+	resCFR, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm: "CFR", ExchangeRate: 80, FreightCost: 5000,
+		LineItems: []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("CFR error: %v", err)
+	}
+	if resCFR.TotalFreight != 0 {
+		t.Fatalf("expected CFR freight locked to 0, got %.2f", resCFR.TotalFreight)
+	}
+	// Deemed insurance = 80000 * 1.125% = 900.0. AV = 80900.0
+	if resCFR.TotalInsurance != 900.0 || resCFR.TotalAssessableValue != 80900.0 {
+		t.Fatalf("expected CFR ins 900.0, AV 80900.0; got ins=%.1f, AV=%.1f", resCFR.TotalInsurance, resCFR.TotalAssessableValue)
+	}
+
+	// 3. FOB: Freight and Insurance added; origin charges included in FOB
+	resFOB, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm: "FOB", ExchangeRate: 80, FreightCost: 4000,
+		LineItems: []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("FOB error: %v", err)
+	}
+	// Freight = 4000, Deemed Insurance = 80000 * 1.125% = 900.0 -> AV = 84900.0
+	if resFOB.TotalFreight != 4000 || resFOB.TotalInsurance != 900.0 || resFOB.TotalAssessableValue != 84900.0 {
+		t.Fatalf("expected FOB freight 4000, ins 900, AV 84900; got %+v", resFOB)
+	}
+
+	// 4. EXW: Origin inland transport + export handling + international freight + insurance
+	resEXW, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:            "EXW",
+		ExchangeRate:        80,
+		FreightCost:         4000,
+		OriginInlandFreight: 1000,
+		ExportHandling:      500,
+		LineItems:           []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("EXW error: %v", err)
+	}
+	// Total origin = 1500. FOB = 80000 + 1500 = 81500. Deemed ins = 81500 * 1.125% = 916.9
+	// AV = 80000 + 4000 + 1500 + 916.9 = 86416.9
+	if resEXW.TotalOriginCharges != 1500 || resEXW.TotalFreight != 4000 || resEXW.TotalInsurance != 916.9 || resEXW.TotalAssessableValue != 86416.9 {
+		t.Fatalf("expected EXW origin 1500, freight 4000, ins 916.9, AV 86416.9; got %+v", resEXW)
+	}
+
+	// 5. CIP: Carriage and insurance included
+	resCIP, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm: "CIP", ExchangeRate: 80, FreightCost: 3000, ActualInsurance: 500,
+		LineItems: []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("CIP error: %v", err)
+	}
+	if resCIP.TotalFreight != 0 || resCIP.TotalInsurance != 0 {
+		t.Fatalf("expected CIP freight & insurance locked to 0, got %+v", resCIP)
+	}
+
+	// 6. CPT: Carriage included, insurance added
+	resCPT, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm: "CPT", ExchangeRate: 80, FreightCost: 3000,
+		LineItems: []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("CPT error: %v", err)
+	}
+	if resCPT.TotalFreight != 0 || resCPT.TotalInsurance != 900.0 {
+		t.Fatalf("expected CPT freight=0, ins=900; got %+v", resCPT)
+	}
+}
+
+func TestStatutoryInsuranceActualVsDeemed(t *testing.T) {
+	line1 := models.BOECalculationItemInput{
+		PartNumber: "P1", Quantity: 20, UnitPrice: 100, // Forex = 2000 USD (66.67%)
+		ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18,
+		CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18,
+	}
+	line2 := models.BOECalculationItemInput{
+		PartNumber: "P2", Quantity: 10, UnitPrice: 100, // Forex = 1000 USD (33.33%)
+		ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18,
+		CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18,
+	}
+
+	// Case 1: Actual Insurance entered as INR 3000
+	resActual, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:        "FOB",
+		ExchangeRate:    80,
+		InsuranceMode:   "actual",
+		ActualInsurance: 3000,
+		LineItems:       []models.BOECalculationItemInput{line1, line2},
+	})
+	if err != nil {
+		t.Fatalf("actual ins error: %v", err)
+	}
+	// Line 1 should receive 2000 INR (2/3), Line 2 receives 1000 INR (1/3)
+	if !almostEq(resActual.Items[0].ItemInsurance, 2000.0, 0.1) {
+		t.Fatalf("expected line 1 actual insurance 2000, got %.1f", resActual.Items[0].ItemInsurance)
+	}
+	if !almostEq(resActual.Items[1].ItemInsurance, 1000.0, 0.1) {
+		t.Fatalf("expected line 2 actual insurance 1000, got %.1f", resActual.Items[1].ItemInsurance)
+	}
+	if resActual.TotalInsurance != 3000.0 {
+		t.Fatalf("expected total insurance 3000, got %.1f", resActual.TotalInsurance)
+	}
+
+	// Case 2: Statutory Deemed 1.125% of FOB
+	resDeemed, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:      "FOB",
+		ExchangeRate:  80,
+		InsuranceMode: "deemed_1.125",
+		LineItems:     []models.BOECalculationItemInput{line1, line2},
+	})
+	if err != nil {
+		t.Fatalf("deemed ins error: %v", err)
+	}
+	// Line 1 FOB = 2000 * 80 = 160000. Ins = 160000 * 1.125% = 1800.0
+	// Line 2 FOB = 1000 * 80 = 80000. Ins = 80000 * 1.125% = 900.0
+	if resDeemed.Items[0].ItemInsurance != 1800.0 || resDeemed.Items[1].ItemInsurance != 900.0 {
+		t.Fatalf("expected deemed 1800 & 900, got %.1f and %.1f", resDeemed.Items[0].ItemInsurance, resDeemed.Items[1].ItemInsurance)
+	}
+	if resDeemed.TotalInsurance != 2700.0 {
+		t.Fatalf("expected total deemed insurance 2700, got %.1f", resDeemed.TotalInsurance)
+	}
+}
+
+func TestRoDTEPElectronicScripDebit(t *testing.T) {
+	// Importer has INR 10,000 RoDTEP electronic credit scrip on ICEGATE
+	line := models.BOECalculationItemInput{
+		PartNumber: "ROD-1", Quantity: 10, UnitPrice: 1000, // Forex = 10000 USD
+		ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18,
+		CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18,
+	}
+
+	// CIF, ExRate=80 -> AV = 800,000.0
+	// Gross BCD = 800,000 * 10% = 80,000.0
+	// SWS = 80,000 * 10% = 8,000.0
+	// IGST = (800,000 + 80,000 + 8,000) * 18% = 888,000 * 18% = 159,840.0
+	// Total Customs Duty Liability = 80,000 + 8,000 + 159,840 = 247,840.0
+	//
+	// RoDTEP Scrip Balance = 50,000
+	// RoDTEP Scrip Utilized = 50,000 (debited against BCD)
+	// BCD Cash Payable = 80,000 - 50,000 = 30,000
+	// SWS remains 8,000 (cash)
+	// IGST remains 159,840 (cash)
+	// Cash Customs Duty Total = 30,000 + 8,000 + 159,840 = 197,840.0
+	res, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:           "CIF",
+		ExchangeRate:       80,
+		RoDTEPScripBalance: 50000,
+		LineItems:          []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("rodtep debit calc error: %v", err)
+	}
+
+	if res.GrossBCDTotal != 80000 {
+		t.Fatalf("expected Gross BCD 80000, got %.0f", res.GrossBCDTotal)
+	}
+	if res.RoDTEPScripUtilized != 50000 {
+		t.Fatalf("expected RoDTEP Scrip Utilized 50000, got %.0f", res.RoDTEPScripUtilized)
+	}
+	if res.BCDCashTotal != 30000 {
+		t.Fatalf("expected BCD Cash Payable 30000, got %.0f", res.BCDCashTotal)
+	}
+	if res.SWSTotal != 8000 {
+		t.Fatalf("expected SWS Total 8000, got %.0f", res.SWSTotal)
+	}
+	if res.IGSTTotal != 159840 {
+		t.Fatalf("expected IGST Total 159840, got %.0f", res.IGSTTotal)
+	}
+	if res.CustomsDutyTotal != 247840 {
+		t.Fatalf("expected Gross Customs Duty Total 247840, got %.0f", res.CustomsDutyTotal)
+	}
+	if res.CashCustomsDutyTotal != 197840 {
+		t.Fatalf("expected Net Cash Challan Total 197840, got %.0f", res.CashCustomsDutyTotal)
+	}
+
+	// Verify line-item level
+	ln := res.Items[0]
+	if ln.GrossBCD != 80000.0 || ln.RoDTEPUtilized != 50000.0 || ln.BCDCashPayable != 30000.0 {
+		t.Fatalf("unexpected line RoDTEP values: %+v", ln)
+	}
+	if ln.TotalLineDuty != 247840.0 || ln.TotalLineCashDuty != 197840.0 {
+		t.Fatalf("unexpected line duty totals: %+v", ln)
+	}
+}

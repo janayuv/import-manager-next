@@ -4,7 +4,14 @@ import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { BOEEntryPage } from '@/pages/BOEEntryPage';
 import { BOERegistryPage } from '@/pages/BOERegistryPage';
-import { boeEntryService, boeService, boeSummaryService } from '@/services/boe-service';
+import {
+  boeEntryService,
+  boeService,
+  boeSummaryService,
+  type BOECalcLineResult,
+  type BOECalcParams,
+  type BOECalculationResult,
+} from '@/services/boe-service';
 import { securityService } from '@/services/security-service';
 import { shipmentService } from '@/services/shipment-invoice-service';
 
@@ -206,7 +213,7 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
         insuranceRate: 0,
         interest: 0,
         lineItems: [],
-      },
+      } as unknown as BOECalcParams,
       result: {
         items: [],
         totalInvoiceValue: 1000,
@@ -224,7 +231,7 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
         cifZeroLocked: true,
         payloadBytes: 512,
         payloadWarning: false,
-      },
+      } as unknown as BOECalculationResult,
       hasSaved: true,
     });
 
@@ -412,7 +419,7 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
             boeIgstRate: 18,
           },
         ],
-      },
+      } as unknown as BOECalcParams,
       result: {
         items: [
           {
@@ -441,7 +448,7 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
             igstValue: 20934.3,
             totalLineDuty: 32459.7,
             bcdDiscrepancy: false,
-          },
+          } as unknown as BOECalcLineResult,
         ],
         totalInvoiceValue: 104776,
         totalValueInr: 104776,
@@ -458,7 +465,7 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
         cifZeroLocked: false,
         payloadBytes: 256,
         payloadWarning: false,
-      },
+      } as unknown as BOECalculationResult,
       hasSaved: false,
     });
 
@@ -474,10 +481,194 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
     expect(screen.queryByText(/INV-FINALIZED/i)).not.toBeInTheDocument();
 
     // Verify 1 decimal place for line items and 0 decimal places for totals
-    expect(screen.getByText('10477.6 / 1047.8 / 20934.3')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('10477.6 / 1047.8 / 20934.3')).toBeInTheDocument());
     expect(screen.getByText('10,478')).toBeInTheDocument();
     expect(screen.getByText('1,048')).toBeInTheDocument();
     expect(screen.getByText('20,934')).toBeInTheDocument();
     expect(screen.getByText('INR 32,460')).toBeInTheDocument();
+  });
+
+  it('renders 11 Incoterm valuation rules, statutory insurance basis, and RoDTEP scrip debiting cleanly', async () => {
+    vi.mocked(boeSummaryService.list).mockResolvedValue([]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'sh-exw',
+          supplierId: 'sup-exw',
+          supplierName: 'Origin Supplier Co',
+          invoiceNumber: 'INV-EXW-01',
+          invoiceDate: '2026-04-20',
+          goodsCategory: 'Raw Materials',
+          invoiceValue: 1000,
+          invoiceCurrency: 'USD',
+          incoterm: 'EXW',
+          shipmentMode: 'Sea',
+          shipmentType: 'Dutiable',
+          blAwbNumber: '',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 100,
+          etd: '',
+          eta: '',
+          status: 'in-transit',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '',
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+    vi.mocked(boeService.list).mockResolvedValue([]);
+    vi.mocked(boeEntryService.loadShipmentContext).mockResolvedValue({
+      shipment: {
+        id: 'sh-exw',
+        supplierId: 'sup-exw',
+        supplierName: 'Origin Supplier Co',
+        invoiceNumber: 'INV-EXW-01',
+        invoiceDate: '2026-04-20',
+        goodsCategory: 'Raw Materials',
+        invoiceValue: 1000,
+        invoiceCurrency: 'USD',
+        incoterm: 'EXW',
+        shipmentMode: 'Sea',
+        shipmentType: 'Dutiable',
+        blAwbNumber: '',
+        blAwbDate: '',
+        vesselName: '',
+        containerNumber: '',
+        grossWeightKg: 100,
+        etd: '',
+        eta: '',
+        status: 'in-transit',
+        dateOfDelivery: '',
+        isFrozen: false,
+        createdAt: '',
+      },
+      params: {
+        shipmentId: 'sh-exw',
+        boeId: '',
+        supplierName: 'Origin Supplier Co',
+        invoiceNumber: 'INV-EXW-01',
+        invoiceCurrency: 'USD',
+        incoterm: 'EXW',
+        status: 'Awaiting BOE Data',
+        exchangeRate: 80,
+        freightCost: 4000,
+        exwCost: 1500,
+        originInlandFreight: 1000,
+        exportHandling: 500,
+        insuranceMode: 'deemed_1.125',
+        insuranceRate: 1.125,
+        rodtepScripBalance: 5000,
+        interest: 0,
+        lineItems: [
+          {
+            itemId: 'itm-1',
+            partNumber: 'RM-101',
+            description: 'Raw Polymer',
+            hsnCode: '3901',
+            unit: 'KG',
+            quantity: 1000,
+            unitPrice: 1,
+            actualBcdRate: 10,
+            actualSwsRate: 10,
+            actualIgstRate: 18,
+            calculationMethod: 'Standard',
+            boeBcdRate: 10,
+            boeSwsRate: 10,
+            boeIgstRate: 18,
+          },
+        ],
+      } as unknown as BOECalcParams,
+      result: {
+        items: [
+          {
+            itemId: 'itm-1',
+            partNumber: 'RM-101',
+            description: 'Raw Polymer',
+            hsnCode: '3901',
+            unit: 'KG',
+            quantity: 1000,
+            unitPrice: 1,
+            itemForexValue: 1000,
+            itemValueInr: 80000,
+            itemFreight: 4000,
+            itemExw: 1500,
+            itemInsurance: 916.9,
+            itemOriginCharges: 1500,
+            assessableValue: 86416.9,
+            calculationMethod: 'Standard',
+            actualBcdRate: 10,
+            actualSwsRate: 10,
+            actualIgstRate: 18,
+            boeBcdRate: 10,
+            boeSwsRate: 10,
+            boeIgstRate: 18,
+            grossBcd: 8641.7,
+            rodtepUtilized: 5000.0,
+            bcdCashPayable: 3641.7,
+            bcdValue: 3641.7,
+            swsValue: 864.2,
+            igstValue: 17266.1,
+            totalLineDuty: 26772.0,
+            totalLineCashDuty: 21772.0,
+            bcdDiscrepancy: false,
+          } as unknown as BOECalcLineResult,
+        ],
+        totalInvoiceValue: 1000,
+        totalValueInr: 80000,
+        totalFreight: 4000,
+        totalExw: 1500,
+        totalInsurance: 916.9,
+        totalOriginCharges: 1500,
+        totalAssessableValue: 86416.9,
+        grossBcdTotal: 8642,
+        rodtepScripUtilized: 5000,
+        bcdCashTotal: 3642,
+        bcdTotal: 8642,
+        swsTotal: 864,
+        igstTotal: 17266,
+        interest: 0,
+        customsDutyTotal: 26772,
+        cashCustomsDutyTotal: 21772,
+        hasBlockingBcdOverride: false,
+        cifZeroLocked: false,
+        incotermRule: {
+          code: 'EXW',
+          name: 'Ex Works',
+          freightIncluded: false,
+          insuranceIncluded: false,
+          originChargesExpected: true,
+          description: 'Origin inland transport, export handling, international freight and insurance must be added.',
+        },
+        payloadBytes: 512,
+        payloadWarning: false,
+      } as unknown as BOECalculationResult,
+      hasSaved: false,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <BOEEntryPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('Incoterm: EXW')).toBeInTheDocument());
+    expect(screen.getByLabelText('Freight (INR)')).not.toBeDisabled();
+    expect(screen.getByLabelText('EXW (INR)')).not.toBeDisabled();
+
+    // Verify RoDTEP debit card and cash challan total display
+    expect(screen.getByText(/RoDTEP Electronic Scrip Debited \(from BCD\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/- INR 5,000/i)).toBeInTheDocument();
+    expect(screen.getByText(/Net Cash Challan Payable/i)).toBeInTheDocument();
+    expect(screen.getByText('INR 21,772')).toBeInTheDocument();
+
+    // Verify gross assessed duty is also visible
+    expect(screen.getByText('INR 26,772')).toBeInTheDocument();
   });
 });

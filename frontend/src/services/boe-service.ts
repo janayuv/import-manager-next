@@ -13,6 +13,7 @@ import type {
   BOEDetailInput,
   BOEOverrideImportResult,
   CSVImportResult,
+  IncotermRule,
 } from '../../bindings/github.com/janayuv/import-manager-next/backend/models/models.js';
 
 export type {
@@ -27,6 +28,7 @@ export type {
   BOEDetailInput,
   BOEOverrideImportResult,
   CSVImportResult,
+  IncotermRule,
 };
 
 export const boeService = {

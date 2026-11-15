@@ -132,23 +132,38 @@ func (s *Service) LoadShipmentContext(shipmentID string) (models.BOECalculationC
 		})
 	}
 
-	ins := 0.015
-	if strings.EqualFold(sh.Incoterm, "CIF") {
-		ins = 0
+	incoterm := strings.ToUpper(strings.TrimSpace(sh.Incoterm))
+	if incoterm == "" {
+		incoterm = "CIF"
+	}
+	rule := GetIncotermRule(incoterm)
+	insMode := "deemed_1.125"
+	insRate := StatutoryDeemedInsRate
+	if rule.InsuranceIncluded {
+		insMode = "included"
+		insRate = 0
 	}
 	params := models.BOECalcParams{
-		ShipmentID:      sh.ID,
-		SupplierName:    sh.SupplierName,
-		InvoiceNumber:   sh.InvoiceNumber,
-		InvoiceCurrency: sh.InvoiceCurrency,
-		Incoterm:        sh.Incoterm,
-		Status:          "Awaiting BOE Data",
-		ExchangeRate:    83.5,
-		FreightCost:     0,
-		EXWCost:         0,
-		InsuranceRate:   ins,
-		Interest:        0,
-		LineItems:       lineInputs,
+		ShipmentID:          sh.ID,
+		SupplierName:        sh.SupplierName,
+		InvoiceNumber:       sh.InvoiceNumber,
+		InvoiceCurrency:     sh.InvoiceCurrency,
+		Incoterm:            sh.Incoterm,
+		Status:              "Awaiting BOE Data",
+		ExchangeRate:        83.5,
+		FreightCost:         0,
+		EXWCost:             0,
+		OriginInlandFreight: 0,
+		ExportHandling:      0,
+		LoadingCharges:      0,
+		PackingCharges:      0,
+		OtherRule10Additions: 0,
+		InsuranceMode:       insMode,
+		ActualInsurance:     0,
+		InsuranceRate:       insRate,
+		RoDTEPScripBalance:  0,
+		Interest:            0,
+		LineItems:           lineInputs,
 	}
 	result, err := CalculateDuties(params)
 	if err != nil {
@@ -278,10 +293,13 @@ func (s *Service) SaveCalculation(params models.BOECalcParams) (models.BOECalcul
 		if err != nil {
 			return models.BOECalculationSummary{}, err
 		}
-		if math.Round(dutyPaid) != math.Round(result.CustomsDutyTotal) {
+		paidRound := math.Round(dutyPaid)
+		grossRound := math.Round(result.CustomsDutyTotal)
+		cashRound := math.Round(result.CashCustomsDutyTotal)
+		if paidRound != grossRound && paidRound != cashRound {
 			return models.BOECalculationSummary{}, fmt.Errorf(
-				"save blocked: linked BOE dutyPaid (%.0f) does not match computed customsDutyTotal (%.0f)",
-				math.Round(dutyPaid), math.Round(result.CustomsDutyTotal),
+				"save blocked: linked BOE dutyPaid (%.0f) does not match computed customsDutyTotal (%.0f) or cash challan (%.0f)",
+				paidRound, grossRound, cashRound,
 			)
 		}
 	}

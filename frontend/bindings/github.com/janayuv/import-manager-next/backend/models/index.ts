@@ -59,6 +59,7 @@ export {
     GoogleDriveStatus,
     IMKeyOperationResult,
     IncidentNote,
+    IncotermRule,
     InvoiceDetail,
     InvoiceLineInput,
     InvoiceLineItem,
