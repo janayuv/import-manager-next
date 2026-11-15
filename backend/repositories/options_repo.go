@@ -17,6 +17,7 @@ var AllowedOptionTables = map[string]bool{
 	"end_uses":          true,
 	"igst_rates":        true,
 	"incoterms":         true,
+	"insurance_rates":   true,
 	"purchase_uoms":     true,
 	"shipment_modes":    true,
 	"shipment_statuses": true,
@@ -155,6 +156,10 @@ var defaultCanonicalOptions = map[string][]models.LookupOption{
 	"sws_rates": {
 		{Value: "0", Label: "0%"},
 		{Value: "10", Label: "10%"},
+	},
+	"insurance_rates": {
+		{Value: "0.015", Label: "0.015% (Open Cover Policy)"},
+		{Value: "1.125", Label: "1.125% (Statutory Deemed Rule 10(2))"},
 	},
 	"igst_rates": {
 		{Value: "0", Label: "0%"},

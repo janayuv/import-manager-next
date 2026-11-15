@@ -42,6 +42,8 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { exportBOEExcel, exportBOEPdf } from '@/lib/boe-export';
+import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
+import { optionsService, type LookupOption } from '@/services/master-service';
 import {
   boeEntryService,
   boeService,
@@ -89,6 +91,26 @@ export function BOEEntryPage() {
   const [overrideCsv, setOverrideCsv] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [showOriginBreakdown, setShowOriginBreakdown] = React.useState(false);
+  const [insuranceRateOptions, setInsuranceRateOptions] = React.useState<LookupOption[]>([
+    { value: '0.015', label: '0.015% (Open Cover Policy)' },
+    { value: '1.125', label: '1.125% (Statutory Deemed Rule 10(2))' },
+  ]);
+  const [optionEditor, setOptionEditor] = React.useState<{ table: string; title: string } | null>(null);
+
+  const loadInsuranceRates = React.useCallback(async () => {
+    try {
+      const opts = await optionsService.list('insurance_rates');
+      if (opts && opts.length > 0) {
+        setInsuranceRateOptions(opts);
+      }
+    } catch {
+      // Keep canonical fallback
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadInsuranceRates();
+  }, [loadInsuranceRates]);
 
   const loadData = React.useCallback(async (keepSelectedShipmentId?: string) => {
     try {
@@ -445,13 +467,34 @@ export function BOEEntryPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Insurance Basis (Rule 10(2))</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Insurance Basis (Rule 10(2))</Label>
+                    <button
+                      type="button"
+                      onClick={() => setOptionEditor({ table: 'insurance_rates', title: 'Manage Insurance Rates' })}
+                      className="text-[11px] font-medium text-primary hover:underline"
+                    >
+                      + Manage Rates
+                    </button>
+                  </div>
                   <Select
-                    value={insuranceIncluded ? 'included' : params.insuranceMode || 'deemed_1.125'}
+                    value={
+                      insuranceIncluded
+                        ? 'included'
+                        : params.insuranceMode === 'actual'
+                        ? 'actual'
+                        : String(params.insuranceRate ?? '0.015')
+                    }
                     disabled={insuranceIncluded}
                     onValueChange={(val) => {
-                      const nextRate = val === 'deemed_1.125' ? 1.125 : params.insuranceRate;
-                      void recompute({ ...params, insuranceMode: val, insuranceRate: nextRate });
+                      if (val === 'included') {
+                        void recompute({ ...params, insuranceMode: 'included', insuranceRate: 0 });
+                      } else if (val === 'actual') {
+                        void recompute({ ...params, insuranceMode: 'actual' });
+                      } else {
+                        const numRate = Number.parseFloat(val) || 0.015;
+                        void recompute({ ...params, insuranceMode: 'rate', insuranceRate: numRate });
+                      }
                     }}
                   >
                     <SelectTrigger className="h-8 text-xs">
@@ -461,9 +504,18 @@ export function BOEEntryPage() {
                       <SelectItem value="included" disabled={!insuranceIncluded} className="text-xs">
                         Included in Invoice ({params.incoterm})
                       </SelectItem>
-                      <SelectItem value="deemed_1.125" className="text-xs">
-                        Statutory Deemed (1.125% of FOB)
-                      </SelectItem>
+                      {insuranceRateOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                      {!insuranceRateOptions.some((opt) => opt.value === String(params.insuranceRate)) &&
+                        params.insuranceRate > 0 &&
+                        params.insuranceMode !== 'actual' && (
+                          <SelectItem value={String(params.insuranceRate)} className="text-xs">
+                            {params.insuranceRate}% (Custom Rate)
+                          </SelectItem>
+                        )}
                       <SelectItem value="actual" className="text-xs">
                         Actual Marine Premium (INR)
                       </SelectItem>
@@ -988,6 +1040,17 @@ export function BOEEntryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {optionEditor && (
+        <QuickOptionDialog
+          open={Boolean(optionEditor)}
+          onOpenChange={(o) => !o && setOptionEditor(null)}
+          table={optionEditor.table}
+          title={optionEditor.title}
+          options={insuranceRateOptions}
+          onUpdated={loadInsuranceRates}
+        />
+      )}
     </div>
   );
 }

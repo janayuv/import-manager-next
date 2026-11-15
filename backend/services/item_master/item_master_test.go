@@ -48,8 +48,8 @@ func TestItemMasterCRUDCSVAndOptions(t *testing.T) {
 		t.Fatalf("upsert option failed: %+v err=%v", opt, err)
 	}
 	allOpts, err := optSvc.ListAllOptions()
-	if err != nil || len(allOpts) != 13 {
-		t.Fatalf("expected 13 lookup option tables, got %d err=%v", len(allOpts), err)
+	if err != nil || len(allOpts) != 14 {
+		t.Fatalf("expected 14 lookup option tables, got %d err=%v", len(allOpts), err)
 	}
 
 	sup, err := supSvc.Create(models.SupplierInput{

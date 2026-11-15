@@ -85,6 +85,11 @@ const OPTION_TABLE_META: Record<string, TableOptionMeta> = {
     labelPlaceholder: 'e.g. 18%',
     helperText: 'Value must be the numeric IGST % without "%" (e.g. 18); Label is the display text (e.g. 18%).',
   },
+  insurance_rates: {
+    valuePlaceholder: 'e.g. 0.015',
+    labelPlaceholder: 'e.g. 0.015% (Open Cover Policy)',
+    helperText: 'Value must be the numeric insurance percentage without "%" (e.g. 0.015 or 1.125); Label is the display text.',
+  },
 };
 
 interface QuickOptionDialogProps {

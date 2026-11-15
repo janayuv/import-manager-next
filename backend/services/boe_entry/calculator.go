@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	MaxBOEPayloadBytes  = 1_048_576
-	WarnBOEPayloadBytes = 786_432
+	MaxBOEPayloadBytes     = 1_048_576
+	WarnBOEPayloadBytes    = 786_432
+	DefaultOpenCoverRate   = 0.015 // Default 0.015% Open Cover Marine Policy
 	StatutoryDeemedInsRate = 1.125 // 1.125% of FOB under Rule 10(2) Customs Valuation Rules 2007
 )
 
@@ -259,9 +260,19 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 			if totalInvoiceValue > 0 {
 				itemInsurance = roundTo((params.ActualInsurance/totalInvoiceValue)*itemForex, 1)
 			}
+		case "open_cover", "0.015":
+			rate := params.InsuranceRate
+			if rate <= 0 {
+				rate = DefaultOpenCoverRate
+			}
+			itemInsurance = roundTo((itemInr+itemOrigin)*(rate/100.0), 1)
 		case "rate":
-			// Custom percentage rate provided (e.g. legacy/test compatibility)
-			itemInsurance = roundTo((itemInr+itemOrigin)*(params.InsuranceRate/100.0), 1)
+			// Percentage rate provided (e.g. open cover 0.015%, customized user-added rate, etc.)
+			rate := params.InsuranceRate
+			if rate <= 0 {
+				rate = DefaultOpenCoverRate
+			}
+			itemInsurance = roundTo((itemInr+itemOrigin)*(rate/100.0), 1)
 		case "deemed_1.125":
 			fallthrough
 		default:

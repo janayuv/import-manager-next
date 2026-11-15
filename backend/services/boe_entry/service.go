@@ -137,8 +137,8 @@ func (s *Service) LoadShipmentContext(shipmentID string) (models.BOECalculationC
 		incoterm = "CIF"
 	}
 	rule := GetIncotermRule(incoterm)
-	insMode := "deemed_1.125"
-	insRate := StatutoryDeemedInsRate
+	insMode := "rate"
+	insRate := 0.015 // Default 0.015% Open Cover Policy
 	if rule.InsuranceIncluded {
 		insMode = "included"
 		insRate = 0

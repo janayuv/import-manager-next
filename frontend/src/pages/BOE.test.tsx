@@ -670,5 +670,10 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
 
     // Verify gross assessed duty is also visible
     expect(screen.getByText('INR 26,772')).toBeInTheDocument();
+
+    // Verify + Manage Rates button opens insurance rates modal
+    expect(screen.getByText('+ Manage Rates')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('+ Manage Rates'));
+    await waitFor(() => expect(screen.getByText('Manage Insurance Rates')).toBeInTheDocument());
   });
 });

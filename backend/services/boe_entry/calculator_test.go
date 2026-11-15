@@ -538,3 +538,32 @@ func TestRoDTEPElectronicScripDebit(t *testing.T) {
 		t.Fatalf("unexpected line duty totals: %+v", ln)
 	}
 }
+
+func TestOpenCoverInsuranceRate0_015(t *testing.T) {
+	line := models.BOECalculationItemInput{
+		PartNumber: "OC-1", Quantity: 10, UnitPrice: 1000, // Forex = 10000 USD
+		ActualBCDRate: 10, ActualSWSRate: 10, ActualIGSTRate: 18,
+		CalculationMethod: "Standard", BOEBCDRate: 10, BOESWSRate: 10, BOEIGSTRate: 18,
+	}
+
+	// FOB with ExRate=80 => INR = 800,000
+	// Insurance at Open Cover 0.015% = 800,000 * 0.015% = 120.0 INR
+	// AV = 800,000 + 120.0 = 800,120.0 INR
+	res, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:      "FOB",
+		ExchangeRate:  80,
+		InsuranceMode: "open_cover",
+		InsuranceRate: 0.015,
+		LineItems:     []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("open cover calc failed: %v", err)
+	}
+
+	if res.TotalInsurance != 120.0 {
+		t.Fatalf("expected Open Cover Insurance 120.0, got %.1f", res.TotalInsurance)
+	}
+	if res.TotalAssessableValue != 800120.0 {
+		t.Fatalf("expected Assessable Value 800120.0, got %.1f", res.TotalAssessableValue)
+	}
+}
