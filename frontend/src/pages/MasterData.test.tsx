@@ -85,7 +85,10 @@ describe('Stage 4 Master Data UI', () => {
     vi.mocked(optionsService.list).mockResolvedValue([{ value: 'Germany', label: 'Germany' }]);
     vi.mocked(optionsService.listAll).mockResolvedValue({
       units: [{ value: 'PCS', label: 'Pieces' }],
-      currencies: [{ value: 'USD', label: 'USD' }],
+      currencies: [
+        { value: 'USD', label: 'US Dollar (USD)' },
+        { value: 'KRW', label: 'Korean Won (KRW)' },
+      ],
       countries: [{ value: 'Germany', label: 'Germany' }],
       bcd_rates: [{ value: '7.5', label: '7.5%' }],
       sws_rates: [{ value: '10', label: '10%' }],
@@ -228,6 +231,7 @@ describe('Stage 4 Master Data UI', () => {
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Manage$/i }).length).toBe(9);
+    expect(screen.getByRole('combobox', { name: /Currency/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
     await waitFor(() => {

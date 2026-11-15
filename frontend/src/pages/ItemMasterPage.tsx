@@ -78,6 +78,19 @@ const itemSchema = z.object({
 
 type ItemFormValues = z.infer<typeof itemSchema>;
 
+const DEFAULT_CURRENCIES: LookupOption[] = [
+  { value: 'USD', label: 'US Dollar (USD)' },
+  { value: 'EUR', label: 'Euro (EUR)' },
+  { value: 'INR', label: 'Indian Rupee (INR)' },
+  { value: 'GBP', label: 'British Pound (GBP)' },
+  { value: 'JPY', label: 'Japanese Yen (JPY)' },
+  { value: 'CNY', label: 'Chinese Yuan (CNY)' },
+  { value: 'KRW', label: 'South Korean Won (KRW)' },
+  { value: 'SGD', label: 'Singapore Dollar (SGD)' },
+  { value: 'AED', label: 'UAE Dirham (AED)' },
+  { value: 'CHF', label: 'Swiss Franc (CHF)' },
+];
+
 const EMPTY_ITEM: ItemFormValues = {
   partNumber: '',
   itemDescription: '',
@@ -128,6 +141,18 @@ export function ItemMasterPage() {
     resolver: zodResolver(itemSchema),
     defaultValues: EMPTY_ITEM,
   });
+
+  const currencyValue = form.watch('currency');
+  const currencyOptions = React.useMemo(() => {
+    const fromApi =
+      allOptions['currencies'] && allOptions['currencies'].length > 0
+        ? allOptions['currencies']
+        : DEFAULT_CURRENCIES;
+    if (currencyValue && !fromApi.some((o) => o.value.toLowerCase() === currencyValue.toLowerCase())) {
+      return [{ value: currencyValue, label: currencyValue }, ...fromApi];
+    }
+    return fromApi;
+  }, [allOptions, currencyValue]);
 
   const loadOptions = React.useCallback(async () => {
     try {
@@ -481,14 +506,24 @@ export function ItemMasterPage() {
                       Manage
                     </button>
                   </div>
-                  <Input id="currency" list="item-currencies-list" {...form.register('currency')} />
-                  <datalist id="item-currencies-list">
-                    {(allOptions['currencies'] ?? []).map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label !== o.value ? o.label : undefined}
-                      </option>
-                    ))}
-                  </datalist>
+                  <Select
+                    value={form.watch('currency') || 'USD'}
+                    onValueChange={(v) => form.setValue('currency', v, { shouldValidate: true, shouldDirty: true })}
+                  >
+                    <SelectTrigger id="currency" aria-label="Currency">
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currencyOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label && o.label !== o.value ? `${o.value} — ${o.label}` : o.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.currency && (
+                    <p className="text-xs text-destructive">{form.formState.errors.currency.message}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">
