@@ -22,6 +22,13 @@ export function ExportLandedCostCSV(filter: models$0.LandedCostFilter): $Cancell
 }
 
 /**
+ * ExportPartPeriodAnalysisCSV exports a comprehensive executive CSV report covering all related details.
+ */
+export function ExportPartPeriodAnalysisCSV(req: models$0.PartPeriodAnalysisRequest): $CancellablePromise<string> {
+    return $Call.ByID(1609534309, req);
+}
+
+/**
  * GetLandedCostReport returns filtered landed cost rows from report_view plus 6 KPI metrics.
  */
 export function GetLandedCostReport(filter: models$0.LandedCostFilter): $CancellablePromise<models$0.LandedCostReport> {
@@ -30,5 +37,26 @@ export function GetLandedCostReport(filter: models$0.LandedCostFilter): $Cancell
     });
 }
 
+/**
+ * GetPartPeriodAnalysis evaluates a comprehensive 360-degree period view across Shipments, Item Master, BOE, and Expenses.
+ */
+export function GetPartPeriodAnalysis(req: models$0.PartPeriodAnalysisRequest): $CancellablePromise<models$0.PartPeriodAnalysisResult> {
+    return $Call.ByID(645421639, req).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
+ * SearchParts returns matching items with import counts for real-time autocomplete suggestions.
+ */
+export function SearchParts(query: string, limit: number): $CancellablePromise<models$0.PartLookupItem[]> {
+    return $Call.ByID(2588885947, query, limit).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
 // Private type creation functions
 const $$createType0 = models$0.LandedCostReport.createFrom;
+const $$createType1 = models$0.PartPeriodAnalysisResult.createFrom;
+const $$createType2 = models$0.PartLookupItem.createFrom;
+const $$createType3 = $Create.Array($$createType2);

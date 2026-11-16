@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileDown, FileSpreadsheet, PackageSearch, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import {
 import { supplierService, type Supplier } from '@/services/master-service';
 
 export function LandedCostReportPage() {
+  const navigate = useNavigate();
   const [startDate, setStartDate] = React.useState('');
   const [endDate, setEndDate] = React.useState('');
   const [supplierId, setSupplierId] = React.useState('');
@@ -255,7 +257,16 @@ export function LandedCostReportPage() {
                     <TableCell>{r.supplier}</TableCell>
                     <TableCell className="font-mono text-xs">{r.invoiceNo}</TableCell>
                     <TableCell className="font-mono text-xs">{r.invoiceDate}</TableCell>
-                    <TableCell className="font-mono font-medium">{r.partNo}</TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        className="font-mono font-semibold text-primary hover:underline text-left cursor-pointer"
+                        title={`View Period Analysis for ${r.partNo}`}
+                        onClick={() => navigate(`/part-analysis?partNo=${encodeURIComponent(r.partNo)}`)}
+                      >
+                        {r.partNo}
+                      </button>
+                    </TableCell>
                     <TableCell className="max-w-44 truncate">{r.description}</TableCell>
                     <TableCell>{r.unit}</TableCell>
                     <TableCell className="text-right font-mono">{r.qty}</TableCell>

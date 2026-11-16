@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +9,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table';
-import { Download, Pencil, Plus, Search, Settings2, Trash2, Upload, X } from 'lucide-react';
+import { Download, History, Pencil, Plus, Search, Settings2, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -117,6 +118,7 @@ export function ItemMasterPage() {
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
+  const navigate = useNavigate();
 
   const [items, setItems] = React.useState<Item[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
@@ -346,6 +348,15 @@ export function ItemMasterPage() {
         header: () => <div className="text-right">Actions</div>,
         cell: ({ row }) => (
           <div className="flex justify-end gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              title={`Period Analysis for ${row.original.partNumber}`}
+              aria-label={`Period Analysis for ${row.original.partNumber}`}
+              onClick={() => navigate(`/part-analysis?partNo=${encodeURIComponent(row.original.partNumber)}`)}
+            >
+              <History className="h-4 w-4 text-primary" />
+            </Button>
             {canWrite && (
               <Button
                 size="sm"

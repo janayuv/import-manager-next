@@ -15,6 +15,15 @@ import type {
   ExpenseTypeInput,
   LandedCostFilter,
   LandedCostReport,
+  PartBOERow,
+  PartExpenseRow,
+  PartItemMasterInfo,
+  PartLookupItem,
+  PartPeriodAnalysisRequest,
+  PartPeriodAnalysisResult,
+  PartPeriodSummary,
+  PartShipmentRow,
+  PartTrendPoint,
   ServiceProvider,
   ServiceProviderInput,
 } from '../../bindings/github.com/janayuv/import-manager-next/backend/models/models.js';
@@ -33,6 +42,15 @@ export type {
   ExpenseTypeInput,
   LandedCostFilter,
   LandedCostReport,
+  PartBOERow,
+  PartExpenseRow,
+  PartItemMasterInfo,
+  PartLookupItem,
+  PartPeriodAnalysisRequest,
+  PartPeriodAnalysisResult,
+  PartPeriodSummary,
+  PartShipmentRow,
+  PartTrendPoint,
   ServiceProvider,
   ServiceProviderInput,
 };
@@ -130,5 +148,14 @@ export const reportsService = {
   },
   exportLandedCostCsv(filter: LandedCostFilter): Promise<string> {
     return ReportBindings.ExportLandedCostCSV(filter);
+  },
+  getPartPeriodAnalysis(req: PartPeriodAnalysisRequest): Promise<PartPeriodAnalysisResult> {
+    return ReportBindings.GetPartPeriodAnalysis(req);
+  },
+  exportPartPeriodAnalysisCsv(req: PartPeriodAnalysisRequest): Promise<string> {
+    return ReportBindings.ExportPartPeriodAnalysisCSV(req);
+  },
+  searchParts(query: string, limit = 20): Promise<PartLookupItem[]> {
+    return ReportBindings.SearchParts(query, limit).then((r) => r ?? []);
   },
 };

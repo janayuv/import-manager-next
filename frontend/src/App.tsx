@@ -13,6 +13,7 @@ import { InvoiceWizardPage } from '@/pages/InvoiceWizardPage';
 import { InvoicesPage } from '@/pages/InvoicesPage';
 import { ItemMasterPage } from '@/pages/ItemMasterPage';
 import { LandedCostReportPage } from '@/pages/LandedCostReportPage';
+import { PartPeriodAnalysisPage } from '@/pages/PartPeriodAnalysisPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RequirePermission } from '@/pages/ModuleStagePage';
 import { RecycleBinPage } from '@/pages/RecycleBinPage';
@@ -93,6 +94,22 @@ function AuthenticatedRoutes() {
             element={
               <RequirePermission permission="data.read">
                 <LandedCostReportPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="part-analysis"
+            element={
+              <RequirePermission permission="data.read">
+                <PartPeriodAnalysisPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="reports/part-analysis"
+            element={
+              <RequirePermission permission="data.read">
+                <PartPeriodAnalysisPage />
               </RequirePermission>
             }
           />

@@ -69,6 +69,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/expenses', label: 'Expenses', icon: Receipt },
       { to: '/expense-reports', label: 'Expense Reports', icon: BarChart3 },
       { to: '/reports/landed-cost', label: 'Landed Cost Report', icon: PackageSearch },
+      { to: '/part-analysis', label: 'Part Period Analysis', icon: History },
     ],
   },
   {

@@ -4908,6 +4908,837 @@ export class ParsedPasteLine {
 }
 
 /**
+ * PartBOERow details an individual Bill of Entry duty computation line for this part.
+ */
+export class PartBOERow {
+    "shipmentId": string;
+    "invoiceNumber": string;
+    "boeCalcId": string;
+    "boeId": string;
+    "beNumber": string;
+    "beDate": string;
+    "location": string;
+    "status": string;
+    "exchangeRate": number;
+    "quantity": number;
+    "unit": string;
+    "itemForexValue": number;
+    "itemValueInr": number;
+    "assessableValue": number;
+    "bcdRate": number;
+    "bcdAmount": number;
+    "swsRate": number;
+    "swsAmount": number;
+    "igstRate": number;
+    "igstAmount": number;
+    "boeInterest": number;
+    "totalDuty": number;
+    "dutyPaid": number;
+    "challanNumber": string;
+    "paymentDate": string;
+
+    /** Creates a new PartBOERow instance. */
+    constructor($$source: Partial<PartBOERow> = {}) {
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("boeCalcId" in $$source)) {
+            this["boeCalcId"] = "";
+        }
+        if (!("boeId" in $$source)) {
+            this["boeId"] = "";
+        }
+        if (!("beNumber" in $$source)) {
+            this["beNumber"] = "";
+        }
+        if (!("beDate" in $$source)) {
+            this["beDate"] = "";
+        }
+        if (!("location" in $$source)) {
+            this["location"] = "";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("exchangeRate" in $$source)) {
+            this["exchangeRate"] = 0;
+        }
+        if (!("quantity" in $$source)) {
+            this["quantity"] = 0;
+        }
+        if (!("unit" in $$source)) {
+            this["unit"] = "";
+        }
+        if (!("itemForexValue" in $$source)) {
+            this["itemForexValue"] = 0;
+        }
+        if (!("itemValueInr" in $$source)) {
+            this["itemValueInr"] = 0;
+        }
+        if (!("assessableValue" in $$source)) {
+            this["assessableValue"] = 0;
+        }
+        if (!("bcdRate" in $$source)) {
+            this["bcdRate"] = 0;
+        }
+        if (!("bcdAmount" in $$source)) {
+            this["bcdAmount"] = 0;
+        }
+        if (!("swsRate" in $$source)) {
+            this["swsRate"] = 0;
+        }
+        if (!("swsAmount" in $$source)) {
+            this["swsAmount"] = 0;
+        }
+        if (!("igstRate" in $$source)) {
+            this["igstRate"] = 0;
+        }
+        if (!("igstAmount" in $$source)) {
+            this["igstAmount"] = 0;
+        }
+        if (!("boeInterest" in $$source)) {
+            this["boeInterest"] = 0;
+        }
+        if (!("totalDuty" in $$source)) {
+            this["totalDuty"] = 0;
+        }
+        if (!("dutyPaid" in $$source)) {
+            this["dutyPaid"] = 0;
+        }
+        if (!("challanNumber" in $$source)) {
+            this["challanNumber"] = "";
+        }
+        if (!("paymentDate" in $$source)) {
+            this["paymentDate"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartBOERow instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartBOERow {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PartBOERow($$parsedSource as Partial<PartBOERow>);
+    }
+}
+
+/**
+ * PartExpenseRow details an individual shipment expense and its proportional allocation to this part.
+ */
+export class PartExpenseRow {
+    "shipmentId": string;
+    "shipmentInvoiceNumber": string;
+    "expenseInvoiceId": string;
+    "expenseId": string;
+    "serviceProviderId": string;
+    "serviceProviderName": string;
+    "expenseTypeId": string;
+    "expenseTypeName": string;
+    "expenseInvoiceNo": string;
+    "expenseInvoiceDate": string;
+    "shipmentExpenseBasicInr": number;
+    "shipmentExpenseGstInr": number;
+    "shipmentExpenseTotalInr": number;
+    "allocationRatio": number;
+    "allocatedBasicInr": number;
+    "allocatedGstInr": number;
+    "allocatedTotalInr": number;
+    "remarks": string;
+
+    /** Creates a new PartExpenseRow instance. */
+    constructor($$source: Partial<PartExpenseRow> = {}) {
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("shipmentInvoiceNumber" in $$source)) {
+            this["shipmentInvoiceNumber"] = "";
+        }
+        if (!("expenseInvoiceId" in $$source)) {
+            this["expenseInvoiceId"] = "";
+        }
+        if (!("expenseId" in $$source)) {
+            this["expenseId"] = "";
+        }
+        if (!("serviceProviderId" in $$source)) {
+            this["serviceProviderId"] = "";
+        }
+        if (!("serviceProviderName" in $$source)) {
+            this["serviceProviderName"] = "";
+        }
+        if (!("expenseTypeId" in $$source)) {
+            this["expenseTypeId"] = "";
+        }
+        if (!("expenseTypeName" in $$source)) {
+            this["expenseTypeName"] = "";
+        }
+        if (!("expenseInvoiceNo" in $$source)) {
+            this["expenseInvoiceNo"] = "";
+        }
+        if (!("expenseInvoiceDate" in $$source)) {
+            this["expenseInvoiceDate"] = "";
+        }
+        if (!("shipmentExpenseBasicInr" in $$source)) {
+            this["shipmentExpenseBasicInr"] = 0;
+        }
+        if (!("shipmentExpenseGstInr" in $$source)) {
+            this["shipmentExpenseGstInr"] = 0;
+        }
+        if (!("shipmentExpenseTotalInr" in $$source)) {
+            this["shipmentExpenseTotalInr"] = 0;
+        }
+        if (!("allocationRatio" in $$source)) {
+            this["allocationRatio"] = 0;
+        }
+        if (!("allocatedBasicInr" in $$source)) {
+            this["allocatedBasicInr"] = 0;
+        }
+        if (!("allocatedGstInr" in $$source)) {
+            this["allocatedGstInr"] = 0;
+        }
+        if (!("allocatedTotalInr" in $$source)) {
+            this["allocatedTotalInr"] = 0;
+        }
+        if (!("remarks" in $$source)) {
+            this["remarks"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartExpenseRow instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartExpenseRow {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PartExpenseRow($$parsedSource as Partial<PartExpenseRow>);
+    }
+}
+
+/**
+ * PartItemMasterInfo encapsulates the Item Master technical & duty profile.
+ */
+export class PartItemMasterInfo {
+    "id": string;
+    "partNumber": string;
+    "itemDescription": string;
+    "unit": string;
+    "currency": string;
+    "unitPrice": number;
+    "hsnCode": string;
+    "supplierId": string;
+    "supplierName": string;
+    "isActive": boolean;
+    "countryOfOrigin": string;
+    "bcd": string;
+    "sws": string;
+    "igst": string;
+    "technicalWriteUp": string;
+    "category": string;
+    "endUse": string;
+    "netWeightKg": number;
+    "purchaseUom": string;
+    "grossWeightPerUomKg": number;
+    "photoPath": string;
+
+    /** Creates a new PartItemMasterInfo instance. */
+    constructor($$source: Partial<PartItemMasterInfo> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("partNumber" in $$source)) {
+            this["partNumber"] = "";
+        }
+        if (!("itemDescription" in $$source)) {
+            this["itemDescription"] = "";
+        }
+        if (!("unit" in $$source)) {
+            this["unit"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("unitPrice" in $$source)) {
+            this["unitPrice"] = 0;
+        }
+        if (!("hsnCode" in $$source)) {
+            this["hsnCode"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("isActive" in $$source)) {
+            this["isActive"] = false;
+        }
+        if (!("countryOfOrigin" in $$source)) {
+            this["countryOfOrigin"] = "";
+        }
+        if (!("bcd" in $$source)) {
+            this["bcd"] = "";
+        }
+        if (!("sws" in $$source)) {
+            this["sws"] = "";
+        }
+        if (!("igst" in $$source)) {
+            this["igst"] = "";
+        }
+        if (!("technicalWriteUp" in $$source)) {
+            this["technicalWriteUp"] = "";
+        }
+        if (!("category" in $$source)) {
+            this["category"] = "";
+        }
+        if (!("endUse" in $$source)) {
+            this["endUse"] = "";
+        }
+        if (!("netWeightKg" in $$source)) {
+            this["netWeightKg"] = 0;
+        }
+        if (!("purchaseUom" in $$source)) {
+            this["purchaseUom"] = "";
+        }
+        if (!("grossWeightPerUomKg" in $$source)) {
+            this["grossWeightPerUomKg"] = 0;
+        }
+        if (!("photoPath" in $$source)) {
+            this["photoPath"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartItemMasterInfo instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartItemMasterInfo {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PartItemMasterInfo($$parsedSource as Partial<PartItemMasterInfo>);
+    }
+}
+
+/**
+ * PartLookupItem provides autocomplete / search match metadata with import counts.
+ */
+export class PartLookupItem {
+    "id": string;
+    "partNumber": string;
+    "description": string;
+    "unit": string;
+    "currency": string;
+    "unitPrice": number;
+    "hsnCode": string;
+    "supplierId": string;
+    "supplierName": string;
+    "category": string;
+    "shipmentCount": number;
+    "totalQuantity": number;
+
+    /** Creates a new PartLookupItem instance. */
+    constructor($$source: Partial<PartLookupItem> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("partNumber" in $$source)) {
+            this["partNumber"] = "";
+        }
+        if (!("description" in $$source)) {
+            this["description"] = "";
+        }
+        if (!("unit" in $$source)) {
+            this["unit"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("unitPrice" in $$source)) {
+            this["unitPrice"] = 0;
+        }
+        if (!("hsnCode" in $$source)) {
+            this["hsnCode"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("category" in $$source)) {
+            this["category"] = "";
+        }
+        if (!("shipmentCount" in $$source)) {
+            this["shipmentCount"] = 0;
+        }
+        if (!("totalQuantity" in $$source)) {
+            this["totalQuantity"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartLookupItem instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartLookupItem {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PartLookupItem($$parsedSource as Partial<PartLookupItem>);
+    }
+}
+
+/**
+ * PartPeriodAnalysisRequest defines the search query, period filters, and date basis.
+ */
+export class PartPeriodAnalysisRequest {
+    /**
+     * Free-text search across part number, description, HSN
+     */
+    "search": string;
+
+    /**
+     * Specific part number if selected
+     */
+    "partNumber": string;
+
+    /**
+     * Format: YYYY-MM-DD
+     */
+    "startDate": string;
+
+    /**
+     * Format: YYYY-MM-DD
+     */
+    "endDate": string;
+
+    /**
+     * "invoice_date" (default), "be_date", "shipment_date"
+     */
+    "dateBasis": string;
+
+    /**
+     * Optional supplier filter
+     */
+    "supplierId": string;
+
+    /** Creates a new PartPeriodAnalysisRequest instance. */
+    constructor($$source: Partial<PartPeriodAnalysisRequest> = {}) {
+        if (!("search" in $$source)) {
+            this["search"] = "";
+        }
+        if (!("partNumber" in $$source)) {
+            this["partNumber"] = "";
+        }
+        if (!("startDate" in $$source)) {
+            this["startDate"] = "";
+        }
+        if (!("endDate" in $$source)) {
+            this["endDate"] = "";
+        }
+        if (!("dateBasis" in $$source)) {
+            this["dateBasis"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartPeriodAnalysisRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartPeriodAnalysisRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PartPeriodAnalysisRequest($$parsedSource as Partial<PartPeriodAnalysisRequest>);
+    }
+}
+
+/**
+ * PartPeriodAnalysisResult bundles the complete 360-degree period view for a part.
+ */
+export class PartPeriodAnalysisResult {
+    "targetItem": PartItemMasterInfo;
+    "summary": PartPeriodSummary;
+    "shipments": PartShipmentRow[];
+    "boeLines": PartBOERow[];
+    "expenses": PartExpenseRow[];
+    "trends": PartTrendPoint[];
+    "matchingParts": PartLookupItem[];
+    "startDate": string;
+    "endDate": string;
+    "dateBasis": string;
+
+    /** Creates a new PartPeriodAnalysisResult instance. */
+    constructor($$source: Partial<PartPeriodAnalysisResult> = {}) {
+        if (!("targetItem" in $$source)) {
+            this["targetItem"] = (new PartItemMasterInfo());
+        }
+        if (!("summary" in $$source)) {
+            this["summary"] = (new PartPeriodSummary());
+        }
+        if (!("shipments" in $$source)) {
+            this["shipments"] = [];
+        }
+        if (!("boeLines" in $$source)) {
+            this["boeLines"] = [];
+        }
+        if (!("expenses" in $$source)) {
+            this["expenses"] = [];
+        }
+        if (!("trends" in $$source)) {
+            this["trends"] = [];
+        }
+        if (!("matchingParts" in $$source)) {
+            this["matchingParts"] = [];
+        }
+        if (!("startDate" in $$source)) {
+            this["startDate"] = "";
+        }
+        if (!("endDate" in $$source)) {
+            this["endDate"] = "";
+        }
+        if (!("dateBasis" in $$source)) {
+            this["dateBasis"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartPeriodAnalysisResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartPeriodAnalysisResult {
+        const $$createField0_0 = $$createType57;
+        const $$createField1_0 = $$createType58;
+        const $$createField2_0 = $$createType60;
+        const $$createField3_0 = $$createType62;
+        const $$createField4_0 = $$createType64;
+        const $$createField5_0 = $$createType66;
+        const $$createField6_0 = $$createType68;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("targetItem" in $$parsedSource) {
+            $$parsedSource["targetItem"] = $$createField0_0($$parsedSource["targetItem"]);
+        }
+        if ("summary" in $$parsedSource) {
+            $$parsedSource["summary"] = $$createField1_0($$parsedSource["summary"]);
+        }
+        if ("shipments" in $$parsedSource) {
+            $$parsedSource["shipments"] = $$createField2_0($$parsedSource["shipments"]);
+        }
+        if ("boeLines" in $$parsedSource) {
+            $$parsedSource["boeLines"] = $$createField3_0($$parsedSource["boeLines"]);
+        }
+        if ("expenses" in $$parsedSource) {
+            $$parsedSource["expenses"] = $$createField4_0($$parsedSource["expenses"]);
+        }
+        if ("trends" in $$parsedSource) {
+            $$parsedSource["trends"] = $$createField5_0($$parsedSource["trends"]);
+        }
+        if ("matchingParts" in $$parsedSource) {
+            $$parsedSource["matchingParts"] = $$createField6_0($$parsedSource["matchingParts"]);
+        }
+        return new PartPeriodAnalysisResult($$parsedSource as Partial<PartPeriodAnalysisResult>);
+    }
+}
+
+/**
+ * PartPeriodSummary aggregates volume, forex, duties, expenses, and landed cost for the period.
+ */
+export class PartPeriodSummary {
+    "totalShipments": number;
+    "totalInvoices": number;
+    "totalBoes": number;
+    "totalQuantity": number;
+    "unit": string;
+    "totalForexValue": number;
+    "currency": string;
+    "totalAssessableValueInr": number;
+    "totalBcdAmount": number;
+    "totalSwsAmount": number;
+    "totalIgstAmount": number;
+    "totalBoeInterest": number;
+    "totalCustomsDutyInr": number;
+    "totalDutyPaidInr": number;
+    "totalAllocatedExpensesInr": number;
+    "totalAllocatedExpensesWithGstInr": number;
+    "totalLandedCostExIgst": number;
+    "avgLandedCostPerUnit": number;
+    "minLandedCostPerUnit": number;
+    "maxLandedCostPerUnit": number;
+    "firstImportDate": string;
+    "latestImportDate": string;
+
+    /** Creates a new PartPeriodSummary instance. */
+    constructor($$source: Partial<PartPeriodSummary> = {}) {
+        if (!("totalShipments" in $$source)) {
+            this["totalShipments"] = 0;
+        }
+        if (!("totalInvoices" in $$source)) {
+            this["totalInvoices"] = 0;
+        }
+        if (!("totalBoes" in $$source)) {
+            this["totalBoes"] = 0;
+        }
+        if (!("totalQuantity" in $$source)) {
+            this["totalQuantity"] = 0;
+        }
+        if (!("unit" in $$source)) {
+            this["unit"] = "";
+        }
+        if (!("totalForexValue" in $$source)) {
+            this["totalForexValue"] = 0;
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("totalAssessableValueInr" in $$source)) {
+            this["totalAssessableValueInr"] = 0;
+        }
+        if (!("totalBcdAmount" in $$source)) {
+            this["totalBcdAmount"] = 0;
+        }
+        if (!("totalSwsAmount" in $$source)) {
+            this["totalSwsAmount"] = 0;
+        }
+        if (!("totalIgstAmount" in $$source)) {
+            this["totalIgstAmount"] = 0;
+        }
+        if (!("totalBoeInterest" in $$source)) {
+            this["totalBoeInterest"] = 0;
+        }
+        if (!("totalCustomsDutyInr" in $$source)) {
+            this["totalCustomsDutyInr"] = 0;
+        }
+        if (!("totalDutyPaidInr" in $$source)) {
+            this["totalDutyPaidInr"] = 0;
+        }
+        if (!("totalAllocatedExpensesInr" in $$source)) {
+            this["totalAllocatedExpensesInr"] = 0;
+        }
+        if (!("totalAllocatedExpensesWithGstInr" in $$source)) {
+            this["totalAllocatedExpensesWithGstInr"] = 0;
+        }
+        if (!("totalLandedCostExIgst" in $$source)) {
+            this["totalLandedCostExIgst"] = 0;
+        }
+        if (!("avgLandedCostPerUnit" in $$source)) {
+            this["avgLandedCostPerUnit"] = 0;
+        }
+        if (!("minLandedCostPerUnit" in $$source)) {
+            this["minLandedCostPerUnit"] = 0;
+        }
+        if (!("maxLandedCostPerUnit" in $$source)) {
+            this["maxLandedCostPerUnit"] = 0;
+        }
+        if (!("firstImportDate" in $$source)) {
+            this["firstImportDate"] = "";
+        }
+        if (!("latestImportDate" in $$source)) {
+            this["latestImportDate"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartPeriodSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartPeriodSummary {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PartPeriodSummary($$parsedSource as Partial<PartPeriodSummary>);
+    }
+}
+
+/**
+ * PartShipmentRow details an individual shipment and commercial invoice line item for this part.
+ */
+export class PartShipmentRow {
+    "shipmentId": string;
+    "invoiceId": string;
+    "invoiceNumber": string;
+    "invoiceDate": string;
+    "supplierId": string;
+    "supplierName": string;
+    "incoterm": string;
+    "shipmentMode": string;
+    "shipmentType": string;
+    "blAwbNumber": string;
+    "blAwbDate": string;
+    "vesselName": string;
+    "containerNumber": string;
+    "grossWeightKg": number;
+    "etd": string;
+    "eta": string;
+    "status": string;
+    "dateOfDelivery": string;
+    "isFrozen": boolean;
+    "quantity": number;
+    "unit": string;
+    "unitPrice": number;
+    "currency": string;
+    "lineTotal": number;
+    "masterUnitPrice": number;
+    "priceDiverged": boolean;
+
+    /** Creates a new PartShipmentRow instance. */
+    constructor($$source: Partial<PartShipmentRow> = {}) {
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("invoiceId" in $$source)) {
+            this["invoiceId"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("invoiceDate" in $$source)) {
+            this["invoiceDate"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("incoterm" in $$source)) {
+            this["incoterm"] = "";
+        }
+        if (!("shipmentMode" in $$source)) {
+            this["shipmentMode"] = "";
+        }
+        if (!("shipmentType" in $$source)) {
+            this["shipmentType"] = "";
+        }
+        if (!("blAwbNumber" in $$source)) {
+            this["blAwbNumber"] = "";
+        }
+        if (!("blAwbDate" in $$source)) {
+            this["blAwbDate"] = "";
+        }
+        if (!("vesselName" in $$source)) {
+            this["vesselName"] = "";
+        }
+        if (!("containerNumber" in $$source)) {
+            this["containerNumber"] = "";
+        }
+        if (!("grossWeightKg" in $$source)) {
+            this["grossWeightKg"] = 0;
+        }
+        if (!("etd" in $$source)) {
+            this["etd"] = "";
+        }
+        if (!("eta" in $$source)) {
+            this["eta"] = "";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("dateOfDelivery" in $$source)) {
+            this["dateOfDelivery"] = "";
+        }
+        if (!("isFrozen" in $$source)) {
+            this["isFrozen"] = false;
+        }
+        if (!("quantity" in $$source)) {
+            this["quantity"] = 0;
+        }
+        if (!("unit" in $$source)) {
+            this["unit"] = "";
+        }
+        if (!("unitPrice" in $$source)) {
+            this["unitPrice"] = 0;
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("lineTotal" in $$source)) {
+            this["lineTotal"] = 0;
+        }
+        if (!("masterUnitPrice" in $$source)) {
+            this["masterUnitPrice"] = 0;
+        }
+        if (!("priceDiverged" in $$source)) {
+            this["priceDiverged"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartShipmentRow instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartShipmentRow {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PartShipmentRow($$parsedSource as Partial<PartShipmentRow>);
+    }
+}
+
+/**
+ * PartTrendPoint plots chronological landed cost components across shipments.
+ */
+export class PartTrendPoint {
+    "date": string;
+    "shipmentId": string;
+    "invoiceNumber": string;
+    "quantity": number;
+    "unitPriceForex": number;
+    "currency": string;
+    "assessableValuePerUnit": number;
+    "dutyPerUnit": number;
+    "expensePerUnit": number;
+    "landedCostPerUnit": number;
+
+    /** Creates a new PartTrendPoint instance. */
+    constructor($$source: Partial<PartTrendPoint> = {}) {
+        if (!("date" in $$source)) {
+            this["date"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("quantity" in $$source)) {
+            this["quantity"] = 0;
+        }
+        if (!("unitPriceForex" in $$source)) {
+            this["unitPriceForex"] = 0;
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("assessableValuePerUnit" in $$source)) {
+            this["assessableValuePerUnit"] = 0;
+        }
+        if (!("dutyPerUnit" in $$source)) {
+            this["dutyPerUnit"] = 0;
+        }
+        if (!("expensePerUnit" in $$source)) {
+            this["expensePerUnit"] = 0;
+        }
+        if (!("landedCostPerUnit" in $$source)) {
+            this["landedCostPerUnit"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PartTrendPoint instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PartTrendPoint {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PartTrendPoint($$parsedSource as Partial<PartTrendPoint>);
+    }
+}
+
+/**
  * RecordErrorInput captures a runtime error for deduplicated persistence in error_memory.
  */
 export class RecordErrorInput {
@@ -4998,7 +5829,7 @@ export class RecycleBinActionResult {
      * Creates a new RecycleBinActionResult instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinActionResult {
-        const $$createField7_0 = $$createType58;
+        const $$createField7_0 = $$createType70;
         const $$createField8_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("missingParents" in $$parsedSource) {
@@ -5067,7 +5898,7 @@ export class RecycleBinListResponse {
      */
     static createFrom($$source: any = {}): RecycleBinListResponse {
         const $$createField8_0 = $$createType28;
-        const $$createField9_0 = $$createType60;
+        const $$createField9_0 = $$createType72;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("perTableCounts" in $$parsedSource) {
             $$parsedSource["perTableCounts"] = $$createField8_0($$parsedSource["perTableCounts"]);
@@ -5435,7 +6266,7 @@ export class SaveInvoiceRequest {
      * Creates a new SaveInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): SaveInvoiceRequest {
-        const $$createField6_0 = $$createType62;
+        const $$createField6_0 = $$createType74;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField6_0($$parsedSource["lines"]);
@@ -5726,9 +6557,9 @@ export class ShipmentDetail {
      */
     static createFrom($$source: any = {}): ShipmentDetail {
         const $$createField0_0 = $$createType4;
-        const $$createField1_0 = $$createType63;
-        const $$createField2_0 = $$createType65;
-        const $$createField3_0 = $$createType67;
+        const $$createField1_0 = $$createType75;
+        const $$createField2_0 = $$createType77;
+        const $$createField3_0 = $$createType79;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("shipment" in $$parsedSource) {
             $$parsedSource["shipment"] = $$createField0_0($$parsedSource["shipment"]);
@@ -5959,7 +6790,7 @@ export class ShipmentPage {
      * Creates a new ShipmentPage instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentPage {
-        const $$createField0_0 = $$createType68;
+        const $$createField0_0 = $$createType80;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -6175,7 +7006,7 @@ export class SupplierHistorySummary {
      * Creates a new SupplierHistorySummary instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierHistorySummary {
-        const $$createField4_0 = $$createType70;
+        const $$createField4_0 = $$createType82;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recentRecords" in $$parsedSource) {
             $$parsedSource["recentRecords"] = $$createField4_0($$parsedSource["recentRecords"]);
@@ -6288,7 +7119,7 @@ export class SupplierPage {
      * Creates a new SupplierPage instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierPage {
-        const $$createField0_0 = $$createType72;
+        const $$createField0_0 = $$createType84;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -6577,19 +7408,31 @@ const $$createType53 = FailureForecast.createFrom;
 const $$createType54 = $Create.Array($$createType53);
 const $$createType55 = WorkflowIncident.createFrom;
 const $$createType56 = $Create.Array($$createType55);
-const $$createType57 = MissingParentGroup.createFrom;
-const $$createType58 = $Create.Array($$createType57);
-const $$createType59 = RecycleBinRecord.createFrom;
+const $$createType57 = PartItemMasterInfo.createFrom;
+const $$createType58 = PartPeriodSummary.createFrom;
+const $$createType59 = PartShipmentRow.createFrom;
 const $$createType60 = $Create.Array($$createType59);
-const $$createType61 = InvoiceLineInput.createFrom;
+const $$createType61 = PartBOERow.createFrom;
 const $$createType62 = $Create.Array($$createType61);
-const $$createType63 = $Create.Array($$createType39);
-const $$createType64 = ShipmentLinkedBOE.createFrom;
-const $$createType65 = $Create.Array($$createType64);
-const $$createType66 = ShipmentLinkedExpense.createFrom;
-const $$createType67 = $Create.Array($$createType66);
-const $$createType68 = $Create.Array($$createType4);
-const $$createType69 = SupplierHistoryItem.createFrom;
+const $$createType63 = PartExpenseRow.createFrom;
+const $$createType64 = $Create.Array($$createType63);
+const $$createType65 = PartTrendPoint.createFrom;
+const $$createType66 = $Create.Array($$createType65);
+const $$createType67 = PartLookupItem.createFrom;
+const $$createType68 = $Create.Array($$createType67);
+const $$createType69 = MissingParentGroup.createFrom;
 const $$createType70 = $Create.Array($$createType69);
-const $$createType71 = Supplier.createFrom;
+const $$createType71 = RecycleBinRecord.createFrom;
 const $$createType72 = $Create.Array($$createType71);
+const $$createType73 = InvoiceLineInput.createFrom;
+const $$createType74 = $Create.Array($$createType73);
+const $$createType75 = $Create.Array($$createType39);
+const $$createType76 = ShipmentLinkedBOE.createFrom;
+const $$createType77 = $Create.Array($$createType76);
+const $$createType78 = ShipmentLinkedExpense.createFrom;
+const $$createType79 = $Create.Array($$createType78);
+const $$createType80 = $Create.Array($$createType4);
+const $$createType81 = SupplierHistoryItem.createFrom;
+const $$createType82 = $Create.Array($$createType81);
+const $$createType83 = Supplier.createFrom;
+const $$createType84 = $Create.Array($$createType83);

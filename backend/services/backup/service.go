@@ -183,12 +183,11 @@ func (s *Service) createEncryptedBackupInternal(
 	stamp := time.Now().UTC().Format("20060102_150405.000000000")
 	stamp = strings.ReplaceAll(stamp, ".", "_")
 	snapPath := filepath.Join(s.tempDir, fmt.Sprintf("%s_snap_%s.db", prefix, stamp))
+	_ = os.Remove(snapPath)
 	defer os.Remove(snapPath)
 
-	_, _ = s.db.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE);`)
-	escapedSnap := strings.ReplaceAll(snapPath, "'", "''")
-	if _, err := s.db.ExecContext(ctx, fmt.Sprintf(`VACUUM INTO '%s';`, escapedSnap)); err != nil {
-		return models.BackupRecord{}, fmt.Errorf("create consistent database snapshot: %w", err)
+	if err := s.exportConsistentSnapshot(ctx, snapPath); err != nil {
+		return models.BackupRecord{}, err
 	}
 
 	snapBytes, err := os.ReadFile(snapPath)
@@ -235,6 +234,35 @@ func (s *Service) createEncryptedBackupInternal(
 		rec.ID = id
 	}
 	return rec, nil
+}
+
+func (s *Service) exportConsistentSnapshot(ctx context.Context, snapPath string) error {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire database connection: %w", err)
+	}
+	defer conn.Close()
+
+	_, _ = conn.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE);`)
+	escapedSnap := strings.ReplaceAll(snapPath, "'", "''")
+
+	attachSQL := fmt.Sprintf(`ATTACH DATABASE '%s' AS backup_snap KEY '';`, escapedSnap)
+	if _, err := conn.ExecContext(ctx, attachSQL); err == nil {
+		defer func() {
+			_, _ = conn.ExecContext(context.Background(), `DETACH DATABASE backup_snap;`)
+		}()
+		if _, expErr := conn.ExecContext(ctx, `SELECT sqlcipher_export('backup_snap');`); expErr != nil {
+			return fmt.Errorf("export consistent database snapshot: %w", expErr)
+		}
+		_, _ = conn.ExecContext(ctx, `DETACH DATABASE backup_snap;`)
+		return nil
+	}
+
+	// Fallback to VACUUM INTO if ATTACH fails (e.g. non-sqlcipher environment)
+	if _, vacErr := conn.ExecContext(ctx, fmt.Sprintf(`VACUUM INTO '%s';`, escapedSnap)); vacErr != nil {
+		return fmt.Errorf("create consistent database snapshot: %w", vacErr)
+	}
+	return nil
 }
 
 func (s *Service) insertBackupRow(ctx context.Context, rec models.BackupRecord) (int64, error) {
@@ -367,10 +395,16 @@ func (s *Service) RestoreBackup(req models.RestoreBackupRequest) (models.Restore
 		if altErr == nil && altInspect.KeyValid {
 			inspect = altInspect
 			attachKey = passphrase
+		} else if envSrcKey := strings.TrimSpace(os.Getenv("IMPORT_MANAGER_SOURCE_KEY")); envSrcKey != "" {
+			envInspect, envErr := transactions.InspectExternalDB(tempPath, envSrcKey)
+			if envErr == nil && envInspect.KeyValid {
+				inspect = envInspect
+				attachKey = envSrcKey
+			}
 		}
 	}
 	if !inspect.KeyValid {
-		return models.RestoreVerificationSummary{}, errors.New("decrypted payload could not be opened as a valid SQLite/SQLCipher database")
+		return models.RestoreVerificationSummary{}, errors.New("decrypted payload could not be opened as a valid SQLite/SQLCipher database (the payload may be an encrypted snapshot from another machine requiring the original database key)")
 	}
 	if strings.ToLower(inspect.IntegrityCheck) != "ok" {
 		return models.RestoreVerificationSummary{}, fmt.Errorf("staged backup failed integrity_check: %s", inspect.IntegrityCheck)

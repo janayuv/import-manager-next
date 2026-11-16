@@ -211,3 +211,83 @@ func TestBackupIMBK2IMKeyRestoreSafetyAndSchedules(t *testing.T) {
 		t.Fatalf("DeleteBackupSchedule failed: %v", err)
 	}
 }
+
+func TestBackupRestoreCrossMachinePortable(t *testing.T) {
+	// 1. Simulate Machine A with Key A
+	t.Setenv("IMPORT_MANAGER_DB_KEY", "machine-a-key-11111111111111111111111111111111")
+	t.Setenv("IMPORT_MANAGER_KEYRING_FILE", filepath.Join(t.TempDir(), "keyring_a.json"))
+	dirA := filepath.Join(t.TempDir(), "appdata_a")
+	rtA, err := bootstrap.Initialize(nil, dirA)
+	if err != nil {
+		t.Fatalf("bootstrap A failed: %v", err)
+	}
+	defer func() { _ = rtA.Shutdown() }()
+
+	if _, err := rtA.Security.CompleteAdminSetup("admin", "AdminPassA#123"); err != nil {
+		t.Fatalf("admin setup A failed: %v", err)
+	}
+
+	// Insert distinct data on Machine A
+	sup, err := rtA.Suppliers.Create(models.SupplierInput{
+		SupplierName: "Machine A Global Supplier",
+		Country:      "Germany",
+		Email:        "global@machine-a.de",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("create supplier on A: %v", err)
+	}
+
+	backupRec, err := rtA.Backup.CreateBackup(models.CreateBackupRequest{
+		Passphrase: "UserCrossMachinePass#1",
+		Notes:      "Exported for Machine B",
+	})
+	if err != nil {
+		t.Fatalf("create backup on A failed: %v", err)
+	}
+
+	// 2. Simulate Machine B with a completely different database encryption key Key B
+	t.Setenv("IMPORT_MANAGER_DB_KEY", "machine-b-key-22222222222222222222222222222222")
+	t.Setenv("IMPORT_MANAGER_KEYRING_FILE", filepath.Join(t.TempDir(), "keyring_b.json"))
+	dirB := filepath.Join(t.TempDir(), "appdata_b")
+	rtB, err := bootstrap.Initialize(nil, dirB)
+	if err != nil {
+		t.Fatalf("bootstrap B failed: %v", err)
+	}
+	defer func() { _ = rtB.Shutdown() }()
+
+	if _, err := rtB.Security.CompleteAdminSetup("admin", "AdminPassB#456"); err != nil {
+		t.Fatalf("admin setup B failed: %v", err)
+	}
+
+	// 3. Restore backup on Machine B using ONLY the passphrase
+	res, err := rtB.Backup.RestoreBackup(models.RestoreBackupRequest{
+		BackupPath:    backupRec.Path,
+		Passphrase:    "UserCrossMachinePass#1",
+		DryRun:        false,
+		VerifySidecar: true,
+	})
+	if err != nil {
+		t.Fatalf("restore on Machine B failed: %v", err)
+	}
+
+	if !res.ForeignKeysOK || res.IntegrityCheck != "ok" {
+		t.Fatalf("restore on B verification failed: %+v", res)
+	}
+
+	// 4. Confirm Machine B now has Machine A's data
+	listB, err := rtB.Suppliers.List(models.SupplierPageRequest{Page: 1, PageSize: 100})
+	if err != nil {
+		t.Fatalf("list on B failed: %v", err)
+	}
+	found := false
+	for _, s := range listB.Items {
+		if s.ID == sup.ID && s.SupplierName == "Machine A Global Supplier" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Machine B did not find restored supplier %s", sup.ID)
+	}
+}
