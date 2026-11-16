@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import {
   invoiceService,
   invoiceWizardService,
@@ -33,11 +34,24 @@ export function InvoicesPage() {
   const { hasPermission } = useAuth();
   const canDelete = hasPermission('data.delete');
 
+  const { itemsPerPage: pageSize } = useModuleSettings('invoice');
   const [invoices, setInvoices] = React.useState<InvoiceSummary[]>([]);
+  const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState('');
   const [detail, setDetail] = React.useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [pageSize, search]);
+
+  const totalPages = Math.max(1, Math.ceil(invoices.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedInvoices = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return invoices.slice(start, start + pageSize);
+  }, [invoices, currentPage, pageSize]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -159,14 +173,14 @@ export function InvoicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoices.length === 0 ? (
+              {pagedInvoices.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground">
                     No commercial invoices recorded yet.
                   </TableCell>
                 </TableRow>
               ) : (
-                invoices.map((inv) => {
+                pagedInvoices.map((inv) => {
                   const matched =
                     Math.round(inv.computedTotal * 100) === Math.round(inv.shipmentInvoiceValue * 100);
                   return (
@@ -237,6 +251,30 @@ export function InvoicesPage() {
               )}
             </TableBody>
           </Table>
+
+          <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+            <span>
+              Page {currentPage} of {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

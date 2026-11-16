@@ -51,6 +51,7 @@ import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { ManageExpenseTypesDialog } from '@/components/master/ManageExpenseTypesDialog';
 import { ManageServiceProvidersDialog } from '@/components/master/ManageServiceProvidersDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import { downloadTextFile } from '@/lib/download';
 import {
   expenseService,
@@ -115,7 +116,10 @@ export function ExpensesPage() {
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
 
+  const { itemsPerPage: expensePageSize } = useModuleSettings('expenses');
   const [invoices, setInvoices] = React.useState<ExpenseInvoice[]>([]);
+  const [invoicePage, setInvoicePage] = React.useState(1);
+  const [itemizedPage, setItemizedPage] = React.useState(1);
   const [providers, setProviders] = React.useState<ServiceProvider[]>([]);
   const [types, setTypes] = React.useState<ExpenseType[]>([]);
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
@@ -379,6 +383,28 @@ export function ExpensesPage() {
       netPaise: net,
     };
   }, [filteredItemizedLines]);
+
+  React.useEffect(() => {
+    setInvoicePage(1);
+  }, [expensePageSize, search, shipmentFilter]);
+
+  React.useEffect(() => {
+    setItemizedPage(1);
+  }, [expensePageSize, itemizedSearch, itemizedTypeFilter, itemizedProviderFilter, itemizedShipmentFilter]);
+
+  const totalInvoicePages = Math.max(1, Math.ceil(invoices.length / expensePageSize));
+  const currentInvoicePage = Math.min(invoicePage, totalInvoicePages);
+  const pagedInvoices = React.useMemo(() => {
+    const start = (currentInvoicePage - 1) * expensePageSize;
+    return invoices.slice(start, start + expensePageSize);
+  }, [invoices, currentInvoicePage, expensePageSize]);
+
+  const totalItemizedPages = Math.max(1, Math.ceil(filteredItemizedLines.length / expensePageSize));
+  const currentItemizedPage = Math.min(itemizedPage, totalItemizedPages);
+  const pagedItemizedLines = React.useMemo(() => {
+    const start = (currentItemizedPage - 1) * expensePageSize;
+    return filteredItemizedLines.slice(start, start + expensePageSize);
+  }, [filteredItemizedLines, currentItemizedPage, expensePageSize]);
 
   const exportItemizedCsv = () => {
     const headers = [
@@ -1313,7 +1339,7 @@ export function ExpensesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    invoices.map((inv) => {
+                    pagedInvoices.map((inv) => {
                       const isExpanded = expandedInvoices.has(inv.id);
                       const gstPaise =
                         inv.totalCgstPaise + inv.totalSgstPaise + inv.totalIgstPaise;
@@ -1560,6 +1586,30 @@ export function ExpensesPage() {
                   )}
                 </TableBody>
               </Table>
+
+              <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+                <span>
+                  Page {currentInvoicePage} of {totalInvoicePages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentInvoicePage <= 1}
+                    onClick={() => setInvoicePage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentInvoicePage >= totalInvoicePages}
+                    onClick={() => setInvoicePage((p) => Math.min(totalInvoicePages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1685,7 +1735,7 @@ export function ExpensesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredItemizedLines.map((line) => {
+                    pagedItemizedLines.map((line) => {
                       const gstPaise = line.cgstPaise + line.sgstPaise + line.igstPaise;
                       return (
                         <TableRow key={line.lineId}>
@@ -1740,6 +1790,30 @@ export function ExpensesPage() {
                   )}
                 </TableBody>
               </Table>
+
+              <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+                <span>
+                  Page {currentItemizedPage} of {totalItemizedPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentItemizedPage <= 1}
+                    onClick={() => setItemizedPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentItemizedPage >= totalItemizedPages}
+                    onClick={() => setItemizedPage((p) => Math.min(totalItemizedPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

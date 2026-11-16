@@ -44,6 +44,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import { downloadTextFile } from '@/lib/download';
 import {
   itemService,
@@ -120,10 +121,14 @@ export function ItemMasterPage() {
   const canDelete = hasPermission('data.delete');
   const navigate = useNavigate();
 
+  const { itemsPerPage: pageSize } = useModuleSettings('itemMaster');
   const [items, setItems] = React.useState<Item[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
   const [page, setPage] = React.useState(1);
-  const pageSize = 10;
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
   const [search, setSearch] = React.useState('');
   const [supplierFilter, setSupplierFilter] = React.useState('all');
   const [loading, setLoading] = React.useState(true);
@@ -188,7 +193,7 @@ export function ItemMasterPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, supplierFilter, page]);
+  }, [search, supplierFilter, page, pageSize]);
 
   React.useEffect(() => {
     void loadItems();

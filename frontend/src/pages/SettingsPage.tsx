@@ -32,6 +32,7 @@ import {
   applyThemeProfile,
   settingsService,
   type AppSettingsProfile,
+  type ModuleDisplaySettings,
 } from '@/services/dashboard-settings-service';
 import {
   applyUpdate,
@@ -145,7 +146,19 @@ export function SettingsPage() {
     if (!profile) return;
     setSaving(true);
     try {
-      const saved = await settingsService.saveProfile(profile);
+      const sanitizedModules: Record<string, ModuleDisplaySettings> = {};
+      for (const [key, m] of Object.entries(profile.modules ?? {})) {
+        if (!m) continue;
+        sanitizedModules[key] = {
+          visibleFields: m.visibleFields ?? [],
+          decimalPrecision: m.decimalPrecision ?? 2,
+          dateFormat: m.dateFormat ?? profile.dateFormat,
+          fieldCases: m.fieldCases ?? {},
+          itemsPerPage: Math.min(200, Math.max(5, m.itemsPerPage || 10)),
+        };
+      }
+      const toSave = { ...profile, modules: sanitizedModules };
+      const saved = await settingsService.saveProfile(toSave);
       setProfile(saved);
       applyThemeProfile(saved);
       themeCtx?.syncTheme(saved);
@@ -161,6 +174,7 @@ export function SettingsPage() {
     try {
       const next = await settingsService.resetModuleDefaults(selectedModule);
       setProfile(next);
+      themeCtx?.syncTheme(next);
       toast.success(`Reset ${MODULE_LABELS[selectedModule] ?? selectedModule} defaults`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -372,14 +386,26 @@ export function SettingsPage() {
                 type="number"
                 min={5}
                 max={200}
-                value={modCfg.itemsPerPage}
+                value={modCfg.itemsPerPage || ''}
                 onChange={(e) => {
-                  const nextVal = Number.parseInt(e.target.value, 10) || 10;
+                  const val = e.target.value;
+                  const parsed = val === '' ? 0 : Number.parseInt(val, 10);
+                  const nextVal = Number.isNaN(parsed) ? 10 : parsed;
                   setProfile({
                     ...profile,
                     modules: {
                       ...profile.modules,
                       [selectedModule]: { ...modCfg, itemsPerPage: nextVal },
+                    },
+                  });
+                }}
+                onBlur={() => {
+                  const clamped = Math.min(200, Math.max(5, modCfg.itemsPerPage || 10));
+                  setProfile({
+                    ...profile,
+                    modules: {
+                      ...profile.modules,
+                      [selectedModule]: { ...modCfg, itemsPerPage: clamped },
                     },
                   });
                 }}

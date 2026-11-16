@@ -52,6 +52,7 @@ import {
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import { downloadTextFile } from '@/lib/download';
 import {
   optionsService,
@@ -104,10 +105,14 @@ export function SuppliersPage() {
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
 
+  const { itemsPerPage: pageSize } = useModuleSettings('supplier');
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
   const [page, setPage] = React.useState(1);
-  const pageSize = 10;
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
   const [search, setSearch] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('all');
   const [sortBy, setSortBy] = React.useState('supplierName');
@@ -161,7 +166,7 @@ export function SuppliersPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, sortBy, sortDir, page]);
+  }, [search, statusFilter, sortBy, sortDir, page, pageSize]);
 
   React.useEffect(() => {
     void loadSuppliers();

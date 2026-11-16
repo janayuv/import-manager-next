@@ -53,6 +53,7 @@ import {
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import {
   optionsService,
   supplierService,
@@ -180,10 +181,14 @@ export function ShipmentsPage() {
   const canDelete = hasPermission('data.delete');
   const canUnfreeze = hasPermission('role.write');
 
+  const { itemsPerPage: pageSize } = useModuleSettings('shipment');
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
   const [page, setPage] = React.useState(1);
-  const pageSize = 10;
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
   const [search, setSearch] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('all');
   const [loading, setLoading] = React.useState(true);
@@ -283,7 +288,7 @@ export function ShipmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, page]);
+  }, [search, statusFilter, page, pageSize]);
 
   React.useEffect(() => {
     void loadShipments();

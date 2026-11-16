@@ -7,7 +7,7 @@ info:
   description: "Import Manager Next Generation Desktop ERP"
   copyright: "(c) 2026 Janayuv"
   comments: "Import Manager Next Generation (Wails 3 + Go + SQLCipher)"
-  version: "1.2.0"
+  version: "1.2.1"
 
 dev_mode:
   root_path: .

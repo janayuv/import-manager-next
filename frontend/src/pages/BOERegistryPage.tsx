@@ -36,6 +36,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import {
   boeService,
   boeSummaryService,
@@ -85,12 +86,40 @@ export function BOERegistryPage() {
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
 
+  const { itemsPerPage: summaryPageSize } = useModuleSettings('boeSummary');
+  const [summaryPage, setSummaryPage] = React.useState(1);
+
+  const { itemsPerPage: boePageSize } = useModuleSettings('boe');
+  const [boePage, setBoePage] = React.useState(1);
+
   const [details, setDetails] = React.useState<BOEDetail[]>([]);
   const [summaries, setSummaries] = React.useState<BOECalculationSummary[]>([]);
   const [search, setSearch] = React.useState('');
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<BOEDetail | null>(null);
   const [importOpen, setImportOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setSummaryPage(1);
+  }, [summaryPageSize, search]);
+
+  React.useEffect(() => {
+    setBoePage(1);
+  }, [boePageSize, search]);
+
+  const totalSummaryPages = Math.max(1, Math.ceil(summaries.length / summaryPageSize));
+  const currentSummaryPage = Math.min(summaryPage, totalSummaryPages);
+  const pagedSummaries = React.useMemo(() => {
+    const start = (currentSummaryPage - 1) * summaryPageSize;
+    return summaries.slice(start, start + summaryPageSize);
+  }, [summaries, currentSummaryPage, summaryPageSize]);
+
+  const totalBoePages = Math.max(1, Math.ceil(details.length / boePageSize));
+  const currentBoePage = Math.min(boePage, totalBoePages);
+  const pagedDetails = React.useMemo(() => {
+    const start = (currentBoePage - 1) * boePageSize;
+    return details.slice(start, start + boePageSize);
+  }, [details, currentBoePage, boePageSize]);
 
   const form = useForm<BOEFormValues>({
     resolver: zodResolver(boeSchema),
@@ -229,14 +258,14 @@ export function BOERegistryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {summaries.length === 0 ? (
+                  {pagedSummaries.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No BOE calculations saved yet.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    summaries.map((row) => (
+                    pagedSummaries.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell>
                           <div className="font-medium">{row.invoiceNumber}</div>
@@ -284,6 +313,30 @@ export function BOERegistryPage() {
                   )}
                 </TableBody>
               </Table>
+
+              <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+                <span>
+                  Page {currentSummaryPage} of {totalSummaryPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentSummaryPage <= 1}
+                    onClick={() => setSummaryPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentSummaryPage >= totalSummaryPages}
+                    onClick={() => setSummaryPage((p) => Math.min(totalSummaryPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -308,14 +361,14 @@ export function BOERegistryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {details.length === 0 ? (
+                  {pagedDetails.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center text-muted-foreground">
                         No BOE records found.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    details.map((b) => (
+                    pagedDetails.map((b) => (
                       <TableRow key={b.id}>
                         <TableCell className="font-mono text-xs font-semibold">{b.beNumber}</TableCell>
                         <TableCell>{b.beDate}</TableCell>
@@ -345,6 +398,30 @@ export function BOERegistryPage() {
                   )}
                 </TableBody>
               </Table>
+
+              <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+                <span>
+                  Page {currentBoePage} of {totalBoePages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentBoePage <= 1}
+                    onClick={() => setBoePage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentBoePage >= totalBoePages}
+                    onClick={() => setBoePage((p) => Math.min(totalBoePages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
