@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/repositories"
@@ -15,16 +16,18 @@ import (
 )
 
 var allowedStatuses = map[string]string{
-	"docs-rcvd":         "docs-rcvd",
-	"docu-received":     "docs-rcvd",
-	"in-transit":        "in-transit",
-	"customs-clearance": "customs-clearance",
-	"ready-dly":         "ready-dly",
-	"delivered":         "delivered",
-	"cancelled":         "cancelled",
-	"finalized":         "finalized",
-	"closed":            "closed",
-	"completed":         "completed",
+	"docs-rcvd":           "docs-rcvd",
+	"docu-received":       "docs-rcvd",
+	"in-transit":          "in-transit",
+	"customs-clearance":   "customs-clearance",
+	"ready-dly":           "ready-dly",
+	"in-warehouse":        "in-warehouse",
+	"partially-delivered": "partially-delivered",
+	"delivered":           "delivered",
+	"cancelled":           "cancelled",
+	"finalized":           "finalized",
+	"closed":              "closed",
+	"completed":           "completed",
 }
 
 var shipmentTemplateHeaders = []string{
@@ -46,25 +49,28 @@ var shipmentTemplateHeaders = []string{
 	"etd",
 	"eta",
 	"status",
+	"dateOfDelivery",
 }
 
-// Service implements Shipment lifecycle, freeze workflow, readiness automation, and CSV stream import.
+// Service implements Shipment lifecycle, multi-container tracking, freeze workflow, readiness automation, and CSV stream import.
 type Service struct {
-	repo     *repositories.ShipmentRepository
-	itemRepo *repositories.ItemRepository
-	supRepo  *repositories.SupplierRepository
-	sec      *security.Service
-	audit    *audit.Service
+	repo          *repositories.ShipmentRepository
+	containerRepo *repositories.ContainerRepository
+	itemRepo      *repositories.ItemRepository
+	supRepo       *repositories.SupplierRepository
+	sec           *security.Service
+	audit         *audit.Service
 }
 
 // NewService constructs a shipment Service.
 func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Service {
 	return &Service{
-		repo:     repositories.NewShipmentRepository(db),
-		itemRepo: repositories.NewItemRepository(db),
-		supRepo:  repositories.NewSupplierRepository(db),
-		sec:      sec,
-		audit:    auditSvc,
+		repo:          repositories.NewShipmentRepository(db),
+		containerRepo: repositories.NewContainerRepository(db),
+		itemRepo:      repositories.NewItemRepository(db),
+		supRepo:       repositories.NewSupplierRepository(db),
+		sec:           sec,
+		audit:         auditSvc,
 	}
 }
 
@@ -224,6 +230,7 @@ func (s *Service) DownloadTemplateCSV() (string, error) {
 		"2026-11-03",
 		"2026-11-20",
 		"docs-rcvd",
+		"",
 	}})
 }
 
@@ -329,6 +336,7 @@ func (s *Service) ImportCSV(fileName, content string) (models.CSVImportResult, e
 			ETD:             validation.CellByAliases(row, idx, "etd"),
 			ETA:             validation.CellByAliases(row, idx, "eta"),
 			Status:          validation.CellByAliases(row, idx, "status"),
+			DateOfDelivery:  validation.CellByAliases(row, idx, "dateOfDelivery", "date_of_delivery", "deliveryDate", "delivery_date"),
 		}
 		if err := s.normalizeAndValidate(&in); err != nil {
 			res.SkippedRows++
@@ -418,5 +426,135 @@ func (s *Service) normalizeAndValidate(in *models.ShipmentInput) error {
 		}
 		*ptr = norm
 	}
+
+	if strings.TrimSpace(in.DateOfDelivery) != "" {
+		if in.Status != "cancelled" && in.Status != "closed" && in.Status != "partially-delivered" && in.Status != "in-warehouse" {
+			in.Status = "delivered"
+		}
+	} else if in.Status == "delivered" {
+		in.DateOfDelivery = time.Now().UTC().Format("2006-01-02")
+	}
+
 	return nil
+}
+
+// ListContainers returns all containers for a shipment with calculated dwell days.
+func (s *Service) ListContainers(shipmentID string) ([]models.ShipmentContainer, error) {
+	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
+		return nil, err
+	}
+	return s.containerRepo.ListByShipment(shipmentID)
+}
+
+// CreateContainer adds a new container/lot to an existing shipment and recalculates status.
+func (s *Service) CreateContainer(in models.ShipmentContainerInput) (models.ShipmentContainer, error) {
+	sess, err := s.sec.RequirePermission(security.PermDataWrite)
+	if err != nil {
+		return models.ShipmentContainer{}, err
+	}
+	sh, err := s.repo.GetByID(in.ShipmentID)
+	if err != nil {
+		return models.ShipmentContainer{}, fmt.Errorf("shipment %s not found: %w", in.ShipmentID, err)
+	}
+	if sh.IsFrozen {
+		return models.ShipmentContainer{}, fmt.Errorf("shipment %s is frozen and cannot be modified", sh.ID)
+	}
+	in.ContainerNumber = strings.TrimSpace(in.ContainerNumber)
+	if in.ContainerNumber == "" {
+		return models.ShipmentContainer{}, errors.New("containerNumber is required")
+	}
+
+	created, err := s.containerRepo.Create(in)
+	if err != nil {
+		return models.ShipmentContainer{}, err
+	}
+	_ = s.audit.RecordTableAudit("shipment_containers", created.ID, "INSERT", sess.UserID, nil, created, nil)
+	return created, nil
+}
+
+// UpdateContainer updates container routing, warehouse dates, and delivery status.
+func (s *Service) UpdateContainer(id string, in models.ShipmentContainerInput) (models.ShipmentContainer, error) {
+	sess, err := s.sec.RequirePermission(security.PermDataWrite)
+	if err != nil {
+		return models.ShipmentContainer{}, err
+	}
+	before, err := s.containerRepo.GetByID(id)
+	if err != nil {
+		return models.ShipmentContainer{}, err
+	}
+	sh, err := s.repo.GetByID(before.ShipmentID)
+	if err != nil {
+		return models.ShipmentContainer{}, err
+	}
+	if sh.IsFrozen {
+		return models.ShipmentContainer{}, fmt.Errorf("shipment %s is frozen and cannot be modified", sh.ID)
+	}
+
+	in.ShipmentID = before.ShipmentID
+	updated, err := s.containerRepo.Update(id, in)
+	if err != nil {
+		return models.ShipmentContainer{}, err
+	}
+	_ = s.audit.RecordTableAudit("shipment_containers", updated.ID, "UPDATE", sess.UserID, before, updated, nil)
+	return updated, nil
+}
+
+// DeleteContainer soft-deletes a container from a non-frozen shipment.
+func (s *Service) DeleteContainer(id string) error {
+	sess, err := s.sec.RequirePermission(security.PermDataWrite)
+	if err != nil {
+		return err
+	}
+	before, err := s.containerRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	sh, err := s.repo.GetByID(before.ShipmentID)
+	if err != nil {
+		return err
+	}
+	if sh.IsFrozen {
+		return fmt.Errorf("shipment %s is frozen and cannot be modified", sh.ID)
+	}
+
+	if err := s.containerRepo.Delete(id); err != nil {
+		return err
+	}
+	_ = s.audit.RecordTableAudit("shipment_containers", id, "DELETE", sess.UserID, before, nil, nil)
+	return nil
+}
+
+// ProcessContainerMovement executes staged delivery actions (Direct, Move to Warehouse, Dispatch).
+func (s *Service) ProcessContainerMovement(action models.ContainerMovementAction) error {
+	sess, err := s.sec.RequirePermission(security.PermDataWrite)
+	if err != nil {
+		return err
+	}
+	if len(action.ContainerIDs) == 0 {
+		return errors.New("no containers selected")
+	}
+	if action.ShipmentID != "" {
+		sh, err := s.repo.GetByID(action.ShipmentID)
+		if err == nil && sh.IsFrozen {
+			return fmt.Errorf("shipment %s is frozen and cannot be modified", sh.ID)
+		}
+	}
+
+	if err := s.containerRepo.ProcessMovement(action); err != nil {
+		return err
+	}
+	_ = s.audit.RecordUserActivity(sess.UserID, "shipment.container_movement", "container_movement", action.ActionType, "SUCCESS", "INFO", map[string]any{
+		"shipmentId":   action.ShipmentID,
+		"containerIds": action.ContainerIDs,
+		"actionType":   action.ActionType,
+	})
+	return nil
+}
+
+// GetWarehouseDwellReport returns container dwell time metrics and storage estimates across warehouses.
+func (s *Service) GetWarehouseDwellReport(filter string) ([]models.WarehouseDwellSummary, error) {
+	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
+		return nil, err
+	}
+	return s.containerRepo.ListWarehouseDwell(filter)
 }

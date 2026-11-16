@@ -25,6 +25,7 @@ export {
     CSVImportResult,
     CSVImportRowError,
     CanaryStatus,
+    ContainerMovementAction,
     CreateBackupRequest,
     DashboardActivityItem,
     DashboardAlertItem,
@@ -108,6 +109,8 @@ export {
     ServiceProvider,
     ServiceProviderInput,
     Shipment,
+    ShipmentContainer,
+    ShipmentContainerInput,
     ShipmentDetail,
     ShipmentInput,
     ShipmentLinkedBOE,
@@ -121,6 +124,7 @@ export {
     SupplierPage,
     SupplierPageRequest,
     UpdateTableCellRequest,
+    WarehouseDwellSummary,
     WorkflowIncident,
     WorkflowRule
 } from "./models.js";

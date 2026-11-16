@@ -193,6 +193,27 @@ func (r *ShipmentRepository) Create(in models.ShipmentInput) (models.Shipment, e
 	if err != nil {
 		return models.Shipment{}, fmt.Errorf("insert shipment %s: %w", id, err)
 	}
+
+	crepo := NewContainerRepository(r.db)
+	if len(in.Containers) > 0 {
+		for _, c := range in.Containers {
+			c.ShipmentID = id
+			_, _ = crepo.Create(c)
+		}
+	} else if strings.TrimSpace(in.ContainerNumber) != "" {
+		st := "40FT"
+		if strings.Contains(strings.ToUpper(in.ShipmentType), "LCL") {
+			st = "LCL"
+		}
+		_, _ = crepo.Create(models.ShipmentContainerInput{
+			ShipmentID:        id,
+			ContainerNumber:   strings.TrimSpace(in.ContainerNumber),
+			ContainerSizeType: st,
+			RouteType:         "DIRECT",
+			DateOfDelivery:    in.DateOfDelivery,
+		})
+	}
+
 	return r.GetByID(id)
 }
 
@@ -276,6 +297,7 @@ func (r *ShipmentRepository) UpdateReadyForDelivery(referenceDate string) (int64
 		SET status = 'ready-dly'
 		WHERE deleted_at IS NULL
 		  AND is_frozen = 0
+		  AND (date_of_delivery IS NULL OR TRIM(date_of_delivery) = '')
 		  AND LOWER(COALESCE(status, '')) NOT IN ('delivered', 'ready-dly', 'cancelled', 'closed', 'completed')
 		  AND EXISTS (
 		      SELECT 1
@@ -343,6 +365,14 @@ func (r *ShipmentRepository) GetDetail(id string) (models.ShipmentDetail, error)
 			return models.ShipmentDetail{}, err
 		}
 		detail.Expenses = append(detail.Expenses, ex)
+	}
+
+	crepo := NewContainerRepository(r.db)
+	containers, err := crepo.ListByShipment(sh.ID)
+	if err == nil && len(containers) > 0 {
+		detail.Containers = containers
+	} else {
+		detail.Containers = []models.ShipmentContainer{}
 	}
 
 	return detail, nil

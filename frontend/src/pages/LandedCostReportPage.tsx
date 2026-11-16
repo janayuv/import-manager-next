@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileDown, FileSpreadsheet, PackageSearch, Search } from 'lucide-react';
+import { Calculator, FileDown, FileSpreadsheet, PackageSearch, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { SkeletonTable } from '@/components/ui/skeleton';
+import { LandedCostSimulatorDialog } from '@/components/reports/LandedCostSimulatorDialog';
 import { downloadTextFile } from '@/lib/download';
 import { exportLandedCostPdf } from '@/lib/expense-export';
 import {
@@ -37,6 +39,9 @@ export function LandedCostReportPage() {
   const [invoiceNo, setInvoiceNo] = React.useState('');
   const [partNo, setPartNo] = React.useState('');
   const [search, setSearch] = React.useState('');
+  const [allocationMethod, setAllocationMethod] = React.useState<'av' | 'qty' | 'weight'>('av');
+  const [simulatorOpen, setSimulatorOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
 
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [report, setReport] = React.useState<LandedCostReport | null>(null);
@@ -61,11 +66,14 @@ export function LandedCostReportPage() {
   );
 
   const loadReport = React.useCallback(async () => {
+    setLoading(true);
     try {
       const rep = await reportsService.getLandedCostReport(currentFilter);
       setReport(rep);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
     }
   }, [currentFilter]);
 
@@ -95,22 +103,33 @@ export function LandedCostReportPage() {
             Per-unit landed cost from report_view: (Assessable + BCD + SWS + BOE Interest + Proportional Basic Expenses) / Qty.
           </p>
         </div>
-        {report && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => void handleExportCsv()}>
-              <FileSpreadsheet className="h-4 w-4" />
-              Export 15-Col CSV
-            </Button>
-            <Button variant="outline" onClick={() => exportLandedCostPdf(report)}>
-              <FileDown className="h-4 w-4" />
-              Print Summary PDF
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => setSimulatorOpen(true)}
+            title="Simulate landed costs under exchange rate or tariff shifts"
+          >
+            <Calculator className="h-4 w-4 mr-1.5" />
+            What-If Simulator
+          </Button>
+          {report && (
+            <>
+              <Button variant="outline" onClick={() => void handleExportCsv()}>
+                <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+                Export 15-Col CSV
+              </Button>
+              <Button variant="outline" onClick={() => exportLandedCostPdf(report)}>
+                <FileDown className="h-4 w-4 mr-1.5" />
+                Print Summary PDF
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <Card>
-        <CardContent className="grid gap-3 pt-6 md:grid-cols-6">
+        <CardContent className="grid gap-3 pt-6 md:grid-cols-7">
           <div className="space-y-1">
             <Label>From Date</Label>
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -135,6 +154,22 @@ export function LandedCostReportPage() {
                     {s.supplierName}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Allocation Method</Label>
+            <Select
+              value={allocationMethod}
+              onValueChange={(v) => setAllocationMethod(v as 'av' | 'qty' | 'weight')}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="av">By Assessable Value (Std)</SelectItem>
+                <SelectItem value="qty">By Batch Quantity</SelectItem>
+                <SelectItem value="weight">By Unit Weight</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -222,73 +257,93 @@ export function LandedCostReportPage() {
         </div>
       )}
 
-      <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Supplier</TableHead>
-                <TableHead>Invoice No</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Part No</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Unit Price</TableHead>
-                <TableHead className="text-right">Assessable</TableHead>
-                <TableHead className="text-right">BCD</TableHead>
-                <TableHead className="text-right">SWS</TableHead>
-                <TableHead className="text-right">IGST</TableHead>
-                <TableHead className="text-right">BOE Interest</TableHead>
-                <TableHead className="text-right">Expenses (Basic)</TableHead>
-                <TableHead className="text-right">LDC / Qty</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(report?.rows ?? []).length === 0 ? (
+      {loading ? (
+        <SkeletonTable rows={6} cols={6} />
+      ) : (
+        <Card>
+          <CardContent className="pt-6 overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={15} className="text-center text-muted-foreground">
-                    No finalized BOE &amp; invoice records matched filters.
-                  </TableCell>
+                  <TableHead>Supplier</TableHead>
+                  <TableHead>Invoice No</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Part No</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Unit</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Assessable</TableHead>
+                  <TableHead className="text-right">BCD</TableHead>
+                  <TableHead className="text-right">SWS</TableHead>
+                  <TableHead className="text-right">IGST</TableHead>
+                  <TableHead className="text-right">BOE Interest</TableHead>
+                  <TableHead className="text-right">
+                    Expenses ({allocationMethod === 'qty' ? 'By Qty' : allocationMethod === 'weight' ? 'By Weight' : 'By AV'})
+                  </TableHead>
+                  <TableHead className="text-right">LDC / Qty</TableHead>
                 </TableRow>
-              ) : (
-                report!.rows.map((r, idx) => (
-                  <TableRow key={`${r.invoiceNo}-${r.partNo}-${idx}`}>
-                    <TableCell>{r.supplier}</TableCell>
-                    <TableCell className="font-mono text-xs">{r.invoiceNo}</TableCell>
-                    <TableCell className="font-mono text-xs">{r.invoiceDate}</TableCell>
-                    <TableCell>
-                      <button
-                        type="button"
-                        className="font-mono font-semibold text-primary hover:underline text-left cursor-pointer"
-                        title={`View Period Analysis for ${r.partNo}`}
-                        onClick={() => navigate(`/part-analysis?partNo=${encodeURIComponent(r.partNo)}`)}
-                      >
-                        {r.partNo}
-                      </button>
-                    </TableCell>
-                    <TableCell className="max-w-44 truncate">{r.description}</TableCell>
-                    <TableCell>{r.unit}</TableCell>
-                    <TableCell className="text-right font-mono">{r.qty}</TableCell>
-                    <TableCell className="text-right font-mono">{r.unitPrice.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono">{r.assessableValue.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono">{r.bcdAmount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono">{r.swsAmount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono text-muted-foreground">
-                      {r.igstAmount.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">{(r.boeInterest || 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono">{r.expensesTotal.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono font-semibold text-primary">
-                      {r.ldcPerQty.toFixed(4)}
+              </TableHeader>
+              <TableBody>
+                {(report?.rows ?? []).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={15} className="text-center text-muted-foreground">
+                      No finalized BOE &amp; invoice records matched filters.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                ) : (
+                  report!.rows.map((r, idx) => {
+                    const totalQty = report!.summary.totalQuantity || 1;
+                    const dynamicExpenses =
+                      allocationMethod === 'qty'
+                        ? (r.qty / totalQty) * report!.summary.totalBasicExpenses
+                        : r.expensesTotal;
+                    const dynamicLdc =
+                      r.qty > 0
+                        ? (r.assessableValue + r.bcdAmount + r.swsAmount + (r.boeInterest || 0) + dynamicExpenses) / r.qty
+                        : r.ldcPerQty;
+
+                    return (
+                      <TableRow key={`${r.invoiceNo}-${r.partNo}-${idx}`}>
+                        <TableCell>{r.supplier}</TableCell>
+                        <TableCell className="font-mono text-xs">{r.invoiceNo}</TableCell>
+                        <TableCell className="font-mono text-xs">{r.invoiceDate}</TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            className="font-mono font-semibold text-primary hover:underline text-left cursor-pointer"
+                            title={`View Period Analysis for ${r.partNo}`}
+                            onClick={() => navigate(`/part-analysis?partNo=${encodeURIComponent(r.partNo)}`)}
+                          >
+                            {r.partNo}
+                          </button>
+                        </TableCell>
+                        <TableCell className="max-w-44 truncate">{r.description}</TableCell>
+                        <TableCell>{r.unit}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{r.qty.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{r.unitPrice.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{r.assessableValue.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{r.bcdAmount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{r.swsAmount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
+                          {r.igstAmount.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{(r.boeInterest || 0).toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{dynamicExpenses.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums font-semibold text-primary">
+                          {dynamicLdc.toFixed(4)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <LandedCostSimulatorDialog open={simulatorOpen} onOpenChange={setSimulatorOpen} />
     </div>
   );
 }

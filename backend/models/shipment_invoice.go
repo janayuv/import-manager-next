@@ -46,8 +46,9 @@ type ShipmentInput struct {
 	GrossWeightKg   float64 `json:"grossWeightKg"`
 	ETD             string  `json:"etd"`
 	ETA             string  `json:"eta"`
-	Status          string  `json:"status"`
-	DateOfDelivery  string  `json:"dateOfDelivery"`
+	Status          string                   `json:"status"`
+	DateOfDelivery  string                   `json:"dateOfDelivery"`
+	Containers      []ShipmentContainerInput `json:"containers,omitempty"`
 }
 
 // ShipmentPageRequest filters, sorts, and paginates shipments.
@@ -90,12 +91,13 @@ type ShipmentLinkedExpense struct {
 	Remarks     string  `json:"remarks"`
 }
 
-// ShipmentDetail bundles a shipment with related invoices, BOEs, and expenses.
+// ShipmentDetail bundles a shipment with related invoices, BOEs, expenses, and containers.
 type ShipmentDetail struct {
-	Shipment Shipment                `json:"shipment"`
-	Invoices []InvoiceSummary        `json:"invoices"`
-	BOEs     []ShipmentLinkedBOE     `json:"boes"`
-	Expenses []ShipmentLinkedExpense `json:"expenses"`
+	Shipment   Shipment                `json:"shipment"`
+	Invoices   []InvoiceSummary        `json:"invoices"`
+	BOEs       []ShipmentLinkedBOE     `json:"boes"`
+	Expenses   []ShipmentLinkedExpense `json:"expenses"`
+	Containers []ShipmentContainer     `json:"containers"`
 }
 
 // InvoiceSummary represents a row in invoices enriched with shipment and line totals.

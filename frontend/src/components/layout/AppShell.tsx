@@ -11,6 +11,7 @@ import {
   Database,
   FileSpreadsheet,
   FileText,
+  HelpCircle,
   History,
   KeyRound,
   LayoutDashboard,
@@ -19,18 +20,27 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Receipt,
+  Search,
   Settings,
   Shield,
   ShieldAlert,
   Ship,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
   Truck,
   Users,
   Wand2,
   Wrench,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { ThemeModeToggle } from '@/components/layout/ThemeModeToggle';
+import { AppStatusBar } from '@/components/layout/AppStatusBar';
+import { CommandPaletteDialog } from '@/components/system/CommandPaletteDialog';
+import { KeyboardShortcutsDialog } from '@/components/system/KeyboardShortcutsDialog';
+import { LandedCostSimulatorDialog } from '@/components/reports/LandedCostSimulatorDialog';
+import { IcegateIngestionDialog, type ParsedIcegateBoe } from '@/components/boe/IcegateIngestionDialog';
+import { DocumentPreviewDialog, type DocumentPreviewFile } from '@/components/system/DocumentPreviewDialog';
 import { UpdateDialog } from '@/components/system/UpdateDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -116,6 +126,11 @@ export function AppShell() {
   const { session, setupStatus, hasPermission, logout } = useAuth();
   const [sidebarHidden, setSidebarHidden] = React.useState<boolean>(() => readInitialSidebarHidden());
   const [updateOpen, setUpdateOpen] = React.useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = React.useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
+  const [simulatorOpen, setSimulatorOpen] = React.useState(false);
+  const [icegateOpen, setIcegateOpen] = React.useState(false);
+  const [previewDoc, setPreviewDoc] = React.useState<DocumentPreviewFile | null>(null);
 
   const toggleSidebar = React.useCallback((hidden: boolean) => {
     setSidebarHidden(hidden);
@@ -125,6 +140,27 @@ export function AppShell() {
       // Ignore storage errors in restricted WebViews.
     }
   }, []);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      const isInput = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar(!sidebarHidden);
+      } else if (!isInput && (e.key === '?' || ((e.ctrlKey || e.metaKey) && e.key === '/'))) {
+        e.preventDefault();
+        setShortcutsOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarHidden, toggleSidebar]);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -280,11 +316,95 @@ export function AppShell() {
           </div>
         )}
 
+        {/* Desktop Quick Header & Command Trigger */}
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card/60 px-4 backdrop-blur-xs">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCommandPaletteOpen(true)}
+              aria-label="Open command palette"
+              className="flex items-center gap-2 rounded-lg border border-border bg-background/80 hover:bg-accent px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors shadow-2xs cursor-pointer"
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Search commands, shipments, parts...</span>
+              <span className="sm:hidden">Search...</span>
+              <kbd className="hidden sm:inline-flex h-4 items-center rounded border border-border bg-muted px-1.5 font-mono text-[10px]">
+                Ctrl+K
+              </kbd>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setSimulatorOpen(true)}
+              title="Open Landed Cost 'What-If' Sensitivity Simulator"
+            >
+              <Calculator className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden md:inline">Simulator</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setIcegateOpen(true)}
+              title="Open ICEGATE BOE Auto-Parser"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              <span className="hidden md:inline">ICEGATE Parser</span>
+            </Button>
+
+            <div className="h-4 w-px bg-border mx-1" />
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+              onClick={() => setShortcutsOpen(true)}
+              title="Keyboard Shortcuts (?)"
+              aria-label="Keyboard Shortcuts"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </div>
+        </header>
+
         <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
+
+        <AppStatusBar
+          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          onOpenShortcuts={() => setShortcutsOpen(true)}
+          onOpenSimulator={() => setSimulatorOpen(true)}
+        />
       </div>
 
+      <CommandPaletteDialog
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        onOpenSimulator={() => setSimulatorOpen(true)}
+        onOpenIcegate={() => setIcegateOpen(true)}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
+        onOpenUpdates={() => setUpdateOpen(true)}
+      />
+      <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <LandedCostSimulatorDialog open={simulatorOpen} onOpenChange={setSimulatorOpen} />
+      <IcegateIngestionDialog
+        open={icegateOpen}
+        onOpenChange={setIcegateOpen}
+        onApply={(parsed: ParsedIcegateBoe) => {
+          toast.success(`Parsed BE #${parsed.beNumber} (${parsed.customsDutyTotal.toLocaleString()} duty)`);
+        }}
+      />
+      <DocumentPreviewDialog
+        open={Boolean(previewDoc)}
+        onOpenChange={(open) => !open && setPreviewDoc(null)}
+        document={previewDoc}
+      />
       <UpdateDialog open={updateOpen} onOpenChange={setUpdateOpen} />
     </div>
   );

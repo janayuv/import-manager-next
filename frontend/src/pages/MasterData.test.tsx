@@ -232,10 +232,72 @@ describe('Stage 4 Master Data UI', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Manage$/i }).length).toBe(9);
     expect(screen.getByRole('combobox', { name: /Currency/i })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Unit/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
     await waitFor(() => {
       expect(screen.queryByText('Create Item Master Entry')).not.toBeInTheDocument();
+    });
+  });
+
+  it('renders Unit dropdown with options and allows managing units', async () => {
+    vi.mocked(supplierService.list).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 500 });
+    vi.mocked(itemService.list).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    vi.mocked(itemService.create).mockResolvedValue({
+      id: 'ITM-002',
+      partNumber: 'PN-NEW',
+      itemDescription: 'Test Part',
+      unit: 'PCS',
+      currency: 'USD',
+      unitPrice: 10,
+      hsnCode: '',
+      supplierId: '',
+      supplierName: '',
+      isActive: true,
+      countryOfOrigin: '',
+      bcd: '',
+      sws: '',
+      igst: '',
+      technicalWriteUp: '',
+      category: '',
+      endUse: '',
+      netWeightKg: 0,
+      purchaseUom: '',
+      grossWeightPerUomKg: 0,
+      photoPath: '',
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ItemMasterPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Add Item/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Add Item/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Create Item Master Entry')).toBeInTheDocument();
+    });
+
+    const unitCombobox = screen.getByRole('combobox', { name: /Unit/i });
+    expect(unitCombobox).toBeInTheDocument();
+    expect(unitCombobox).toHaveTextContent('PCS');
+
+    // Test clicking manage units button
+    const manageButtons = screen.getAllByRole('button', { name: /^Manage$/i });
+    // First manage button in form is Unit
+    fireEvent.click(manageButtons[0]!);
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('Manage Units')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 });

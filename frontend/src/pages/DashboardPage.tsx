@@ -42,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   dashboardService,
@@ -141,12 +142,18 @@ export function DashboardPage() {
       )}
 
       {loading && !overview && (
-        <Card className="p-8">
-          <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-            <RefreshCw className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-sm font-medium">Loading executive operational metrics...</p>
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-4">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
           </div>
-        </Card>
+          <div className="grid gap-4 md:grid-cols-2">
+            <SkeletonChart />
+            <SkeletonChart />
+          </div>
+        </div>
       )}
 
       {overview && k && (

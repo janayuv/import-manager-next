@@ -22,7 +22,7 @@ export function ExportLandedCostCSV(filter: models$0.LandedCostFilter): $Cancell
 }
 
 /**
- * ExportPartPeriodAnalysisCSV exports a comprehensive executive CSV report covering all related details.
+ * ExportPartPeriodAnalysisCSV exports a comprehensive executive CSV report matching the professional workbook template.
  */
 export function ExportPartPeriodAnalysisCSV(req: models$0.PartPeriodAnalysisRequest): $CancellablePromise<string> {
     return $Call.ByID(1609534309, req);

@@ -9,6 +9,7 @@ import {
   Info,
   Save,
   ShieldCheck,
+  Sparkles,
   Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -44,6 +45,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { exportBOEExcel, exportBOEPdf } from '@/lib/boe-export';
 import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
 import { LinkedBoeSelector } from '@/components/boe/LinkedBoeSelector';
+import { IcegateIngestionDialog, type ParsedIcegateBoe } from '@/components/boe/IcegateIngestionDialog';
 import { optionsService, type LookupOption } from '@/services/master-service';
 import {
   boeEntryService,
@@ -92,6 +94,7 @@ export function BOEEntryPage() {
   const [overrideCsv, setOverrideCsv] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [showOriginBreakdown, setShowOriginBreakdown] = React.useState(false);
+  const [icegateOpen, setIcegateOpen] = React.useState(false);
   const [insuranceRateOptions, setInsuranceRateOptions] = React.useState<LookupOption[]>([
     { value: '0.015', label: '0.015% (Open Cover Policy)' },
     { value: '1.125', label: '1.125% (Statutory Deemed Rule 10(2))' },
@@ -266,6 +269,23 @@ export function BOEEntryPage() {
   const freightIncluded = Boolean(cifLocked || result?.incotermRule?.freightIncluded);
   const insuranceIncluded = Boolean(cifLocked || result?.incotermRule?.insuranceIncluded);
 
+  const handleIcegateApply = (parsed: ParsedIcegateBoe) => {
+    if (params) {
+      const updated: BOECalcParams = {
+        ...params,
+        exchangeRate: parsed.exchangeRate > 0 ? parsed.exchangeRate : params.exchangeRate,
+      };
+      void recompute(updated);
+      toast.success(
+        `Applied ICEGATE fields: Exchange Rate ₹${parsed.exchangeRate.toFixed(2)}, Extracted Total Duty: ₹${parsed.customsDutyTotal.toLocaleString()}`,
+      );
+    } else {
+      toast.info(
+        `Parsed ICEGATE BE #${parsed.beNumber} with ₹${parsed.customsDutyTotal.toLocaleString()} duty. Select an active shipment to apply calculation.`,
+      );
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -275,29 +295,40 @@ export function BOEEntryPage() {
             Statutory 11-Incoterm Valuation (Rule 10), Standard / CEPA / RoDTEP E-Scrip customs duties in INR.
           </p>
         </div>
-        {params && result && (
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setOverrideOpen(true)}>
-              <Upload className="h-4 w-4" />
-              Import Override CSV
-            </Button>
-            <Button variant="outline" onClick={() => void exportBOEExcel(params, result)}>
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel (.xlsx)
-            </Button>
-            <Button variant="outline" onClick={() => exportBOEPdf(params, result)}>
-              <FileDown className="h-4 w-4" />
-              ICEGATE PDF
-            </Button>
-            <Button
-              disabled={saving || result.hasBlockingBcdOverride || dutyPaidMismatch}
-              onClick={() => void handleSave()}
-            >
-              <Save className="h-4 w-4" />
-              {saving ? 'Saving...' : 'Save Calculation'}
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => setIcegateOpen(true)}
+            title="Paste or upload ICEGATE text dump to extract duty heads"
+          >
+            <Sparkles className="h-4 w-4 mr-1 text-amber-500" />
+            ICEGATE Parser
+          </Button>
+          {params && result && (
+            <>
+              <Button variant="outline" onClick={() => setOverrideOpen(true)}>
+                <Upload className="h-4 w-4" />
+                Import Override CSV
+              </Button>
+              <Button variant="outline" onClick={() => void exportBOEExcel(params, result)}>
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel (.xlsx)
+              </Button>
+              <Button variant="outline" onClick={() => exportBOEPdf(params, result)}>
+                <FileDown className="h-4 w-4" />
+                ICEGATE PDF
+              </Button>
+              <Button
+                disabled={saving || result.hasBlockingBcdOverride || dutyPaidMismatch}
+                onClick={() => void handleSave()}
+              >
+                <Save className="h-4 w-4" />
+                {saving ? 'Saving...' : 'Save Calculation'}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -1041,6 +1072,12 @@ export function BOEEntryPage() {
           onUpdated={loadInsuranceRates}
         />
       )}
+
+      <IcegateIngestionDialog
+        open={icegateOpen}
+        onOpenChange={setIcegateOpen}
+        onApply={handleIcegateApply}
+      />
     </div>
   );
 }

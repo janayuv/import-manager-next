@@ -1538,6 +1538,56 @@ export class CanaryStatus {
 }
 
 /**
+ * ContainerMovementAction represents a batch or single operational action:
+ * "DIRECT_DELIVER", "MOVE_TO_WAREHOUSE", or "DISPATCH_FROM_WAREHOUSE".
+ */
+export class ContainerMovementAction {
+    "shipmentId": string;
+    "containerIds": string[];
+
+    /**
+     * DIRECT_DELIVER, MOVE_TO_WAREHOUSE, DISPATCH_FROM_WAREHOUSE
+     */
+    "actionType": string;
+    "warehouseName"?: string;
+    "gateInDate"?: string;
+    "gateOutDate"?: string;
+    "dateOfDelivery"?: string;
+    "transporterName"?: string;
+    "vehicleNumber"?: string;
+    "lrNumber"?: string;
+    "emptyReturnDate"?: string;
+    "remarks"?: string;
+
+    /** Creates a new ContainerMovementAction instance. */
+    constructor($$source: Partial<ContainerMovementAction> = {}) {
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("containerIds" in $$source)) {
+            this["containerIds"] = [];
+        }
+        if (!("actionType" in $$source)) {
+            this["actionType"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ContainerMovementAction instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ContainerMovementAction {
+        const $$createField1_0 = $$createType12;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("containerIds" in $$parsedSource) {
+            $$parsedSource["containerIds"] = $$createField1_0($$parsedSource["containerIds"]);
+        }
+        return new ContainerMovementAction($$parsedSource as Partial<ContainerMovementAction>);
+    }
+}
+
+/**
  * CreateBackupRequest configures encrypted IMBK2 snapshot creation.
  */
 export class CreateBackupRequest {
@@ -6526,13 +6576,239 @@ export class Shipment {
 }
 
 /**
- * ShipmentDetail bundles a shipment with related invoices, BOEs, and expenses.
+ * ShipmentContainer represents a physical container or LCL cargo lot in a shipment.
+ */
+export class ShipmentContainer {
+    "id": string;
+    "shipmentId": string;
+    "containerNumber": string;
+
+    /**
+     * 20FT, 40FT, 40FT_HC, 45FT, LCL, etc.
+     */
+    "containerSizeType": string;
+    "sealNumber": string;
+
+    /**
+     * DIRECT, WAREHOUSE
+     */
+    "routeType": string;
+    "warehouseName": string;
+    "gateInDate": string;
+    "gateOutDate": string;
+    "freeDaysAllowed": number;
+    "storageRatePerDay": number;
+
+    /**
+     * PENDING, IN_TRANSIT, IN_WAREHOUSE, DELIVERED
+     */
+    "deliveryStatus": string;
+    "dateOfDelivery": string;
+    "transporterName": string;
+    "vehicleNumber": string;
+    "lrNumber": string;
+    "emptyReturnDate": string;
+    "remarks": string;
+
+    /**
+     * Computed days in warehouse
+     */
+    "dwellDays": number;
+
+    /**
+     * max(0, dwellDays - freeDaysAllowed)
+     */
+    "billableDays": number;
+
+    /**
+     * billableDays * storageRatePerDay
+     */
+    "storageCost": number;
+    "createdAt": string;
+    "updatedAt": string;
+
+    /** Creates a new ShipmentContainer instance. */
+    constructor($$source: Partial<ShipmentContainer> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("containerNumber" in $$source)) {
+            this["containerNumber"] = "";
+        }
+        if (!("containerSizeType" in $$source)) {
+            this["containerSizeType"] = "";
+        }
+        if (!("sealNumber" in $$source)) {
+            this["sealNumber"] = "";
+        }
+        if (!("routeType" in $$source)) {
+            this["routeType"] = "";
+        }
+        if (!("warehouseName" in $$source)) {
+            this["warehouseName"] = "";
+        }
+        if (!("gateInDate" in $$source)) {
+            this["gateInDate"] = "";
+        }
+        if (!("gateOutDate" in $$source)) {
+            this["gateOutDate"] = "";
+        }
+        if (!("freeDaysAllowed" in $$source)) {
+            this["freeDaysAllowed"] = 0;
+        }
+        if (!("storageRatePerDay" in $$source)) {
+            this["storageRatePerDay"] = 0;
+        }
+        if (!("deliveryStatus" in $$source)) {
+            this["deliveryStatus"] = "";
+        }
+        if (!("dateOfDelivery" in $$source)) {
+            this["dateOfDelivery"] = "";
+        }
+        if (!("transporterName" in $$source)) {
+            this["transporterName"] = "";
+        }
+        if (!("vehicleNumber" in $$source)) {
+            this["vehicleNumber"] = "";
+        }
+        if (!("lrNumber" in $$source)) {
+            this["lrNumber"] = "";
+        }
+        if (!("emptyReturnDate" in $$source)) {
+            this["emptyReturnDate"] = "";
+        }
+        if (!("remarks" in $$source)) {
+            this["remarks"] = "";
+        }
+        if (!("dwellDays" in $$source)) {
+            this["dwellDays"] = 0;
+        }
+        if (!("billableDays" in $$source)) {
+            this["billableDays"] = 0;
+        }
+        if (!("storageCost" in $$source)) {
+            this["storageCost"] = 0;
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ShipmentContainer instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ShipmentContainer {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ShipmentContainer($$parsedSource as Partial<ShipmentContainer>);
+    }
+}
+
+/**
+ * ShipmentContainerInput carries input fields for creating or updating a container.
+ */
+export class ShipmentContainerInput {
+    "id"?: string;
+    "shipmentId": string;
+    "containerNumber": string;
+    "containerSizeType": string;
+    "sealNumber": string;
+    "routeType": string;
+    "warehouseName": string;
+    "gateInDate": string;
+    "gateOutDate": string;
+    "freeDaysAllowed": number;
+    "storageRatePerDay": number;
+    "deliveryStatus": string;
+    "dateOfDelivery": string;
+    "transporterName": string;
+    "vehicleNumber": string;
+    "lrNumber": string;
+    "emptyReturnDate": string;
+    "remarks": string;
+
+    /** Creates a new ShipmentContainerInput instance. */
+    constructor($$source: Partial<ShipmentContainerInput> = {}) {
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("containerNumber" in $$source)) {
+            this["containerNumber"] = "";
+        }
+        if (!("containerSizeType" in $$source)) {
+            this["containerSizeType"] = "";
+        }
+        if (!("sealNumber" in $$source)) {
+            this["sealNumber"] = "";
+        }
+        if (!("routeType" in $$source)) {
+            this["routeType"] = "";
+        }
+        if (!("warehouseName" in $$source)) {
+            this["warehouseName"] = "";
+        }
+        if (!("gateInDate" in $$source)) {
+            this["gateInDate"] = "";
+        }
+        if (!("gateOutDate" in $$source)) {
+            this["gateOutDate"] = "";
+        }
+        if (!("freeDaysAllowed" in $$source)) {
+            this["freeDaysAllowed"] = 0;
+        }
+        if (!("storageRatePerDay" in $$source)) {
+            this["storageRatePerDay"] = 0;
+        }
+        if (!("deliveryStatus" in $$source)) {
+            this["deliveryStatus"] = "";
+        }
+        if (!("dateOfDelivery" in $$source)) {
+            this["dateOfDelivery"] = "";
+        }
+        if (!("transporterName" in $$source)) {
+            this["transporterName"] = "";
+        }
+        if (!("vehicleNumber" in $$source)) {
+            this["vehicleNumber"] = "";
+        }
+        if (!("lrNumber" in $$source)) {
+            this["lrNumber"] = "";
+        }
+        if (!("emptyReturnDate" in $$source)) {
+            this["emptyReturnDate"] = "";
+        }
+        if (!("remarks" in $$source)) {
+            this["remarks"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ShipmentContainerInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ShipmentContainerInput {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ShipmentContainerInput($$parsedSource as Partial<ShipmentContainerInput>);
+    }
+}
+
+/**
+ * ShipmentDetail bundles a shipment with related invoices, BOEs, expenses, and containers.
  */
 export class ShipmentDetail {
     "shipment": Shipment;
     "invoices": InvoiceSummary[];
     "boes": ShipmentLinkedBOE[];
     "expenses": ShipmentLinkedExpense[];
+    "containers": ShipmentContainer[];
 
     /** Creates a new ShipmentDetail instance. */
     constructor($$source: Partial<ShipmentDetail> = {}) {
@@ -6548,6 +6824,9 @@ export class ShipmentDetail {
         if (!("expenses" in $$source)) {
             this["expenses"] = [];
         }
+        if (!("containers" in $$source)) {
+            this["containers"] = [];
+        }
 
         Object.assign(this, $$source);
     }
@@ -6560,6 +6839,7 @@ export class ShipmentDetail {
         const $$createField1_0 = $$createType75;
         const $$createField2_0 = $$createType77;
         const $$createField3_0 = $$createType79;
+        const $$createField4_0 = $$createType81;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("shipment" in $$parsedSource) {
             $$parsedSource["shipment"] = $$createField0_0($$parsedSource["shipment"]);
@@ -6572,6 +6852,9 @@ export class ShipmentDetail {
         }
         if ("expenses" in $$parsedSource) {
             $$parsedSource["expenses"] = $$createField3_0($$parsedSource["expenses"]);
+        }
+        if ("containers" in $$parsedSource) {
+            $$parsedSource["containers"] = $$createField4_0($$parsedSource["containers"]);
         }
         return new ShipmentDetail($$parsedSource as Partial<ShipmentDetail>);
     }
@@ -6601,6 +6884,7 @@ export class ShipmentInput {
     "eta": string;
     "status": string;
     "dateOfDelivery": string;
+    "containers"?: ShipmentContainerInput[];
 
     /** Creates a new ShipmentInput instance. */
     constructor($$source: Partial<ShipmentInput> = {}) {
@@ -6666,7 +6950,11 @@ export class ShipmentInput {
      * Creates a new ShipmentInput instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentInput {
+        const $$createField20_0 = $$createType83;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("containers" in $$parsedSource) {
+            $$parsedSource["containers"] = $$createField20_0($$parsedSource["containers"]);
+        }
         return new ShipmentInput($$parsedSource as Partial<ShipmentInput>);
     }
 }
@@ -6790,7 +7078,7 @@ export class ShipmentPage {
      * Creates a new ShipmentPage instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentPage {
-        const $$createField0_0 = $$createType80;
+        const $$createField0_0 = $$createType84;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -7006,7 +7294,7 @@ export class SupplierHistorySummary {
      * Creates a new SupplierHistorySummary instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierHistorySummary {
-        const $$createField4_0 = $$createType82;
+        const $$createField4_0 = $$createType86;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recentRecords" in $$parsedSource) {
             $$parsedSource["recentRecords"] = $$createField4_0($$parsedSource["recentRecords"]);
@@ -7119,7 +7407,7 @@ export class SupplierPage {
      * Creates a new SupplierPage instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierPage {
-        const $$createField0_0 = $$createType84;
+        const $$createField0_0 = $$createType88;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -7217,6 +7505,88 @@ export class UpdateTableCellRequest {
     static createFrom($$source: any = {}): UpdateTableCellRequest {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new UpdateTableCellRequest($$parsedSource as Partial<UpdateTableCellRequest>);
+    }
+}
+
+/**
+ * WarehouseDwellSummary represents a container's warehouse storage details for reports and tracking.
+ */
+export class WarehouseDwellSummary {
+    "containerId": string;
+    "shipmentId": string;
+    "supplierName": string;
+    "invoiceNumber": string;
+    "blAwbNumber": string;
+    "containerNumber": string;
+    "containerSizeType": string;
+    "warehouseName": string;
+    "gateInDate": string;
+    "gateOutDate"?: string;
+    "deliveryStatus": string;
+    "dateOfDelivery"?: string;
+    "dwellDays": number;
+    "freeDaysAllowed": number;
+    "billableDays": number;
+    "storageRatePerDay": number;
+    "estimatedCharges": number;
+
+    /** Creates a new WarehouseDwellSummary instance. */
+    constructor($$source: Partial<WarehouseDwellSummary> = {}) {
+        if (!("containerId" in $$source)) {
+            this["containerId"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("blAwbNumber" in $$source)) {
+            this["blAwbNumber"] = "";
+        }
+        if (!("containerNumber" in $$source)) {
+            this["containerNumber"] = "";
+        }
+        if (!("containerSizeType" in $$source)) {
+            this["containerSizeType"] = "";
+        }
+        if (!("warehouseName" in $$source)) {
+            this["warehouseName"] = "";
+        }
+        if (!("gateInDate" in $$source)) {
+            this["gateInDate"] = "";
+        }
+        if (!("deliveryStatus" in $$source)) {
+            this["deliveryStatus"] = "";
+        }
+        if (!("dwellDays" in $$source)) {
+            this["dwellDays"] = 0;
+        }
+        if (!("freeDaysAllowed" in $$source)) {
+            this["freeDaysAllowed"] = 0;
+        }
+        if (!("billableDays" in $$source)) {
+            this["billableDays"] = 0;
+        }
+        if (!("storageRatePerDay" in $$source)) {
+            this["storageRatePerDay"] = 0;
+        }
+        if (!("estimatedCharges" in $$source)) {
+            this["estimatedCharges"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new WarehouseDwellSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): WarehouseDwellSummary {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new WarehouseDwellSummary($$parsedSource as Partial<WarehouseDwellSummary>);
     }
 }
 
@@ -7431,8 +7801,12 @@ const $$createType76 = ShipmentLinkedBOE.createFrom;
 const $$createType77 = $Create.Array($$createType76);
 const $$createType78 = ShipmentLinkedExpense.createFrom;
 const $$createType79 = $Create.Array($$createType78);
-const $$createType80 = $Create.Array($$createType4);
-const $$createType81 = SupplierHistoryItem.createFrom;
-const $$createType82 = $Create.Array($$createType81);
-const $$createType83 = Supplier.createFrom;
-const $$createType84 = $Create.Array($$createType83);
+const $$createType80 = ShipmentContainer.createFrom;
+const $$createType81 = $Create.Array($$createType80);
+const $$createType82 = ShipmentContainerInput.createFrom;
+const $$createType83 = $Create.Array($$createType82);
+const $$createType84 = $Create.Array($$createType4);
+const $$createType85 = SupplierHistoryItem.createFrom;
+const $$createType86 = $Create.Array($$createType85);
+const $$createType87 = Supplier.createFrom;
+const $$createType88 = $Create.Array($$createType87);

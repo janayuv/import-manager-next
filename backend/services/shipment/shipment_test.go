@@ -99,4 +99,31 @@ func TestShipmentLifecycleFreezeCSVAndReadyDly(t *testing.T) {
 	if err := svc.Delete(sh.ID); err == nil {
 		t.Fatalf("expected frozen delete rejection")
 	}
+
+	// Unfreeze and set DateOfDelivery -> auto-transitions to delivered and prevents ready-dly reversion
+	if _, err := svc.Unfreeze(sh.ID); err != nil {
+		t.Fatalf("unfreeze: %v", err)
+	}
+	deliveredShp, err := svc.Update(sh.ID, models.ShipmentInput{
+		SupplierID:     sup.ID,
+		InvoiceNumber:  "INV-2026-10",
+		InvoiceDate:    "2023-07-17",
+		InvoiceValue:   2500.50,
+		InvoiceCurrency: "USD",
+		Incoterm:       "CIF",
+		Status:         "ready-dly", // submitted as ready-dly with delivery date
+		DateOfDelivery: "2026-10-25",
+	})
+	if err != nil {
+		t.Fatalf("update delivery date: %v", err)
+	}
+	if deliveredShp.Status != "delivered" || deliveredShp.DateOfDelivery != "2026-10-25" {
+		t.Fatalf("expected delivered status and normalized date, got status=%q date=%q", deliveredShp.Status, deliveredShp.DateOfDelivery)
+	}
+
+	// Ready-dly sweep must not revert delivered shipment
+	n2, err := svc.CheckReadyForDelivery("2026-10-30")
+	if err != nil || n2 != 0 {
+		t.Fatalf("expected 0 ready-dly updates on delivered shipment, got %d err=%v", n2, err)
+	}
 }

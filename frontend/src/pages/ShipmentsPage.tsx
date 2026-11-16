@@ -9,14 +9,18 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import {
+  Building2,
   CheckCircle2,
   Eye,
   Lock,
+  PackageCheck,
   Pencil,
   Plus,
   Search,
   Settings2,
+  Ship,
   Trash2,
+  Truck,
   Unlock,
   Upload,
   X,
@@ -25,6 +29,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -52,6 +57,9 @@ import {
 } from '@/components/ui/table';
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
+import { ShipmentLifecycleStepper } from '@/components/shipment/ShipmentLifecycleStepper';
+import { ContainerMovementDialog } from '@/components/shipment/ContainerMovementDialog';
+import { WarehouseDwellMonitor } from '@/components/shipment/WarehouseDwellMonitor';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModuleSettings } from '@/contexts/ThemeContext';
 import {
@@ -116,6 +124,8 @@ const DEFAULT_STATUSES = [
   'in-transit',
   'customs-clearance',
   'ready-dly',
+  'in-warehouse',
+  'partially-delivered',
   'delivered',
   'cancelled',
   'finalized',
@@ -200,7 +210,12 @@ export function ShipmentsPage() {
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Shipment | null>(null);
   const [detail, setDetail] = React.useState<ShipmentDetail | null>(null);
+  const [mainTab, setMainTab] = React.useState<'pipeline' | 'warehouse'>('pipeline');
+  const [containerModalShipment, setContainerModalShipment] = React.useState<Shipment | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Shipment | null>(null);
+  const [deliveryTarget, setDeliveryTarget] = React.useState<Shipment | null>(null);
+  const [deliveryDateInput, setDeliveryDateInput] = React.useState('');
+  const [deliverySubmitting, setDeliverySubmitting] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
   const [optionEditor, setOptionEditor] = React.useState<{ table: string; title: string } | null>(null);
 
@@ -344,6 +359,11 @@ export function ShipmentsPage() {
 
   const onSubmit = async (values: ShipmentFormValues) => {
     const payload: ShipmentInput = { ...values };
+    if (payload.dateOfDelivery?.trim() && payload.status !== 'cancelled' && payload.status !== 'closed') {
+      payload.status = 'delivered';
+    } else if (payload.status === 'delivered' && !payload.dateOfDelivery?.trim()) {
+      payload.dateOfDelivery = new Date().toISOString().slice(0, 10);
+    }
     try {
       if (editing) {
         await shipmentService.update(editing.id, payload);
@@ -356,6 +376,51 @@ export function ShipmentsPage() {
       await loadShipments();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const openDeliveryDialog = (sh: Shipment) => {
+    setDeliveryTarget(sh);
+    setDeliveryDateInput(sh.dateOfDelivery || new Date().toISOString().slice(0, 10));
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!deliveryTarget) return;
+    setDeliverySubmitting(true);
+    try {
+      const targetDate = deliveryDateInput.trim() || new Date().toISOString().slice(0, 10);
+      const payload: ShipmentInput = {
+        supplierId: deliveryTarget.supplierId,
+        invoiceNumber: deliveryTarget.invoiceNumber,
+        invoiceDate: deliveryTarget.invoiceDate,
+        goodsCategory: deliveryTarget.goodsCategory,
+        invoiceValue: deliveryTarget.invoiceValue,
+        invoiceCurrency: deliveryTarget.invoiceCurrency,
+        incoterm: deliveryTarget.incoterm,
+        shipmentMode: deliveryTarget.shipmentMode,
+        shipmentType: deliveryTarget.shipmentType,
+        blAwbNumber: deliveryTarget.blAwbNumber,
+        blAwbDate: deliveryTarget.blAwbDate,
+        vesselName: deliveryTarget.vesselName,
+        containerNumber: deliveryTarget.containerNumber,
+        grossWeightKg: deliveryTarget.grossWeightKg,
+        etd: deliveryTarget.etd,
+        eta: deliveryTarget.eta,
+        status: 'delivered',
+        dateOfDelivery: targetDate,
+      };
+      await shipmentService.update(deliveryTarget.id, payload);
+      toast.success(`Shipment ${deliveryTarget.id} marked as delivered on ${targetDate}`);
+      setDeliveryTarget(null);
+      await loadShipments();
+      if (detail && detail.shipment.id === deliveryTarget.id) {
+        const refreshed = await shipmentService.getDetail(deliveryTarget.id);
+        setDetail(refreshed);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeliverySubmitting(false);
     }
   };
 
@@ -445,11 +510,35 @@ export function ShipmentsPage() {
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => (
-          <Badge variant={row.original.status === 'delivered' ? 'success' : 'outline'}>
-            {row.original.status}
-          </Badge>
-        ),
+        cell: ({ row }) => {
+          const st = row.original.status;
+          let badgeVariant: 'success' | 'outline' | 'secondary' = 'outline';
+          let customClass = '';
+          let label: string = st;
+          if (st === 'delivered') {
+            badgeVariant = 'success';
+          } else if (st === 'partially-delivered') {
+            badgeVariant = 'secondary';
+            customClass = 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300';
+            label = 'Partially Delivered';
+          } else if (st === 'in-warehouse') {
+            badgeVariant = 'secondary';
+            customClass = 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-300';
+            label = 'In Warehouse';
+          }
+          return (
+            <div>
+              <Badge variant={badgeVariant} className={customClass}>
+                {label}
+              </Badge>
+              {row.original.dateOfDelivery ? (
+                <div className="text-[11px] text-muted-foreground mt-0.5 whitespace-nowrap">
+                  Delivered: {row.original.dateOfDelivery}
+                </div>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         id: 'actions',
@@ -461,6 +550,28 @@ export function ShipmentsPage() {
               <Button size="sm" variant="ghost" aria-label={`Inspect ${sh.id}`} onClick={() => void handleInspect(sh)}>
                 <Eye className="h-4 w-4" />
               </Button>
+              {canWrite && !sh.isFrozen && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title="Manage Containers & Staged Delivery"
+                  aria-label={`Manage containers for ${sh.id}`}
+                  onClick={() => setContainerModalShipment(sh)}
+                >
+                  <Truck className="h-4 w-4 text-primary" />
+                </Button>
+              )}
+              {canWrite && !sh.isFrozen && sh.status !== 'delivered' && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title="Quick Delivery Date"
+                  aria-label={`Record delivery for ${sh.id}`}
+                  onClick={() => openDeliveryDialog(sh)}
+                >
+                  <PackageCheck className="h-4 w-4 text-emerald-600" />
+                </Button>
+              )}
               {canWrite && !sh.isFrozen && (
                 <Button size="sm" variant="ghost" aria-label={`Edit ${sh.id}`} onClick={() => openEdit(sh)}>
                   <Pencil className="h-4 w-4" />
@@ -531,7 +642,27 @@ export function ShipmentsPage() {
         </div>
       </div>
 
-      {formOpen && (
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
+        <TabsList className="grid w-full sm:w-[480px] grid-cols-2">
+          <TabsTrigger value="pipeline" className="gap-2 text-xs">
+            <Ship className="h-4 w-4" /> Shipments Pipeline
+          </TabsTrigger>
+          <TabsTrigger value="warehouse" className="gap-2 text-xs">
+            <Building2 className="h-4 w-4 text-purple-600" /> Warehouse Storage & Dwell Days
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {mainTab === 'warehouse' ? (
+        <WarehouseDwellMonitor
+          onSelectShipment={(shipmentId) => {
+            setMainTab('pipeline');
+            void shipmentService.getDetail(shipmentId).then(setDetail);
+          }}
+        />
+      ) : (
+        <>
+          {formOpen && (
         <div ref={formCardRef}>
           <Card className="border-primary/40">
             <CardHeader className="flex flex-row items-start justify-between space-y-0">
@@ -780,7 +911,15 @@ export function ShipmentsPage() {
 
                 <div className="space-y-1">
                   <Label>Status</Label>
-                  <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v)}>
+                  <Select
+                    value={form.watch('status')}
+                    onValueChange={(v) => {
+                      form.setValue('status', v, { shouldValidate: true, shouldDirty: true });
+                      if (v === 'delivered' && !form.getValues('dateOfDelivery')) {
+                        form.setValue('dateOfDelivery', new Date().toISOString().slice(0, 10), { shouldValidate: true, shouldDirty: true });
+                      }
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -806,7 +945,18 @@ export function ShipmentsPage() {
 
                 <div className="space-y-1">
                   <Label htmlFor="dateOfDelivery">Delivery Date</Label>
-                  <Input id="dateOfDelivery" type="date" {...form.register('dateOfDelivery')} />
+                  <Input
+                    id="dateOfDelivery"
+                    type="date"
+                    {...form.register('dateOfDelivery', {
+                      onChange: (e) => {
+                        const val = e.target.value;
+                        if (val && form.getValues('status') !== 'delivered' && form.getValues('status') !== 'cancelled') {
+                          form.setValue('status', 'delivered', { shouldValidate: true, shouldDirty: true });
+                        }
+                      },
+                    })}
+                  />
                 </div>
 
                 <div className="col-span-full flex justify-end gap-2 border-t border-border pt-4">
@@ -920,6 +1070,8 @@ export function ShipmentsPage() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
 
       <Dialog open={Boolean(detail)} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
@@ -934,6 +1086,134 @@ export function ShipmentsPage() {
           </DialogHeader>
           {detail && (
             <div className="space-y-4 text-sm">
+              <ShipmentLifecycleStepper
+                currentStatus={detail.shipment.status}
+                isFrozen={detail.shipment.isFrozen}
+                className="my-1"
+                onStepClick={(step) => {
+                  if (step === 'delivered' && !detail.shipment.isFrozen && canWrite) {
+                    openDeliveryDialog(detail.shipment);
+                  }
+                }}
+              />
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-muted-foreground block">BL / AWB:</span>
+                    <span className="font-medium">{detail.shipment.blAwbNumber || '—'} {detail.shipment.blAwbDate ? `(${detail.shipment.blAwbDate})` : ''}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">ETD:</span>
+                    <span className="font-medium">{detail.shipment.etd || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">ETA:</span>
+                    <span className="font-medium">{detail.shipment.eta || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Delivery Date:</span>
+                    {detail.shipment.dateOfDelivery ? (
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {detail.shipment.dateOfDelivery} (Delivered)
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">Pending Delivery</span>
+                    )}
+                  </div>
+                </div>
+                {canWrite && !detail.shipment.isFrozen && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="shrink-0"
+                      onClick={() => setContainerModalShipment(detail.shipment)}
+                    >
+                      <Truck className="h-3.5 w-3.5 mr-1" />
+                      Manage Containers & Staged Delivery
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => openDeliveryDialog(detail.shipment)}
+                    >
+                      <PackageCheck className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                      {detail.shipment.status === 'delivered' ? 'Update Delivery Date' : 'Quick Delivery'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                    Shipment Containers & Lots ({(detail.containers ?? []).length})
+                  </h4>
+                  {canWrite && !detail.shipment.isFrozen && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs text-primary p-1"
+                      onClick={() => setContainerModalShipment(detail.shipment)}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Manage Containers
+                    </Button>
+                  )}
+                </div>
+                {(detail.containers ?? []).length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No itemized containers recorded yet.</p>
+                ) : (
+                  <div className="rounded border border-border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="text-[11px]">
+                          <TableHead>Container No</TableHead>
+                          <TableHead>Size</TableHead>
+                          <TableHead>Route / WH</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Dwell Days</TableHead>
+                          <TableHead>Delivered Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(detail.containers ?? []).map((c) => (
+                          <TableRow key={c.id} className="text-xs">
+                            <TableCell className="font-mono font-medium">{c.containerNumber}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-[10px]">{c.containerSizeType}</Badge></TableCell>
+                            <TableCell>
+                              {c.warehouseName ? (
+                                <span className="text-purple-700 dark:text-purple-400 font-medium">{c.warehouseName}</span>
+                              ) : (
+                                <span className="text-muted-foreground">Direct</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {c.deliveryStatus === 'DELIVERED' ? (
+                                <Badge variant="success" className="text-[10px]">Delivered</Badge>
+                              ) : c.deliveryStatus === 'IN_WAREHOUSE' ? (
+                                <Badge variant="secondary" className="text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">In Warehouse</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px]">Pending</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {c.gateInDate ? (
+                                <span>
+                                  {c.dwellDays}d {c.billableDays > 0 ? `(${c.billableDays}d billable)` : ''}
+                                </span>
+                              ) : '—'}
+                            </TableCell>
+                            <TableCell>{c.dateOfDelivery || '—'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <h4 className="mb-1 font-semibold">Linked Commercial Invoices ({(detail.invoices ?? []).length})</h4>
                 {(detail.invoices ?? []).length === 0 ? (
@@ -986,6 +1266,46 @@ export function ShipmentsPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={Boolean(deliveryTarget)} onOpenChange={(o) => !o && setDeliveryTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PackageCheck className="h-5 w-5 text-emerald-600" />
+              Record Delivery — {deliveryTarget?.id}
+            </DialogTitle>
+            <DialogDescription>
+              {deliveryTarget?.supplierName} • Invoice: {deliveryTarget?.invoiceNumber}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm">
+            <div className="space-y-1">
+              <Label htmlFor="quickDeliveryDate">Delivery Date *</Label>
+              <Input
+                id="quickDeliveryDate"
+                type="date"
+                value={deliveryDateInput}
+                onChange={(e) => setDeliveryDateInput(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Setting the delivery date updates the shipment status to <strong>delivered</strong>.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeliveryTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleConfirmDelivery()}
+              disabled={deliverySubmitting || !deliveryDateInput}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {deliverySubmitting ? 'Saving...' : 'Mark as Delivered'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -1026,6 +1346,18 @@ export function ShipmentsPage() {
           onUpdated={loadLookups}
         />
       )}
+
+      <ContainerMovementDialog
+        open={Boolean(containerModalShipment)}
+        onOpenChange={(o) => !o && setContainerModalShipment(null)}
+        shipment={containerModalShipment}
+        onSuccess={() => {
+          void loadShipments();
+          if (detail && detail.shipment.id === containerModalShipment?.id) {
+            void shipmentService.getDetail(containerModalShipment.id).then(setDetail);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import * as InvoiceBindings from '../../bindings/github.com/janayuv/import-manag
 import * as WizardBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/invoice_wizard/service.js';
 import type {
   CSVImportResult,
+  ContainerMovementAction,
   InvoiceDetail,
   InvoiceLineInput,
   InvoiceLineItem,
@@ -10,14 +11,18 @@ import type {
   ParsedPasteLine,
   SaveInvoiceRequest,
   Shipment,
+  ShipmentContainer,
+  ShipmentContainerInput,
   ShipmentDetail,
   ShipmentInput,
   ShipmentPage,
   ShipmentPageRequest,
+  WarehouseDwellSummary,
 } from '../../bindings/github.com/janayuv/import-manager-next/backend/models/models.js';
 
 export type {
   CSVImportResult,
+  ContainerMovementAction,
   InvoiceDetail,
   InvoiceLineInput,
   InvoiceLineItem,
@@ -25,10 +30,13 @@ export type {
   ParsedPasteLine,
   SaveInvoiceRequest,
   Shipment,
+  ShipmentContainer,
+  ShipmentContainerInput,
   ShipmentDetail,
   ShipmentInput,
   ShipmentPage,
   ShipmentPageRequest,
+  WarehouseDwellSummary,
 };
 
 export const shipmentService = {
@@ -64,6 +72,24 @@ export const shipmentService = {
   },
   importCsv(fileName: string, content: string): Promise<CSVImportResult> {
     return ShipmentBindings.ImportCSV(fileName, content);
+  },
+  listContainers(shipmentId: string): Promise<ShipmentContainer[]> {
+    return ShipmentBindings.ListContainers(shipmentId);
+  },
+  createContainer(input: ShipmentContainerInput): Promise<ShipmentContainer> {
+    return ShipmentBindings.CreateContainer(input);
+  },
+  updateContainer(id: string, input: ShipmentContainerInput): Promise<ShipmentContainer> {
+    return ShipmentBindings.UpdateContainer(id, input);
+  },
+  deleteContainer(id: string): Promise<void> {
+    return ShipmentBindings.DeleteContainer(id);
+  },
+  processContainerMovement(action: ContainerMovementAction): Promise<void> {
+    return ShipmentBindings.ProcessContainerMovement(action);
+  },
+  getWarehouseDwellReport(filter = ''): Promise<WarehouseDwellSummary[]> {
+    return ShipmentBindings.GetWarehouseDwellReport(filter);
   },
 };
 

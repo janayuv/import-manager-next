@@ -93,6 +93,17 @@ const DEFAULT_CURRENCIES: LookupOption[] = [
   { value: 'CHF', label: 'Swiss Franc (CHF)' },
 ];
 
+const DEFAULT_UNITS: LookupOption[] = [
+  { value: 'PCS', label: 'Pieces (PCS)' },
+  { value: 'KGS', label: 'Kilograms (KGS)' },
+  { value: 'NOS', label: 'Numbers (NOS)' },
+  { value: 'SET', label: 'Set (SET)' },
+  { value: 'MTR', label: 'Meters (MTR)' },
+  { value: 'LTR', label: 'Liters (LTR)' },
+  { value: 'PKT', label: 'Packets (PKT)' },
+  { value: 'BOX', label: 'Box (BOX)' },
+];
+
 const EMPTY_ITEM: ItemFormValues = {
   partNumber: '',
   itemDescription: '',
@@ -160,6 +171,18 @@ export function ItemMasterPage() {
     }
     return fromApi;
   }, [allOptions, currencyValue]);
+
+  const unitValue = form.watch('unit');
+  const unitOptions = React.useMemo(() => {
+    const fromApi =
+      allOptions['units'] && allOptions['units'].length > 0
+        ? allOptions['units']
+        : DEFAULT_UNITS;
+    if (unitValue && !fromApi.some((o) => o.value.toLowerCase() === unitValue.toLowerCase())) {
+      return [{ value: unitValue, label: unitValue }, ...fromApi];
+    }
+    return fromApi;
+  }, [allOptions, unitValue]);
 
   const loadOptions = React.useCallback(async () => {
     try {
@@ -498,14 +521,28 @@ export function ItemMasterPage() {
                       Manage
                     </button>
                   </div>
-                  <Input id="unit" list="item-units-list" {...form.register('unit')} />
-                  <datalist id="item-units-list">
-                    {(allOptions['units'] ?? []).map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label !== o.value ? o.label : undefined}
-                      </option>
-                    ))}
-                  </datalist>
+                  <Select
+                    value={form.watch('unit') || 'PCS'}
+                    onValueChange={(v) => form.setValue('unit', v, { shouldValidate: true, shouldDirty: true })}
+                  >
+                    <SelectTrigger id="unit" aria-label="Unit">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unitOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label && o.label !== o.value
+                            ? o.label.includes(o.value)
+                              ? o.label
+                              : `${o.value} — ${o.label}`
+                            : o.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.unit && (
+                    <p className="text-xs text-destructive">{form.formState.errors.unit.message}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">

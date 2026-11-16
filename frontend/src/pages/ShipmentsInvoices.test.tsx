@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -356,6 +356,264 @@ describe('Stage 5 Shipments & Invoice Wizard UI', () => {
     fireEvent.click(supplierOnlySwitch);
     expect(supplierOnlySwitch).toBeChecked();
     expect(screen.queryByText(/WEC-548143/i)).not.toBeInTheDocument();
+  });
+
+  it('allows searching and filtering catalog items by part number or description in Invoice Wizard', async () => {
+    vi.mocked(invoiceService.listActiveShipments).mockResolvedValue([
+      {
+        id: 'SHP-001',
+        supplierId: 'SUP-001',
+        supplierName: 'INZI Controls Co Limited',
+        invoiceNumber: 'ICK-ICI261027NON',
+        invoiceDate: '2026-11-01',
+        goodsCategory: 'Electronics',
+        invoiceValue: 29008.80,
+        invoiceCurrency: 'USD',
+        incoterm: 'CIF',
+        shipmentMode: 'Sea',
+        shipmentType: 'FCL',
+        blAwbNumber: '',
+        blAwbDate: '',
+        vesselName: '',
+        containerNumber: '',
+        grossWeightKg: 100,
+        etd: '',
+        eta: '',
+        status: 'in-transit',
+        dateOfDelivery: '',
+        isFrozen: false,
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(itemService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'ITM-1',
+          partNumber: '10101462',
+          itemDescription: 'DUAL S/S(3PIN)_39220-38030',
+          unit: 'PCS',
+          currency: 'USD',
+          unitPrice: 1.337,
+          hsnCode: '84849000',
+          supplierId: 'SUP-001',
+          supplierName: 'INZI Controls Co Limited',
+          isActive: true,
+          countryOfOrigin: 'Korea',
+          bcd: '7.5',
+          sws: '10',
+          igst: '18',
+          technicalWriteUp: '',
+          category: '',
+          endUse: '',
+          netWeightKg: 0.1,
+          purchaseUom: 'PCS',
+          grossWeightPerUomKg: 0.1,
+          photoPath: '',
+        },
+        {
+          id: 'ITM-2',
+          partNumber: '40189050',
+          itemDescription: 'HOSE ASSY INTAKE',
+          unit: 'PCS',
+          currency: 'USD',
+          unitPrice: 9.0,
+          hsnCode: '40093100',
+          supplierId: 'SUP-001',
+          supplierName: 'INZI Controls Co Limited',
+          isActive: true,
+          countryOfOrigin: 'Korea',
+          bcd: '10',
+          sws: '10',
+          igst: '18',
+          technicalWriteUp: '',
+          category: '',
+          endUse: '',
+          netWeightKg: 0.5,
+          purchaseUom: 'PCS',
+          grossWeightPerUomKg: 0.5,
+          photoPath: '',
+        },
+        {
+          id: 'ITM-3',
+          partNumber: '50490871',
+          itemDescription: 'Gasket : TMM Housing(kappa MV)',
+          unit: 'PCS',
+          currency: 'USD',
+          unitPrice: 0.46,
+          hsnCode: '84841090',
+          supplierId: 'SUP-001',
+          supplierName: 'INZI Controls Co Limited',
+          isActive: true,
+          countryOfOrigin: 'Korea',
+          bcd: '10',
+          sws: '10',
+          igst: '18',
+          technicalWriteUp: '',
+          category: '',
+          endUse: '',
+          netWeightKg: 0.05,
+          purchaseUom: 'PCS',
+          grossWeightPerUomKg: 0.05,
+          photoPath: '',
+        },
+      ],
+      totalCount: 3,
+      page: 1,
+      pageSize: 500,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <InvoiceWizardPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Continue to Line Items/i })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue to Line Items/i }));
+
+    // Open combobox
+    const comboboxTrigger = screen.getByRole('combobox', { name: /Add Catalog Item/i });
+    expect(comboboxTrigger).toBeInTheDocument();
+    fireEvent.click(comboboxTrigger);
+
+    // Search input should appear
+    const searchInput = screen.getByPlaceholderText(/Type part number, description, or HSN to search/i);
+    expect(searchInput).toBeInTheDocument();
+
+    // Type "HOSE" to search
+    fireEvent.change(searchInput, { target: { value: 'HOSE' } });
+
+    // 40189050 should be visible in the dropdown listbox, others filtered out
+    const listbox = screen.getByRole('listbox');
+    expect(within(listbox).getByText('40189050')).toBeInTheDocument();
+    expect(within(listbox).queryByText('10101462')).not.toBeInTheDocument();
+    expect(within(listbox).queryByText('50490871')).not.toBeInTheDocument();
+
+    // Select the filtered item
+    fireEvent.click(within(listbox).getByText('40189050'));
+
+    // Selected item is now 40189050 in trigger
+    expect(screen.getByText(/40189050/)).toBeInTheDocument();
+
+    // Click Add Line and verify it was added to table
+    fireEvent.click(screen.getByRole('button', { name: /Add Line/i }));
+    expect(screen.getAllByText('40189050').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('HOSE ASSY INTAKE').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('supports direct quick add and clearing search in catalog item combobox', async () => {
+    vi.mocked(invoiceService.listActiveShipments).mockResolvedValue([
+      {
+        id: 'SHP-001',
+        supplierId: 'SUP-001',
+        supplierName: 'INZI Controls Co Limited',
+        invoiceNumber: 'ICK-ICI261027NON',
+        invoiceDate: '2026-11-01',
+        goodsCategory: 'Electronics',
+        invoiceValue: 29008.80,
+        invoiceCurrency: 'USD',
+        incoterm: 'CIF',
+        shipmentMode: 'Sea',
+        shipmentType: 'FCL',
+        blAwbNumber: '',
+        blAwbDate: '',
+        vesselName: '',
+        containerNumber: '',
+        grossWeightKg: 100,
+        etd: '',
+        eta: '',
+        status: 'in-transit',
+        dateOfDelivery: '',
+        isFrozen: false,
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(itemService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'ITM-1',
+          partNumber: '10101462',
+          itemDescription: 'DUAL S/S(3PIN)_39220-38030',
+          unit: 'PCS',
+          currency: 'USD',
+          unitPrice: 1.337,
+          hsnCode: '84849000',
+          supplierId: 'SUP-001',
+          supplierName: 'INZI Controls Co Limited',
+          isActive: true,
+          countryOfOrigin: 'Korea',
+          bcd: '7.5',
+          sws: '10',
+          igst: '18',
+          technicalWriteUp: '',
+          category: '',
+          endUse: '',
+          netWeightKg: 0.1,
+          purchaseUom: 'PCS',
+          grossWeightPerUomKg: 0.1,
+          photoPath: '',
+        },
+        {
+          id: 'ITM-2',
+          partNumber: '50490871',
+          itemDescription: 'Gasket : TMM Housing(kappa MV)',
+          unit: 'PCS',
+          currency: 'USD',
+          unitPrice: 0.46,
+          hsnCode: '84841090',
+          supplierId: 'SUP-001',
+          supplierName: 'INZI Controls Co Limited',
+          isActive: true,
+          countryOfOrigin: 'Korea',
+          bcd: '10',
+          sws: '10',
+          igst: '18',
+          technicalWriteUp: '',
+          category: '',
+          endUse: '',
+          netWeightKg: 0.05,
+          purchaseUom: 'PCS',
+          grossWeightPerUomKg: 0.05,
+          photoPath: '',
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 500,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <InvoiceWizardPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Continue to Line Items/i })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue to Line Items/i }));
+
+    // Open combobox
+    fireEvent.click(screen.getByRole('combobox', { name: /Add Catalog Item/i }));
+
+    const searchInput = screen.getByPlaceholderText(/Type part number, description, or HSN to search/i);
+    fireEvent.change(searchInput, { target: { value: 'Gasket' } });
+
+    // Click direct Add button on Gasket item
+    const quickAddBtn = screen.getByRole('button', { name: /Add 50490871 directly to lines/i });
+    fireEvent.click(quickAddBtn);
+
+    // Verify Gasket line was added directly to the table
+    expect(screen.getAllByText('50490871').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Gasket : TMM Housing(kappa MV)').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders InvoicesPage with Edit Draft and Quick Finalize actions', async () => {
