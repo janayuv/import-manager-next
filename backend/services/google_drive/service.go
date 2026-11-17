@@ -699,6 +699,43 @@ func (s *Service) DownloadBackup(fileIDOrLocator, targetFilename string) (string
 	return outPath, nil
 }
 
+// DeleteBackup deletes a cloud backup file from Google Drive (accepts raw fileId or "gdrive:<fileId>").
+func (s *Service) DeleteBackup(fileIDOrLocator string) error {
+	ctx := context.Background()
+	sess, err := s.security.RequirePermission(security.PermBackupCreate)
+	if err != nil {
+		return err
+	}
+	fileID := strings.TrimPrefix(strings.TrimSpace(fileIDOrLocator), "gdrive:")
+	if fileID == "" {
+		return gdriveErr("file id or gdrive:<id> locator is required", nil)
+	}
+	tok, err := s.ensureValidAccessToken(ctx)
+	if err != nil {
+		return err
+	}
+
+	delURL := fmt.Sprintf("%s/drive/v3/files/%s", s.APIBaseURL, url.PathEscape(fileID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, delURL, nil)
+	if err != nil {
+		return gdriveErr("build delete request", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+tok.AccessToken)
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return gdriveErr("delete remote backup failed", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return formatDriveAPIError("delete backup", resp.StatusCode, body)
+	}
+
+	_ = s.audit.RecordTableAudit("google_drive", fileID, "DELETE", sess.UserID, nil, nil, nil)
+	return nil
+}
+
 func (s *Service) loadClientConfig() (oauthClientConfig, error) {
 	if s.secrets == nil {
 		return oauthClientConfig{}, gdriveErr("credential store unavailable", nil)

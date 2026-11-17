@@ -334,6 +334,23 @@ func (s *Service) DeleteBackupRecord(id int64, deleteFile bool) error {
 	return nil
 }
 
+// DeleteBackupFile deletes a local backup file (and sidecar) from disk and removes its record from backups.
+func (s *Service) DeleteBackupFile(filePath string) error {
+	sess, err := s.security.RequirePermission(security.PermBackupCreate)
+	if err != nil {
+		return err
+	}
+	cleanPath := filepath.Clean(strings.TrimSpace(filePath))
+	if cleanPath == "" || cleanPath == "." {
+		return errors.New("backup file path is required")
+	}
+	_ = os.Remove(cleanPath)
+	_ = os.Remove(cleanPath + ".sha256")
+	_, _ = s.db.Exec(`DELETE FROM backups WHERE path = ?`, cleanPath)
+	_ = s.audit.RecordTableAudit("backups", cleanPath, "DELETE", sess.UserID, map[string]string{"path": cleanPath}, nil, nil)
+	return nil
+}
+
 // RestoreBackup validates .sha256 sidecar, decrypts IMBK2 or legacy IMBK1, checks integrity & FKs,
 // and performs atomic table replacement under a global restore_control lock (or dry-run simulation).
 func (s *Service) RestoreBackup(req models.RestoreBackupRequest) (models.RestoreVerificationSummary, error) {

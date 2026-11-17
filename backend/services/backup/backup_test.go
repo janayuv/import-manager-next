@@ -210,6 +210,34 @@ func TestBackupIMBK2IMKeyRestoreSafetyAndSchedules(t *testing.T) {
 	if err := rt.Backup.DeleteBackupSchedule(sched.ID); err != nil {
 		t.Fatalf("DeleteBackupSchedule failed: %v", err)
 	}
+
+	// 9. DeleteBackupRecord and DeleteBackupFile
+	bks, err := rt.Backup.ListBackups()
+	if err != nil || len(bks) == 0 {
+		t.Fatalf("ListBackups expected at least 1 backup, got len=%d err=%v", len(bks), err)
+	}
+	targetBk := bks[0]
+	if _, err := os.Stat(targetBk.Path); err != nil {
+		t.Fatalf("expected backup file to exist before delete: %v", err)
+	}
+	if err := rt.Backup.DeleteBackupRecord(targetBk.ID, true); err != nil {
+		t.Fatalf("DeleteBackupRecord failed: %v", err)
+	}
+	if _, err := os.Stat(targetBk.Path); !os.IsNotExist(err) {
+		t.Fatalf("expected backup file to be removed from disk, got err=%v", err)
+	}
+	if _, err := os.Stat(targetBk.Path + ".sha256"); !os.IsNotExist(err) {
+		t.Fatalf("expected sidecar file to be removed from disk, got err=%v", err)
+	}
+	bksAfter, err := rt.Backup.ListBackups()
+	if err != nil {
+		t.Fatalf("ListBackups after delete failed: %v", err)
+	}
+	for _, b := range bksAfter {
+		if b.ID == targetBk.ID {
+			t.Fatalf("expected backup record %d to be deleted from table", targetBk.ID)
+		}
+	}
 }
 
 func TestBackupRestoreCrossMachinePortable(t *testing.T) {

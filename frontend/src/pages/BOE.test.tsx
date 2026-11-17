@@ -686,4 +686,331 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
     fireEvent.click(screen.getByText('+ Manage Rates'));
     await waitFor(() => expect(screen.getByText('Manage Insurance Rates')).toBeInTheDocument());
   });
+
+  it('filters Line-by-Line Duty Breakdown items by part number or description and preserves correct line updates', async () => {
+    vi.mocked(boeSummaryService.list).mockResolvedValue([]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'sh-multi',
+          supplierId: 'sup-multi',
+          supplierName: 'Global Electronics Ltd',
+          invoiceNumber: 'INV-GE-888',
+          invoiceDate: '2026-05-15',
+          goodsCategory: 'Electronics',
+          invoiceValue: 5000,
+          invoiceCurrency: 'USD',
+          incoterm: 'FOB',
+          shipmentMode: 'Air',
+          shipmentType: 'Dutiable',
+          blAwbNumber: 'AWB-12345',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 50,
+          etd: '',
+          eta: '',
+          status: 'in-transit',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '',
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+    vi.mocked(boeService.list).mockResolvedValue([]);
+
+    const mockParams: BOECalcParams = {
+      shipmentId: 'sh-multi',
+      boeId: '',
+      supplierName: 'Global Electronics Ltd',
+      invoiceNumber: 'INV-GE-888',
+      invoiceCurrency: 'USD',
+      incoterm: 'FOB',
+      status: 'Awaiting BOE Data',
+      exchangeRate: 85,
+      freightCost: 15000,
+      exwCost: 0,
+      originInlandFreight: 0,
+      exportHandling: 0,
+      insuranceMode: 'open_cover',
+      insuranceRate: 0.015,
+      rodtepScripBalance: 0,
+      interest: 0,
+      lineItems: [
+        {
+          itemId: 'item-01',
+          partNumber: 'RM-101',
+          description: 'Raw Polymer Resin',
+          hsnCode: '39011000',
+          unit: 'KG',
+          quantity: 500,
+          unitPrice: 2,
+          actualBcdRate: 10,
+          actualSwsRate: 10,
+          actualIgstRate: 18,
+          calculationMethod: 'Standard',
+          boeBcdRate: 10,
+          boeSwsRate: 10,
+          boeIgstRate: 18,
+        },
+        {
+          itemId: 'item-02',
+          partNumber: 'ELEC-500',
+          description: 'Integrated Microcontroller IC',
+          hsnCode: '85423100',
+          unit: 'PCS',
+          quantity: 200,
+          unitPrice: 15,
+          actualBcdRate: 7.5,
+          actualSwsRate: 10,
+          actualIgstRate: 18,
+          calculationMethod: 'Standard',
+          boeBcdRate: 7.5,
+          boeSwsRate: 10,
+          boeIgstRate: 18,
+        },
+        {
+          itemId: 'item-03',
+          partNumber: 'MECH-700',
+          description: 'Stainless Steel Bracket',
+          hsnCode: '73269099',
+          unit: 'SET',
+          quantity: 100,
+          unitPrice: 10,
+          actualBcdRate: 15,
+          actualSwsRate: 10,
+          actualIgstRate: 18,
+          calculationMethod: 'Standard',
+          boeBcdRate: 15,
+          boeSwsRate: 10,
+          boeIgstRate: 18,
+        },
+      ],
+    } as unknown as BOECalcParams;
+
+    const mockResult: BOECalculationResult = {
+      items: [
+        {
+          itemId: 'item-01',
+          partNumber: 'RM-101',
+          description: 'Raw Polymer Resin',
+          hsnCode: '39011000',
+          unit: 'KG',
+          quantity: 500,
+          unitPrice: 2,
+          itemForexValue: 1000,
+          itemValueInr: 85000,
+          itemFreight: 3000,
+          itemExw: 0,
+          itemInsurance: 13.2,
+          itemOriginCharges: 0,
+          assessableValue: 88013.2,
+          calculationMethod: 'Standard',
+          actualBcdRate: 10,
+          actualSwsRate: 10,
+          actualIgstRate: 18,
+          boeBcdRate: 10,
+          boeSwsRate: 10,
+          boeIgstRate: 18,
+          grossBcd: 8801.3,
+          rodtepUtilized: 0,
+          bcdCashPayable: 8801.3,
+          bcdValue: 8801.3,
+          swsValue: 880.1,
+          igstValue: 17585.1,
+          totalLineDuty: 27266.5,
+          totalLineCashDuty: 27266.5,
+          bcdDiscrepancy: false,
+        } as unknown as BOECalcLineResult,
+        {
+          itemId: 'item-02',
+          partNumber: 'ELEC-500',
+          description: 'Integrated Microcontroller IC',
+          hsnCode: '85423100',
+          unit: 'PCS',
+          quantity: 200,
+          unitPrice: 15,
+          itemForexValue: 3000,
+          itemValueInr: 255000,
+          itemFreight: 9000,
+          itemExw: 0,
+          itemInsurance: 39.6,
+          itemOriginCharges: 0,
+          assessableValue: 264039.6,
+          calculationMethod: 'Standard',
+          actualBcdRate: 7.5,
+          actualSwsRate: 10,
+          actualIgstRate: 18,
+          boeBcdRate: 7.5,
+          boeSwsRate: 10,
+          boeIgstRate: 18,
+          grossBcd: 19803.0,
+          rodtepUtilized: 0,
+          bcdCashPayable: 19803.0,
+          bcdValue: 19803.0,
+          swsValue: 1980.3,
+          igstValue: 51448.1,
+          totalLineDuty: 73231.4,
+          totalLineCashDuty: 73231.4,
+          bcdDiscrepancy: false,
+        } as unknown as BOECalcLineResult,
+        {
+          itemId: 'item-03',
+          partNumber: 'MECH-700',
+          description: 'Stainless Steel Bracket',
+          hsnCode: '73269099',
+          unit: 'SET',
+          quantity: 100,
+          unitPrice: 10,
+          itemForexValue: 1000,
+          itemValueInr: 85000,
+          itemFreight: 3000,
+          itemExw: 0,
+          itemInsurance: 13.2,
+          itemOriginCharges: 0,
+          assessableValue: 88013.2,
+          calculationMethod: 'Standard',
+          actualBcdRate: 15,
+          actualSwsRate: 10,
+          actualIgstRate: 18,
+          boeBcdRate: 15,
+          boeSwsRate: 10,
+          boeIgstRate: 18,
+          grossBcd: 13202.0,
+          rodtepUtilized: 0,
+          bcdCashPayable: 13202.0,
+          bcdValue: 13202.0,
+          swsValue: 1320.2,
+          igstValue: 18456.2,
+          totalLineDuty: 32978.4,
+          totalLineCashDuty: 32978.4,
+          bcdDiscrepancy: false,
+        } as unknown as BOECalcLineResult,
+      ],
+      totalInvoiceValue: 5000,
+      totalValueInr: 425000,
+      totalFreight: 15000,
+      totalExw: 0,
+      totalInsurance: 66,
+      totalOriginCharges: 0,
+      totalAssessableValue: 440066,
+      grossBcdTotal: 41806,
+      rodtepScripUtilized: 0,
+      bcdCashTotal: 41806,
+      bcdTotal: 41806,
+      swsTotal: 4181,
+      igstTotal: 87490,
+      interest: 0,
+      customsDutyTotal: 133477,
+      cashCustomsDutyTotal: 133477,
+      hasBlockingBcdOverride: false,
+      cifZeroLocked: false,
+      incotermRule: {
+        code: 'FOB',
+        name: 'Free on Board',
+        freightIncluded: false,
+        insuranceIncluded: false,
+        originChargesExpected: false,
+        description: 'International freight and statutory insurance must be added.',
+      },
+      payloadBytes: 1024,
+      payloadWarning: false,
+    } as unknown as BOECalculationResult;
+
+    vi.mocked(boeEntryService.loadShipmentContext).mockResolvedValue({
+      shipment: {
+        id: 'sh-multi',
+        supplierId: 'sup-multi',
+        supplierName: 'Global Electronics Ltd',
+        invoiceNumber: 'INV-GE-888',
+        invoiceDate: '2026-05-15',
+        goodsCategory: 'Electronics',
+        invoiceValue: 5000,
+        invoiceCurrency: 'USD',
+        incoterm: 'FOB',
+        shipmentMode: 'Air',
+        shipmentType: 'Dutiable',
+        blAwbNumber: 'AWB-12345',
+        blAwbDate: '',
+        vesselName: '',
+        containerNumber: '',
+        grossWeightKg: 50,
+        etd: '',
+        eta: '',
+        status: 'in-transit',
+        dateOfDelivery: '',
+        isFrozen: false,
+        createdAt: '',
+      },
+      params: mockParams,
+      result: mockResult,
+      hasSaved: false,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <BOEEntryPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    // Initial check: all 3 items visible
+    await waitFor(() => expect(screen.getByText('Line-by-Line Duty Breakdown (3)')).toBeInTheDocument());
+    expect(screen.getByText('RM-101')).toBeInTheDocument();
+    expect(screen.getByText('ELEC-500')).toBeInTheDocument();
+    expect(screen.getByText('MECH-700')).toBeInTheDocument();
+
+    const searchInput = screen.getByPlaceholderText('Search part no or description...');
+    expect(searchInput).toBeInTheDocument();
+
+    // 1. Search by part number: 'elec'
+    fireEvent.change(searchInput, { target: { value: 'elec' } });
+    expect(screen.getByText('1 matching')).toBeInTheDocument();
+    expect(screen.getByText('ELEC-500')).toBeInTheDocument();
+    expect(screen.getByText('Integrated Microcontroller IC')).toBeInTheDocument();
+    expect(screen.queryByText('RM-101')).not.toBeInTheDocument();
+    expect(screen.queryByText('MECH-700')).not.toBeInTheDocument();
+
+    // 2. Edit BCD rate on the filtered item (ELEC-500, which was at original index 1)
+    const bcdInput = screen.getByDisplayValue('7.5');
+    fireEvent.change(bcdInput, { target: { value: '12.5' } });
+    expect(boeEntryService.previewCalculation).toHaveBeenCalled();
+    const calledParams = vi.mocked(boeEntryService.previewCalculation).mock.calls.at(-1)?.[0];
+    expect(calledParams?.lineItems?.[1]?.boeBcdRate).toBe(12.5);
+    expect(calledParams?.lineItems?.[0]?.boeBcdRate).toBe(10); // Untouched
+    expect(calledParams?.lineItems?.[2]?.boeBcdRate).toBe(15); // Untouched
+
+    // 3. Search by description: 'Polymer'
+    fireEvent.change(searchInput, { target: { value: 'Polymer' } });
+    expect(screen.getByText('1 matching')).toBeInTheDocument();
+    expect(screen.getByText('RM-101')).toBeInTheDocument();
+    expect(screen.getByText('Raw Polymer Resin')).toBeInTheDocument();
+    expect(screen.queryByText('ELEC-500')).not.toBeInTheDocument();
+    expect(screen.queryByText('MECH-700')).not.toBeInTheDocument();
+
+    // 4. Search with no matches
+    fireEvent.change(searchInput, { target: { value: 'NonExistentItem99' } });
+    expect(screen.getByText(/No line items matching “NonExistentItem99”/i)).toBeInTheDocument();
+    expect(screen.queryByText('RM-101')).not.toBeInTheDocument();
+    expect(screen.queryByText('ELEC-500')).not.toBeInTheDocument();
+
+    // 5. Clear search using clear button in empty state
+    fireEvent.click(screen.getByRole('button', { name: /clear filter/i }));
+    expect(searchInput).toHaveValue('');
+    expect(screen.getByText('RM-101')).toBeInTheDocument();
+    expect(screen.getByText('ELEC-500')).toBeInTheDocument();
+    expect(screen.getByText('MECH-700')).toBeInTheDocument();
+
+    // 6. Test the inline clear icon button
+    fireEvent.change(searchInput, { target: { value: 'bracket' } });
+    expect(screen.getByText('MECH-700')).toBeInTheDocument();
+    const clearIconBtn = screen.getByTitle('Clear search');
+    fireEvent.click(clearIconBtn);
+    expect(searchInput).toHaveValue('');
+    expect(screen.getByText('RM-101')).toBeInTheDocument();
+  });
 });

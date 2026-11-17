@@ -24,6 +24,13 @@ export function CompleteOAuthCode(code: string, state: string): $CancellableProm
 }
 
 /**
+ * DeleteBackup deletes a cloud backup file from Google Drive (accepts raw fileId or "gdrive:<fileId>").
+ */
+export function DeleteBackup(fileIDOrLocator: string): $CancellablePromise<void> {
+    return $Call.ByID(1471402457, fileIDOrLocator);
+}
+
+/**
  * Disconnect removes stored OAuth tokens from Credential Manager.
  */
 export function Disconnect(): $CancellablePromise<void> {

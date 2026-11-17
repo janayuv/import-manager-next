@@ -15,11 +15,27 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as models$0 from "../../models/models.js";
 
 /**
+ * Delete soft-deletes a saved BOE calculation record and moves it to Recycle Bin.
+ */
+export function Delete(calcID: string): $CancellablePromise<void> {
+    return $Call.ByID(742688794, calcID);
+}
+
+/**
+ * GetByID returns the complete calculation dossier, linked BOE record, attachments, and reconciliation metrics.
+ */
+export function GetByID(calcID: string): $CancellablePromise<models$0.BOECalculationDetail> {
+    return $Call.ByID(291202655, calcID).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * List returns saved BOE calculation rows joined with linked boe_details.
  */
 export function List(search: string, status: string): $CancellablePromise<models$0.BOECalculationSummary[]> {
     return $Call.ByID(2121378801, search, status).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -30,23 +46,7 @@ export function UpdateStatus(calcID: string, newStatus: string): $CancellablePro
     return $Call.ByID(722886702, calcID, newStatus);
 }
 
-/**
- * GetByID returns the complete calculation dossier, linked BOE record, attachments, and reconciliation metrics.
- */
-export function GetByID(calcID: string): $CancellablePromise<models$0.BOECalculationDetail> {
-    return $Call.ByID(291202655, calcID).then(($result: any) => {
-        return $$createType2($result);
-    });
-}
-
-/**
- * Delete soft-deletes a saved BOE calculation record and moves it to Recycle Bin.
- */
-export function Delete(calcID: string): $CancellablePromise<void> {
-    return $Call.ByID(742688794, calcID);
-}
-
 // Private type creation functions
-const $$createType0 = models$0.BOECalculationSummary.createFrom;
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = models$0.BOECalculationDetail.createFrom;
+const $$createType0 = models$0.BOECalculationDetail.createFrom;
+const $$createType1 = models$0.BOECalculationSummary.createFrom;
+const $$createType2 = $Create.Array($$createType1);

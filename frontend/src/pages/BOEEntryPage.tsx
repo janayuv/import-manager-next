@@ -8,9 +8,11 @@ import {
   FileSpreadsheet,
   Info,
   Save,
+  Search,
   ShieldCheck,
   Sparkles,
   Upload,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -100,6 +102,7 @@ export function BOEEntryPage() {
   const [saving, setSaving] = React.useState(false);
   const [showOriginBreakdown, setShowOriginBreakdown] = React.useState(false);
   const [icegateOpen, setIcegateOpen] = React.useState(false);
+  const [itemSearch, setItemSearch] = React.useState('');
   const [insuranceRateOptions, setInsuranceRateOptions] = React.useState<LookupOption[]>([
     { value: '0.015', label: '0.015% (Open Cover Policy)' },
     { value: '1.125', label: '1.125% (Statutory Deemed Rule 10(2))' },
@@ -242,6 +245,28 @@ export function BOEEntryPage() {
     const cash = Math.round(result.cashCustomsDutyTotal ?? result.customsDutyTotal);
     return paid !== gross && paid !== cash;
   }, [linkedBoe, result]);
+
+  React.useEffect(() => {
+    setItemSearch('');
+  }, [selectedShipmentId, urlCalcId]);
+
+  const lineItemsWithIndex = React.useMemo(() => {
+    return (result?.items ?? []).map((item, originalIndex) => ({
+      item,
+      originalIndex,
+    }));
+  }, [result?.items]);
+
+  const filteredLineItems = React.useMemo(() => {
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return lineItemsWithIndex;
+    return lineItemsWithIndex.filter(
+      ({ item }) =>
+        (item.partNumber && item.partNumber.toLowerCase().includes(q)) ||
+        (item.description && item.description.toLowerCase().includes(q)) ||
+        (item.hsnCode && item.hsnCode.toLowerCase().includes(q)),
+    );
+  }, [lineItemsWithIndex, itemSearch]);
 
   const handleApplyOverride = async () => {
     if (!params || !overrideCsv.trim()) return;
@@ -945,10 +970,43 @@ export function BOEEntryPage() {
           )}
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                Line-by-Line Duty Breakdown ({result.items?.length ?? 0})
-              </CardTitle>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span>Line-by-Line Duty Breakdown ({result.items?.length ?? 0})</span>
+                  {itemSearch.trim() && (
+                    <Badge variant="secondary" className="font-normal text-xs">
+                      {filteredLineItems.length} matching
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Customs tariff assessable valuation, BCD/SWS overrides, and item duty calculations.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-8 pr-8 h-9 text-xs"
+                    placeholder="Search part no or description..."
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                    aria-label="Search line items by part no or description"
+                  />
+                  {itemSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setItemSearch('')}
+                      className="absolute top-2.5 right-2.5 text-muted-foreground hover:text-foreground focus:outline-none"
+                      title="Clear search"
+                      aria-label="Clear search"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -966,81 +1024,103 @@ export function BOEEntryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(result.items ?? []).map((ln, idx) => (
-                    <TableRow key={ln.itemId + idx}>
-                      <TableCell>
-                        <div className="font-mono text-xs font-semibold">{ln.partNumber}</div>
-                        <div className="text-xs text-muted-foreground">{ln.description}</div>
-                      </TableCell>
-                      <TableCell className="w-36">
-                        <Select
-                          value={ln.calculationMethod}
-                          onValueChange={(method) => {
-                            const updated = (params.lineItems ?? []).map((it, i) =>
-                              i === idx ? { ...it, calculationMethod: method } : it,
-                            );
-                            void recompute({ ...params, lineItems: updated });
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Standard">Standard</SelectItem>
-                            <SelectItem value="CEPA">CEPA</SelectItem>
-                            <SelectItem value="Rodtep">Rodtep</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{ln.itemForexValue.toFixed(2)}</TableCell>
-                      <TableCell className="font-mono text-xs">{ln.assessableValue.toFixed(1)}</TableCell>
-                      <TableCell className="w-28">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={params.lineItems?.[idx]?.boeBcdRate ?? ln.boeBcdRate}
-                          onChange={(e) => {
-                            const rate = Number.parseFloat(e.target.value) || 0;
-                            const updated = (params.lineItems ?? []).map((it, i) =>
-                              i === idx ? { ...it, boeBcdRate: rate } : it,
-                            );
-                            void recompute({ ...params, lineItems: updated });
-                          }}
-                        />
-                        {ln.bcdDiscrepancy && (
-                          <Badge variant="destructive" className="mt-1">
-                            Actual {ln.actualBcdRate}%
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="w-24">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={params.lineItems?.[idx]?.boeSwsRate ?? ln.boeSwsRate}
-                          onChange={(e) => {
-                            const rate = Number.parseFloat(e.target.value) || 0;
-                            const updated = (params.lineItems ?? []).map((it, i) =>
-                              i === idx ? { ...it, boeSwsRate: rate } : it,
-                            );
-                            void recompute({ ...params, lineItems: updated });
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{ln.boeIgstRate}%</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {ln.bcdValue.toFixed(1)} / {ln.swsValue.toFixed(1)} / {ln.igstValue.toFixed(1)}
-                        {(ln.rodtepUtilized ?? 0) > 0 && (
-                          <div className="text-[10px] text-emerald-400">
-                            Scrip: -{ln.rodtepUtilized.toFixed(1)}
+                  {filteredLineItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="h-28 text-center text-muted-foreground">
+                        {itemSearch.trim() ? (
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <p>No line items matching &ldquo;{itemSearch.trim()}&rdquo;</p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs h-7 text-primary"
+                              onClick={() => setItemSearch('')}
+                            >
+                              Clear filter
+                            </Button>
                           </div>
+                        ) : (
+                          'No line items found.'
                         )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs font-semibold">
-                        {ln.totalLineDuty.toFixed(1)}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    filteredLineItems.map(({ item: ln, originalIndex }) => (
+                      <TableRow key={ln.itemId || `${ln.partNumber}-${originalIndex}`}>
+                        <TableCell>
+                          <div className="font-mono text-xs font-semibold">{ln.partNumber}</div>
+                          <div className="text-xs text-muted-foreground">{ln.description}</div>
+                        </TableCell>
+                        <TableCell className="w-36">
+                          <Select
+                            value={ln.calculationMethod}
+                            onValueChange={(method) => {
+                              const updated = (params.lineItems ?? []).map((it, i) =>
+                                i === originalIndex ? { ...it, calculationMethod: method } : it,
+                              );
+                              void recompute({ ...params, lineItems: updated });
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Standard">Standard</SelectItem>
+                              <SelectItem value="CEPA">CEPA</SelectItem>
+                              <SelectItem value="Rodtep">Rodtep</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{ln.itemForexValue.toFixed(2)}</TableCell>
+                        <TableCell className="font-mono text-xs">{ln.assessableValue.toFixed(1)}</TableCell>
+                        <TableCell className="w-28">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={params.lineItems?.[originalIndex]?.boeBcdRate ?? ln.boeBcdRate}
+                            onChange={(e) => {
+                              const rate = Number.parseFloat(e.target.value) || 0;
+                              const updated = (params.lineItems ?? []).map((it, i) =>
+                                i === originalIndex ? { ...it, boeBcdRate: rate } : it,
+                              );
+                              void recompute({ ...params, lineItems: updated });
+                            }}
+                          />
+                          {ln.bcdDiscrepancy && (
+                            <Badge variant="destructive" className="mt-1">
+                              Actual {ln.actualBcdRate}%
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-24">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={params.lineItems?.[originalIndex]?.boeSwsRate ?? ln.boeSwsRate}
+                            onChange={(e) => {
+                              const rate = Number.parseFloat(e.target.value) || 0;
+                              const updated = (params.lineItems ?? []).map((it, i) =>
+                                i === originalIndex ? { ...it, boeSwsRate: rate } : it,
+                              );
+                              void recompute({ ...params, lineItems: updated });
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{ln.boeIgstRate}%</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {ln.bcdValue.toFixed(1)} / {ln.swsValue.toFixed(1)} / {ln.igstValue.toFixed(1)}
+                          {(ln.rodtepUtilized ?? 0) > 0 && (
+                            <div className="text-[10px] text-emerald-400">
+                              Scrip: -{ln.rodtepUtilized.toFixed(1)}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs font-semibold">
+                          {ln.totalLineDuty.toFixed(1)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

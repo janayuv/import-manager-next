@@ -40,6 +40,13 @@ export function CreateSafetySnapshot(actor: string, passphrase: string, notes: s
 }
 
 /**
+ * DeleteBackupFile deletes a local backup file (and sidecar) from disk and removes its record from backups.
+ */
+export function DeleteBackupFile(filePath: string): $CancellablePromise<void> {
+    return $Call.ByID(1305426201, filePath);
+}
+
+/**
  * DeleteBackupRecord deletes a backup metadata entry and optionally removes disk artifacts.
  */
 export function DeleteBackupRecord(id: number, deleteFile: boolean): $CancellablePromise<void> {

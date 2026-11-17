@@ -5,7 +5,9 @@ import {
   FileDown,
   FileSpreadsheet,
   Pencil,
+  Search,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -50,6 +53,23 @@ export function ViewReconciledBoeDialog({
 }: ViewReconciledBoeDialogProps) {
   const [loading, setLoading] = React.useState(false);
   const [detail, setDetail] = React.useState<BOECalculationDetail | null>(null);
+  const [itemSearch, setItemSearch] = React.useState('');
+
+  React.useEffect(() => {
+    setItemSearch('');
+  }, [open, calcId]);
+
+  const filteredItems = React.useMemo(() => {
+    const list = detail?.result.items ?? [];
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (item) =>
+        (item.partNumber && item.partNumber.toLowerCase().includes(q)) ||
+        (item.description && item.description.toLowerCase().includes(q)) ||
+        (item.hsnCode && item.hsnCode.toLowerCase().includes(q)),
+    );
+  }, [detail?.result.items, itemSearch]);
 
   React.useEffect(() => {
     if (!open || !calcId) {
@@ -299,10 +319,38 @@ export function ViewReconciledBoeDialog({
 
             {/* Line Items Table */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-sm">
-                  Calculated Line Items ({detail.result.items?.length ?? 0})
-                </h4>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-semibold text-sm">
+                    Calculated Line Items ({detail.result.items?.length ?? 0})
+                  </h4>
+                  {itemSearch.trim() && (
+                    <Badge variant="secondary" className="font-normal text-xs">
+                      {filteredItems.length} matching
+                    </Badge>
+                  )}
+                </div>
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    className="pl-8 pr-7 h-8 text-xs"
+                    placeholder="Search part no, description..."
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                    aria-label="Search line items by part no or description"
+                  />
+                  {itemSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setItemSearch('')}
+                      className="absolute top-2 right-2 text-muted-foreground hover:text-foreground focus:outline-none"
+                      title="Clear search"
+                      aria-label="Clear search"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="rounded-md border overflow-x-auto">
                 <Table>
@@ -322,14 +370,18 @@ export function ViewReconciledBoeDialog({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {detail.result.items?.length === 0 ? (
+                    {filteredItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center text-muted-foreground">
-                          No item records.
+                        <TableCell colSpan={11} className="h-20 text-center text-muted-foreground">
+                          {itemSearch.trim() ? (
+                            <span>No line items matching &ldquo;{itemSearch.trim()}&rdquo;</span>
+                          ) : (
+                            <span>No item records.</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      detail.result.items.map((item, idx) => (
+                      filteredItems.map((item, idx) => (
                         <TableRow key={item.itemId || idx} className="text-xs">
                           <TableCell className="font-medium font-mono">{item.partNumber}</TableCell>
                           <TableCell className="max-w-48 truncate" title={item.description}>

@@ -140,8 +140,22 @@ func TestGoogleDriveOAuthUploadListRetentionAndDownload(t *testing.T) {
 		t.Fatalf("unexpected downloaded bytes: %q", string(dlRaw))
 	}
 
+	// Test DeleteBackup
+	if err := rt.GoogleDrive.DeleteBackup(remote.Locator); err != nil {
+		t.Fatalf("DeleteBackup failed: %v", err)
+	}
+	if len(deletedIDs) != 2 || deletedIDs[1] != "file-new" {
+		t.Fatalf("expected 2 deleted IDs with file-new, got %v", deletedIDs)
+	}
+	if err := rt.GoogleDrive.DeleteBackup(""); err == nil {
+		t.Fatalf("expected error for empty locator")
+	}
+
 	if err := rt.GoogleDrive.Disconnect(); err != nil {
 		t.Fatalf("Disconnect failed: %v", err)
+	}
+	if err := rt.GoogleDrive.DeleteBackup("file-new"); err == nil {
+		t.Fatalf("expected error after disconnect")
 	}
 	if _, err := rt.GoogleDrive.ListBackups(); err == nil || !strings.Contains(err.Error(), "GDRIVE_ERROR:") {
 		t.Fatalf("expected GDRIVE_ERROR after disconnect, got %v", err)

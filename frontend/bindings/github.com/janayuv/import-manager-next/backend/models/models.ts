@@ -538,6 +538,118 @@ export class BOECalculationContext {
 }
 
 /**
+ * BOECalculationDetail provides complete dossier for inspecting, auditing, viewing, and exporting a saved/reconciled BOE.
+ */
+export class BOECalculationDetail {
+    "id": string;
+    "shipmentId": string;
+    "boeId": string;
+    "beNumber": string;
+    "beDate": string;
+    "location": string;
+    "challanNumber": string;
+    "paymentDate": string;
+    "dutyPaid": number;
+    "refId": string;
+    "transactionId": string;
+    "supplierName": string;
+    "invoiceNumber": string;
+    "status": string;
+    "createdAt": string;
+    "params": BOECalcParams;
+    "result": BOECalculationResult;
+    "attachments": BOEAttachment[];
+    "reconciliation": BOEReconciliationDiff;
+
+    /** Creates a new BOECalculationDetail instance. */
+    constructor($$source: Partial<BOECalculationDetail> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("boeId" in $$source)) {
+            this["boeId"] = "";
+        }
+        if (!("beNumber" in $$source)) {
+            this["beNumber"] = "";
+        }
+        if (!("beDate" in $$source)) {
+            this["beDate"] = "";
+        }
+        if (!("location" in $$source)) {
+            this["location"] = "";
+        }
+        if (!("challanNumber" in $$source)) {
+            this["challanNumber"] = "";
+        }
+        if (!("paymentDate" in $$source)) {
+            this["paymentDate"] = "";
+        }
+        if (!("dutyPaid" in $$source)) {
+            this["dutyPaid"] = 0;
+        }
+        if (!("refId" in $$source)) {
+            this["refId"] = "";
+        }
+        if (!("transactionId" in $$source)) {
+            this["transactionId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("params" in $$source)) {
+            this["params"] = (new BOECalcParams());
+        }
+        if (!("result" in $$source)) {
+            this["result"] = (new BOECalculationResult());
+        }
+        if (!("attachments" in $$source)) {
+            this["attachments"] = [];
+        }
+        if (!("reconciliation" in $$source)) {
+            this["reconciliation"] = (new BOEReconciliationDiff());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BOECalculationDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): BOECalculationDetail {
+        const $$createField15_0 = $$createType5;
+        const $$createField16_0 = $$createType6;
+        const $$createField17_0 = $$createType8;
+        const $$createField18_0 = $$createType9;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("params" in $$parsedSource) {
+            $$parsedSource["params"] = $$createField15_0($$parsedSource["params"]);
+        }
+        if ("result" in $$parsedSource) {
+            $$parsedSource["result"] = $$createField16_0($$parsedSource["result"]);
+        }
+        if ("attachments" in $$parsedSource) {
+            $$parsedSource["attachments"] = $$createField17_0($$parsedSource["attachments"]);
+        }
+        if ("reconciliation" in $$parsedSource) {
+            $$parsedSource["reconciliation"] = $$createField18_0($$parsedSource["reconciliation"]);
+        }
+        return new BOECalculationDetail($$parsedSource as Partial<BOECalculationDetail>);
+    }
+}
+
+/**
  * BOECalculationItemInput carries per-item rate inputs and calculation method selection.
  */
 export class BOECalculationItemInput {
@@ -732,8 +844,8 @@ export class BOECalculationResult {
      * Creates a new BOECalculationResult instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalculationResult {
-        const $$createField0_0 = $$createType8;
-        const $$createField19_0 = $$createType9;
+        const $$createField0_0 = $$createType11;
+        const $$createField19_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -810,146 +922,6 @@ export class BOECalculationSummary {
     static createFrom($$source: any = {}): BOECalculationSummary {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new BOECalculationSummary($$parsedSource as Partial<BOECalculationSummary>);
-    }
-}
-
-/**
- * BOEReconciliationDiff captures financial variance between computed duty and customs challan payment.
- */
-export class BOEReconciliationDiff {
-    "computedDuty": number;
-    "cashDuty": number;
-    "dutyPaid": number;
-    "dutyDifference": number;
-    "isReconciled": boolean;
-    "assessableValue": number;
-    "challanAssessableValue": number;
-    "assessableDifference": number;
-
-    constructor($$source: Partial<BOEReconciliationDiff> = {}) {
-        if (!("computedDuty" in $$source)) {
-            this["computedDuty"] = 0;
-        }
-        if (!("cashDuty" in $$source)) {
-            this["cashDuty"] = 0;
-        }
-        if (!("dutyPaid" in $$source)) {
-            this["dutyPaid"] = 0;
-        }
-        if (!("dutyDifference" in $$source)) {
-            this["dutyDifference"] = 0;
-        }
-        if (!("isReconciled" in $$source)) {
-            this["isReconciled"] = false;
-        }
-        if (!("assessableValue" in $$source)) {
-            this["assessableValue"] = 0;
-        }
-        if (!("challanAssessableValue" in $$source)) {
-            this["challanAssessableValue"] = 0;
-        }
-        if (!("assessableDifference" in $$source)) {
-            this["assessableDifference"] = 0;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    static createFrom($$source: any = {}): BOEReconciliationDiff {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new BOEReconciliationDiff($$parsedSource as Partial<BOEReconciliationDiff>);
-    }
-}
-
-/**
- * BOECalculationDetail provides complete dossier for inspecting, auditing, viewing, and exporting a saved/reconciled BOE.
- */
-export class BOECalculationDetail {
-    "id": string;
-    "shipmentId": string;
-    "boeId": string;
-    "beNumber": string;
-    "beDate": string;
-    "location": string;
-    "challanNumber": string;
-    "paymentDate": string;
-    "dutyPaid": number;
-    "refId": string;
-    "transactionId": string;
-    "supplierName": string;
-    "invoiceNumber": string;
-    "status": string;
-    "createdAt": string;
-    "params": BOECalcParams;
-    "result": BOECalculationResult;
-    "attachments": BOEAttachment[];
-    "reconciliation": BOEReconciliationDiff;
-
-    constructor($$source: Partial<BOECalculationDetail> = {}) {
-        if (!("id" in $$source)) {
-            this["id"] = "";
-        }
-        if (!("shipmentId" in $$source)) {
-            this["shipmentId"] = "";
-        }
-        if (!("boeId" in $$source)) {
-            this["boeId"] = "";
-        }
-        if (!("beNumber" in $$source)) {
-            this["beNumber"] = "";
-        }
-        if (!("beDate" in $$source)) {
-            this["beDate"] = "";
-        }
-        if (!("location" in $$source)) {
-            this["location"] = "";
-        }
-        if (!("challanNumber" in $$source)) {
-            this["challanNumber"] = "";
-        }
-        if (!("paymentDate" in $$source)) {
-            this["paymentDate"] = "";
-        }
-        if (!("dutyPaid" in $$source)) {
-            this["dutyPaid"] = 0;
-        }
-        if (!("refId" in $$source)) {
-            this["refId"] = "";
-        }
-        if (!("transactionId" in $$source)) {
-            this["transactionId"] = "";
-        }
-        if (!("supplierName" in $$source)) {
-            this["supplierName"] = "";
-        }
-        if (!("invoiceNumber" in $$source)) {
-            this["invoiceNumber"] = "";
-        }
-        if (!("status" in $$source)) {
-            this["status"] = "";
-        }
-        if (!("createdAt" in $$source)) {
-            this["createdAt"] = "";
-        }
-        if (!("params" in $$source)) {
-            this["params"] = new BOECalcParams();
-        }
-        if (!("result" in $$source)) {
-            this["result"] = new BOECalculationResult();
-        }
-        if (!("attachments" in $$source)) {
-            this["attachments"] = [];
-        }
-        if (!("reconciliation" in $$source)) {
-            this["reconciliation"] = new BOEReconciliationDiff();
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    static createFrom($$source: any = {}): BOECalculationDetail {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new BOECalculationDetail($$parsedSource as Partial<BOECalculationDetail>);
     }
 }
 
@@ -1109,7 +1081,7 @@ export class BOEOverrideImportResult {
      */
     static createFrom($$source: any = {}): BOEOverrideImportResult {
         const $$createField0_0 = $$createType3;
-        const $$createField3_0 = $$createType11;
+        const $$createField3_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -1118,6 +1090,58 @@ export class BOEOverrideImportResult {
             $$parsedSource["warnings"] = $$createField3_0($$parsedSource["warnings"]);
         }
         return new BOEOverrideImportResult($$parsedSource as Partial<BOEOverrideImportResult>);
+    }
+}
+
+/**
+ * BOEReconciliationDiff captures financial variance between computed duty and customs challan payment.
+ */
+export class BOEReconciliationDiff {
+    "computedDuty": number;
+    "cashDuty": number;
+    "dutyPaid": number;
+    "dutyDifference": number;
+    "isReconciled": boolean;
+    "assessableValue": number;
+    "challanAssessableValue": number;
+    "assessableDifference": number;
+
+    /** Creates a new BOEReconciliationDiff instance. */
+    constructor($$source: Partial<BOEReconciliationDiff> = {}) {
+        if (!("computedDuty" in $$source)) {
+            this["computedDuty"] = 0;
+        }
+        if (!("cashDuty" in $$source)) {
+            this["cashDuty"] = 0;
+        }
+        if (!("dutyPaid" in $$source)) {
+            this["dutyPaid"] = 0;
+        }
+        if (!("dutyDifference" in $$source)) {
+            this["dutyDifference"] = 0;
+        }
+        if (!("isReconciled" in $$source)) {
+            this["isReconciled"] = false;
+        }
+        if (!("assessableValue" in $$source)) {
+            this["assessableValue"] = 0;
+        }
+        if (!("challanAssessableValue" in $$source)) {
+            this["challanAssessableValue"] = 0;
+        }
+        if (!("assessableDifference" in $$source)) {
+            this["assessableDifference"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BOEReconciliationDiff instance from a string or object.
+     */
+    static createFrom($$source: any = {}): BOEReconciliationDiff {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new BOEReconciliationDiff($$parsedSource as Partial<BOEReconciliationDiff>);
     }
 }
 
@@ -1395,8 +1419,8 @@ export class BrowseTableResponse {
      * Creates a new BrowseTableResponse instance from a string or object.
      */
     static createFrom($$source: any = {}): BrowseTableResponse {
-        const $$createField3_0 = $$createType12;
-        const $$createField7_0 = $$createType14;
+        const $$createField3_0 = $$createType15;
+        const $$createField7_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("columns" in $$parsedSource) {
             $$parsedSource["columns"] = $$createField3_0($$parsedSource["columns"]);
@@ -1493,7 +1517,7 @@ export class BulkDeleteRequest {
      * Creates a new BulkDeleteRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): BulkDeleteRequest {
-        const $$createField1_0 = $$createType12;
+        const $$createField1_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recordIds" in $$parsedSource) {
             $$parsedSource["recordIds"] = $$createField1_0($$parsedSource["recordIds"]);
@@ -1548,7 +1572,7 @@ export class BulkDeleteResult {
      * Creates a new BulkDeleteResult instance from a string or object.
      */
     static createFrom($$source: any = {}): BulkDeleteResult {
-        const $$createField6_0 = $$createType16;
+        const $$createField6_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("dependencies" in $$parsedSource) {
             $$parsedSource["dependencies"] = $$createField6_0($$parsedSource["dependencies"]);
@@ -1592,8 +1616,8 @@ export class CSVImportResult {
      * Creates a new CSVImportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): CSVImportResult {
-        const $$createField3_0 = $$createType11;
-        const $$createField4_0 = $$createType11;
+        const $$createField3_0 = $$createType14;
+        const $$createField4_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("errors" in $$parsedSource) {
             $$parsedSource["errors"] = $$createField3_0($$parsedSource["errors"]);
@@ -1718,7 +1742,7 @@ export class ContainerMovementAction {
      * Creates a new ContainerMovementAction instance from a string or object.
      */
     static createFrom($$source: any = {}): ContainerMovementAction {
-        const $$createField1_0 = $$createType12;
+        const $$createField1_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("containerIds" in $$parsedSource) {
             $$parsedSource["containerIds"] = $$createField1_0($$parsedSource["containerIds"]);
@@ -2089,13 +2113,13 @@ export class DashboardOverview {
      * Creates a new DashboardOverview instance from a string or object.
      */
     static createFrom($$source: any = {}): DashboardOverview {
-        const $$createField3_0 = $$createType12;
-        const $$createField4_0 = $$createType17;
-        const $$createField5_0 = $$createType19;
-        const $$createField6_0 = $$createType21;
-        const $$createField7_0 = $$createType23;
-        const $$createField8_0 = $$createType25;
-        const $$createField9_0 = $$createType27;
+        const $$createField3_0 = $$createType15;
+        const $$createField4_0 = $$createType20;
+        const $$createField5_0 = $$createType22;
+        const $$createField6_0 = $$createType24;
+        const $$createField7_0 = $$createType26;
+        const $$createField8_0 = $$createType28;
+        const $$createField9_0 = $$createType30;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("availableFys" in $$parsedSource) {
             $$parsedSource["availableFys"] = $$createField3_0($$parsedSource["availableFys"]);
@@ -2253,8 +2277,8 @@ export class DatabaseOverviewStats {
      * Creates a new DatabaseOverviewStats instance from a string or object.
      */
     static createFrom($$source: any = {}): DatabaseOverviewStats {
-        const $$createField10_0 = $$createType28;
-        const $$createField11_0 = $$createType28;
+        const $$createField10_0 = $$createType31;
+        const $$createField11_0 = $$createType31;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tableCounts" in $$parsedSource) {
             $$parsedSource["tableCounts"] = $$createField10_0($$parsedSource["tableCounts"]);
@@ -2333,7 +2357,7 @@ export class DiagnosticsExportResult {
      * Creates a new DiagnosticsExportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): DiagnosticsExportResult {
-        const $$createField3_0 = $$createType12;
+        const $$createField3_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("includedSections" in $$parsedSource) {
             $$parsedSource["includedSections"] = $$createField3_0($$parsedSource["includedSections"]);
@@ -2694,7 +2718,7 @@ export class ExpenseInvoice {
      * Creates a new ExpenseInvoice instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoice {
-        const $$createField21_0 = $$createType30;
+        const $$createField21_0 = $$createType33;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField21_0($$parsedSource["lines"]);
@@ -2766,7 +2790,7 @@ export class ExpenseInvoiceCalculation {
      * Creates a new ExpenseInvoiceCalculation instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoiceCalculation {
-        const $$createField0_0 = $$createType32;
+        const $$createField0_0 = $$createType35;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField0_0($$parsedSource["lines"]);
@@ -2835,7 +2859,7 @@ export class ExpenseInvoiceRequest {
      * Creates a new ExpenseInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoiceRequest {
-        const $$createField11_0 = $$createType34;
+        const $$createField11_0 = $$createType37;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField11_0($$parsedSource["lines"]);
@@ -3358,8 +3382,8 @@ export class ExpenseReportResult {
      * Creates a new ExpenseReportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseReportResult {
-        const $$createField1_0 = $$createType36;
-        const $$createField2_0 = $$createType38;
+        const $$createField1_0 = $$createType39;
+        const $$createField2_0 = $$createType41;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("detailedRows" in $$parsedSource) {
             $$parsedSource["detailedRows"] = $$createField1_0($$parsedSource["detailedRows"]);
@@ -3777,8 +3801,8 @@ export class InvoiceDetail {
      * Creates a new InvoiceDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): InvoiceDetail {
-        const $$createField0_0 = $$createType39;
-        const $$createField1_0 = $$createType41;
+        const $$createField0_0 = $$createType42;
+        const $$createField1_0 = $$createType44;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("invoice" in $$parsedSource) {
             $$parsedSource["invoice"] = $$createField0_0($$parsedSource["invoice"]);
@@ -4220,7 +4244,7 @@ export class ItemPage {
      * Creates a new ItemPage instance from a string or object.
      */
     static createFrom($$source: any = {}): ItemPage {
-        const $$createField0_0 = $$createType43;
+        const $$createField0_0 = $$createType46;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -4401,8 +4425,8 @@ export class LandedCostReport {
      * Creates a new LandedCostReport instance from a string or object.
      */
     static createFrom($$source: any = {}): LandedCostReport {
-        const $$createField0_0 = $$createType45;
-        const $$createField1_0 = $$createType46;
+        const $$createField0_0 = $$createType48;
+        const $$createField1_0 = $$createType49;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rows" in $$parsedSource) {
             $$parsedSource["rows"] = $$createField0_0($$parsedSource["rows"]);
@@ -4663,9 +4687,9 @@ export class LegacyInspectResult {
      * Creates a new LegacyInspectResult instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyInspectResult {
-        const $$createField6_0 = $$createType48;
-        const $$createField7_0 = $$createType49;
-        const $$createField8_0 = $$createType12;
+        const $$createField6_0 = $$createType51;
+        const $$createField7_0 = $$createType52;
+        const $$createField8_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tables" in $$parsedSource) {
             $$parsedSource["tables"] = $$createField6_0($$parsedSource["tables"]);
@@ -4741,10 +4765,10 @@ export class LegacyMigrationReport {
      * Creates a new LegacyMigrationReport instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyMigrationReport {
-        const $$createField6_0 = $$createType28;
-        const $$createField8_0 = $$createType49;
-        const $$createField9_0 = $$createType49;
-        const $$createField11_0 = $$createType12;
+        const $$createField6_0 = $$createType31;
+        const $$createField8_0 = $$createType52;
+        const $$createField9_0 = $$createType52;
+        const $$createField11_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rowsCopiedByTable" in $$parsedSource) {
             $$parsedSource["rowsCopiedByTable"] = $$createField6_0($$parsedSource["rowsCopiedByTable"]);
@@ -4827,8 +4851,8 @@ export class LegacyTableInspect {
      * Creates a new LegacyTableInspect instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyTableInspect {
-        const $$createField4_0 = $$createType12;
-        const $$createField5_0 = $$createType12;
+        const $$createField4_0 = $$createType15;
+        const $$createField5_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("matchedCols" in $$parsedSource) {
             $$parsedSource["matchedCols"] = $$createField4_0($$parsedSource["matchedCols"]);
@@ -4891,7 +4915,7 @@ export class MissingParentGroup {
      * Creates a new MissingParentGroup instance from a string or object.
      */
     static createFrom($$source: any = {}): MissingParentGroup {
-        const $$createField1_0 = $$createType12;
+        const $$createField1_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("parentIds" in $$parsedSource) {
             $$parsedSource["parentIds"] = $$createField1_0($$parsedSource["parentIds"]);
@@ -4935,8 +4959,8 @@ export class ModuleDisplaySettings {
      * Creates a new ModuleDisplaySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): ModuleDisplaySettings {
-        const $$createField0_0 = $$createType12;
-        const $$createField4_0 = $$createType50;
+        const $$createField0_0 = $$createType15;
+        const $$createField4_0 = $$createType53;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("visibleFields" in $$parsedSource) {
             $$parsedSource["visibleFields"] = $$createField0_0($$parsedSource["visibleFields"]);
@@ -5007,9 +5031,9 @@ export class OperationsOverview {
      * Creates a new OperationsOverview instance from a string or object.
      */
     static createFrom($$source: any = {}): OperationsOverview {
-        const $$createField8_0 = $$createType52;
-        const $$createField9_0 = $$createType54;
-        const $$createField10_0 = $$createType56;
+        const $$createField8_0 = $$createType55;
+        const $$createField9_0 = $$createType57;
+        const $$createField10_0 = $$createType59;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("jobs" in $$parsedSource) {
             $$parsedSource["jobs"] = $$createField8_0($$parsedSource["jobs"]);
@@ -5603,13 +5627,13 @@ export class PartPeriodAnalysisResult {
      * Creates a new PartPeriodAnalysisResult instance from a string or object.
      */
     static createFrom($$source: any = {}): PartPeriodAnalysisResult {
-        const $$createField0_0 = $$createType57;
-        const $$createField1_0 = $$createType58;
-        const $$createField2_0 = $$createType60;
-        const $$createField3_0 = $$createType62;
-        const $$createField4_0 = $$createType64;
-        const $$createField5_0 = $$createType66;
-        const $$createField6_0 = $$createType68;
+        const $$createField0_0 = $$createType60;
+        const $$createField1_0 = $$createType61;
+        const $$createField2_0 = $$createType63;
+        const $$createField3_0 = $$createType65;
+        const $$createField4_0 = $$createType67;
+        const $$createField5_0 = $$createType69;
+        const $$createField6_0 = $$createType71;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("targetItem" in $$parsedSource) {
             $$parsedSource["targetItem"] = $$createField0_0($$parsedSource["targetItem"]);
@@ -6019,8 +6043,8 @@ export class RecycleBinActionResult {
      * Creates a new RecycleBinActionResult instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinActionResult {
-        const $$createField7_0 = $$createType70;
-        const $$createField8_0 = $$createType16;
+        const $$createField7_0 = $$createType73;
+        const $$createField8_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("missingParents" in $$parsedSource) {
             $$parsedSource["missingParents"] = $$createField7_0($$parsedSource["missingParents"]);
@@ -6087,8 +6111,8 @@ export class RecycleBinListResponse {
      * Creates a new RecycleBinListResponse instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinListResponse {
-        const $$createField8_0 = $$createType28;
-        const $$createField9_0 = $$createType72;
+        const $$createField8_0 = $$createType31;
+        const $$createField9_0 = $$createType75;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("perTableCounts" in $$parsedSource) {
             $$parsedSource["perTableCounts"] = $$createField8_0($$parsedSource["perTableCounts"]);
@@ -6140,7 +6164,7 @@ export class RecycleBinRecord {
      * Creates a new RecycleBinRecord instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinRecord {
-        const $$createField6_0 = $$createType13;
+        const $$createField6_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rawFields" in $$parsedSource) {
             $$parsedSource["rawFields"] = $$createField6_0($$parsedSource["rawFields"]);
@@ -6271,7 +6295,7 @@ export class RestoreVerificationSummary {
      * Creates a new RestoreVerificationSummary instance from a string or object.
      */
     static createFrom($$source: any = {}): RestoreVerificationSummary {
-        const $$createField8_0 = $$createType28;
+        const $$createField8_0 = $$createType31;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tableCounts" in $$parsedSource) {
             $$parsedSource["tableCounts"] = $$createField8_0($$parsedSource["tableCounts"]);
@@ -6323,7 +6347,7 @@ export class RuleRiskAssessment {
      * Creates a new RuleRiskAssessment instance from a string or object.
      */
     static createFrom($$source: any = {}): RuleRiskAssessment {
-        const $$createField5_0 = $$createType12;
+        const $$createField5_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("factors" in $$parsedSource) {
             $$parsedSource["factors"] = $$createField5_0($$parsedSource["factors"]);
@@ -6456,7 +6480,7 @@ export class SaveInvoiceRequest {
      * Creates a new SaveInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): SaveInvoiceRequest {
-        const $$createField6_0 = $$createType74;
+        const $$createField6_0 = $$createType77;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField6_0($$parsedSource["lines"]);
@@ -6976,10 +7000,10 @@ export class ShipmentDetail {
      */
     static createFrom($$source: any = {}): ShipmentDetail {
         const $$createField0_0 = $$createType4;
-        const $$createField1_0 = $$createType75;
-        const $$createField2_0 = $$createType77;
-        const $$createField3_0 = $$createType79;
-        const $$createField4_0 = $$createType81;
+        const $$createField1_0 = $$createType78;
+        const $$createField2_0 = $$createType80;
+        const $$createField3_0 = $$createType82;
+        const $$createField4_0 = $$createType84;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("shipment" in $$parsedSource) {
             $$parsedSource["shipment"] = $$createField0_0($$parsedSource["shipment"]);
@@ -7090,7 +7114,7 @@ export class ShipmentInput {
      * Creates a new ShipmentInput instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentInput {
-        const $$createField20_0 = $$createType83;
+        const $$createField20_0 = $$createType86;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("containers" in $$parsedSource) {
             $$parsedSource["containers"] = $$createField20_0($$parsedSource["containers"]);
@@ -7218,7 +7242,7 @@ export class ShipmentPage {
      * Creates a new ShipmentPage instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentPage {
-        const $$createField0_0 = $$createType84;
+        const $$createField0_0 = $$createType87;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -7434,7 +7458,7 @@ export class SupplierHistorySummary {
      * Creates a new SupplierHistorySummary instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierHistorySummary {
-        const $$createField4_0 = $$createType86;
+        const $$createField4_0 = $$createType89;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recentRecords" in $$parsedSource) {
             $$parsedSource["recentRecords"] = $$createField4_0($$parsedSource["recentRecords"]);
@@ -7547,7 +7571,7 @@ export class SupplierPage {
      * Creates a new SupplierPage instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierPage {
-        const $$createField0_0 = $$createType88;
+        const $$createField0_0 = $$createType91;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -7868,85 +7892,88 @@ const $$createType3 = $Create.Array($$createType2);
 const $$createType4 = Shipment.createFrom;
 const $$createType5 = BOECalcParams.createFrom;
 const $$createType6 = BOECalculationResult.createFrom;
-const $$createType7 = BOECalcLineResult.createFrom;
+const $$createType7 = BOEAttachment.createFrom;
 const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = IncotermRule.createFrom;
-const $$createType10 = CSVImportRowError.createFrom;
+const $$createType9 = BOEReconciliationDiff.createFrom;
+const $$createType10 = BOECalcLineResult.createFrom;
 const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = $Create.Array($Create.Any);
-const $$createType13 = $Create.Map($Create.Any, $Create.Any);
+const $$createType12 = IncotermRule.createFrom;
+const $$createType13 = CSVImportRowError.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = DependencyCount.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = DashboardKPIs.createFrom;
-const $$createType18 = DashboardMonthlyTrend.createFrom;
+const $$createType15 = $Create.Array($Create.Any);
+const $$createType16 = $Create.Map($Create.Any, $Create.Any);
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = DependencyCount.createFrom;
 const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = DashboardSupplierSummary.createFrom;
-const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = DashboardStatusCount.createFrom;
-const $$createType23 = $Create.Array($$createType22);
-const $$createType24 = DashboardActivityItem.createFrom;
-const $$createType25 = $Create.Array($$createType24);
-const $$createType26 = DashboardAlertItem.createFrom;
-const $$createType27 = $Create.Array($$createType26);
-const $$createType28 = $Create.Map($Create.Any, $Create.Any);
-const $$createType29 = ExpenseLine.createFrom;
+const $$createType20 = DashboardKPIs.createFrom;
+const $$createType21 = DashboardMonthlyTrend.createFrom;
+const $$createType22 = $Create.Array($$createType21);
+const $$createType23 = DashboardSupplierSummary.createFrom;
+const $$createType24 = $Create.Array($$createType23);
+const $$createType25 = DashboardStatusCount.createFrom;
+const $$createType26 = $Create.Array($$createType25);
+const $$createType27 = DashboardActivityItem.createFrom;
+const $$createType28 = $Create.Array($$createType27);
+const $$createType29 = DashboardAlertItem.createFrom;
 const $$createType30 = $Create.Array($$createType29);
-const $$createType31 = ExpenseLineCalculation.createFrom;
-const $$createType32 = $Create.Array($$createType31);
-const $$createType33 = ExpenseLineInput.createFrom;
-const $$createType34 = $Create.Array($$createType33);
-const $$createType35 = ExpenseReportDetailedRow.createFrom;
-const $$createType36 = $Create.Array($$createType35);
-const $$createType37 = ExpenseReportGroup.createFrom;
-const $$createType38 = $Create.Array($$createType37);
-const $$createType39 = InvoiceSummary.createFrom;
-const $$createType40 = InvoiceLineItem.createFrom;
+const $$createType31 = $Create.Map($Create.Any, $Create.Any);
+const $$createType32 = ExpenseLine.createFrom;
+const $$createType33 = $Create.Array($$createType32);
+const $$createType34 = ExpenseLineCalculation.createFrom;
+const $$createType35 = $Create.Array($$createType34);
+const $$createType36 = ExpenseLineInput.createFrom;
+const $$createType37 = $Create.Array($$createType36);
+const $$createType38 = ExpenseReportDetailedRow.createFrom;
+const $$createType39 = $Create.Array($$createType38);
+const $$createType40 = ExpenseReportGroup.createFrom;
 const $$createType41 = $Create.Array($$createType40);
-const $$createType42 = Item.createFrom;
-const $$createType43 = $Create.Array($$createType42);
-const $$createType44 = LandedCostRow.createFrom;
-const $$createType45 = $Create.Array($$createType44);
-const $$createType46 = LandedCostSummary.createFrom;
-const $$createType47 = LegacyTableInspect.createFrom;
+const $$createType42 = InvoiceSummary.createFrom;
+const $$createType43 = InvoiceLineItem.createFrom;
+const $$createType44 = $Create.Array($$createType43);
+const $$createType45 = Item.createFrom;
+const $$createType46 = $Create.Array($$createType45);
+const $$createType47 = LandedCostRow.createFrom;
 const $$createType48 = $Create.Array($$createType47);
-const $$createType49 = LegacyFinancialSummary.createFrom;
-const $$createType50 = $Create.Map($Create.Any, $Create.Any);
-const $$createType51 = BackgroundJob.createFrom;
-const $$createType52 = $Create.Array($$createType51);
-const $$createType53 = FailureForecast.createFrom;
-const $$createType54 = $Create.Array($$createType53);
-const $$createType55 = WorkflowIncident.createFrom;
-const $$createType56 = $Create.Array($$createType55);
-const $$createType57 = PartItemMasterInfo.createFrom;
-const $$createType58 = PartPeriodSummary.createFrom;
-const $$createType59 = PartShipmentRow.createFrom;
-const $$createType60 = $Create.Array($$createType59);
-const $$createType61 = PartBOERow.createFrom;
-const $$createType62 = $Create.Array($$createType61);
-const $$createType63 = PartExpenseRow.createFrom;
-const $$createType64 = $Create.Array($$createType63);
-const $$createType65 = PartTrendPoint.createFrom;
-const $$createType66 = $Create.Array($$createType65);
-const $$createType67 = PartLookupItem.createFrom;
-const $$createType68 = $Create.Array($$createType67);
-const $$createType69 = MissingParentGroup.createFrom;
-const $$createType70 = $Create.Array($$createType69);
-const $$createType71 = RecycleBinRecord.createFrom;
-const $$createType72 = $Create.Array($$createType71);
-const $$createType73 = InvoiceLineInput.createFrom;
-const $$createType74 = $Create.Array($$createType73);
-const $$createType75 = $Create.Array($$createType39);
-const $$createType76 = ShipmentLinkedBOE.createFrom;
+const $$createType49 = LandedCostSummary.createFrom;
+const $$createType50 = LegacyTableInspect.createFrom;
+const $$createType51 = $Create.Array($$createType50);
+const $$createType52 = LegacyFinancialSummary.createFrom;
+const $$createType53 = $Create.Map($Create.Any, $Create.Any);
+const $$createType54 = BackgroundJob.createFrom;
+const $$createType55 = $Create.Array($$createType54);
+const $$createType56 = FailureForecast.createFrom;
+const $$createType57 = $Create.Array($$createType56);
+const $$createType58 = WorkflowIncident.createFrom;
+const $$createType59 = $Create.Array($$createType58);
+const $$createType60 = PartItemMasterInfo.createFrom;
+const $$createType61 = PartPeriodSummary.createFrom;
+const $$createType62 = PartShipmentRow.createFrom;
+const $$createType63 = $Create.Array($$createType62);
+const $$createType64 = PartBOERow.createFrom;
+const $$createType65 = $Create.Array($$createType64);
+const $$createType66 = PartExpenseRow.createFrom;
+const $$createType67 = $Create.Array($$createType66);
+const $$createType68 = PartTrendPoint.createFrom;
+const $$createType69 = $Create.Array($$createType68);
+const $$createType70 = PartLookupItem.createFrom;
+const $$createType71 = $Create.Array($$createType70);
+const $$createType72 = MissingParentGroup.createFrom;
+const $$createType73 = $Create.Array($$createType72);
+const $$createType74 = RecycleBinRecord.createFrom;
+const $$createType75 = $Create.Array($$createType74);
+const $$createType76 = InvoiceLineInput.createFrom;
 const $$createType77 = $Create.Array($$createType76);
-const $$createType78 = ShipmentLinkedExpense.createFrom;
-const $$createType79 = $Create.Array($$createType78);
-const $$createType80 = ShipmentContainer.createFrom;
-const $$createType81 = $Create.Array($$createType80);
-const $$createType82 = ShipmentContainerInput.createFrom;
-const $$createType83 = $Create.Array($$createType82);
-const $$createType84 = $Create.Array($$createType4);
-const $$createType85 = SupplierHistoryItem.createFrom;
+const $$createType78 = $Create.Array($$createType42);
+const $$createType79 = ShipmentLinkedBOE.createFrom;
+const $$createType80 = $Create.Array($$createType79);
+const $$createType81 = ShipmentLinkedExpense.createFrom;
+const $$createType82 = $Create.Array($$createType81);
+const $$createType83 = ShipmentContainer.createFrom;
+const $$createType84 = $Create.Array($$createType83);
+const $$createType85 = ShipmentContainerInput.createFrom;
 const $$createType86 = $Create.Array($$createType85);
-const $$createType87 = Supplier.createFrom;
-const $$createType88 = $Create.Array($$createType87);
+const $$createType87 = $Create.Array($$createType4);
+const $$createType88 = SupplierHistoryItem.createFrom;
+const $$createType89 = $Create.Array($$createType88);
+const $$createType90 = Supplier.createFrom;
+const $$createType91 = $Create.Array($$createType90);

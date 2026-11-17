@@ -16,19 +16,19 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as models$0 from "../../models/models.js";
 
 /**
- * LoadShipmentContext loads shipment info, saved BOE calculation if present, or invoice lines + Item Master rates.
+ * LoadCalculationContext loads a specific BOE calculation by ID along with its parent shipment context.
  */
-export function LoadShipmentContext(shipmentID: string): $CancellablePromise<models$0.BOECalculationContext> {
-    return $Call.ByID(649628514, shipmentID).then(($result: any) => {
+export function LoadCalculationContext(calcID: string): $CancellablePromise<models$0.BOECalculationContext> {
+    return $Call.ByID(4069424505, calcID).then(($result: any) => {
         return $$createType0($result);
     });
 }
 
 /**
- * LoadCalculationContext loads a specific BOE calculation by ID along with its parent shipment context.
+ * LoadShipmentContext loads shipment info, saved BOE calculation if present, or invoice lines + Item Master rates.
  */
-export function LoadCalculationContext(calcID: string): $CancellablePromise<models$0.BOECalculationContext> {
-    return $Call.ByID(4069424505, calcID).then(($result: any) => {
+export function LoadShipmentContext(shipmentID: string): $CancellablePromise<models$0.BOECalculationContext> {
+    return $Call.ByID(649628514, shipmentID).then(($result: any) => {
         return $$createType0($result);
     });
 }

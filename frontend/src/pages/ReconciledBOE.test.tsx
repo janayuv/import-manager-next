@@ -285,6 +285,18 @@ describe('Reconciled BOE Module', () => {
     expect(screen.getByText('CMOS Image Sensor Module')).toBeInTheDocument();
     expect(screen.getByText('CH-2063325822')).toBeInTheDocument();
 
+    // Verify search filter in ViewReconciledBoeDialog
+    const searchInput = screen.getByPlaceholderText('Search part no, description...');
+    expect(searchInput).toBeInTheDocument();
+    fireEvent.change(searchInput, { target: { value: 'sensor' } });
+    expect(screen.getByText('CMOS Image Sensor Module')).toBeInTheDocument();
+    fireEvent.change(searchInput, { target: { value: 'no-match-part' } });
+    expect(screen.getByText(/No line items matching “no-match-part”/i)).toBeInTheDocument();
+    expect(screen.queryByText('CMOS Image Sensor Module')).not.toBeInTheDocument();
+    const clearBtn = screen.getByLabelText('Clear search');
+    fireEvent.click(clearBtn);
+    expect(screen.getByText('CMOS Image Sensor Module')).toBeInTheDocument();
+
     // Close Dialog
     const closeButtons = screen.getAllByRole('button', { name: /Close/i });
     const lastCloseBtn = closeButtons[closeButtons.length - 1];

@@ -13,12 +13,21 @@ import {
   RefreshCw,
   RotateCcw,
   ShieldAlert,
+  Trash2,
   Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { openExternalURL } from '@/services/app-service';
@@ -93,6 +102,13 @@ export function DatabaseBackupsPage() {
   const [gdriveClientSecret, setGdriveClientSecret] = useState<string>('');
   const [gdriveAuthUrl, setGdriveAuthUrl] = useState<string>('');
   const [gdriveAuthCode, setGdriveAuthCode] = useState<string>('');
+
+  // Delete backup state
+  const [deleteLocalTarget, setDeleteLocalTarget] = useState<BackupRecord | null>(null);
+  const [deleteLocalAlsoDisk, setDeleteLocalAlsoDisk] = useState<boolean>(true);
+  const [deletingLocal, setDeletingLocal] = useState<boolean>(false);
+  const [deleteDriveTarget, setDeleteDriveTarget] = useState<GoogleDriveRemoteFile | null>(null);
+  const [deletingDrive, setDeletingDrive] = useState<boolean>(false);
 
   // Schedule state
   const [schedName, setSchedName] = useState<string>('Nightly Vault Backup');
@@ -280,6 +296,39 @@ export function DatabaseBackupsPage() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Restore failed');
+    }
+  };
+
+  const handleConfirmDeleteLocal = async () => {
+    if (!deleteLocalTarget) return;
+    setDeletingLocal(true);
+    try {
+      await backupService.deleteBackupRecord(deleteLocalTarget.id, deleteLocalAlsoDisk);
+      toast.success(`Deleted local backup "${deleteLocalTarget.filename}"`);
+      setDeleteLocalTarget(null);
+      await loadAll();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete local backup');
+    } finally {
+      setDeletingLocal(false);
+    }
+  };
+
+  const handleConfirmDeleteDrive = async () => {
+    if (!deleteDriveTarget) return;
+    setDeletingDrive(true);
+    try {
+      await googleDriveService.deleteBackup(deleteDriveTarget.locator);
+      toast.success(`Deleted "${deleteDriveTarget.name}" from Google Drive`);
+      setDeleteDriveTarget(null);
+      if (driveStatus?.connected) {
+        const files = await googleDriveService.listBackups();
+        setDriveFiles(files ?? []);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete Google Drive backup');
+    } finally {
+      setDeletingDrive(false);
     }
   };
 
@@ -913,22 +962,33 @@ export function DatabaseBackupsPage() {
                       <span>
                         {f.name} ({f.locator})
                       </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          googleDriveService
-                            .downloadBackup(f.locator, f.name)
-                            .then((p) => {
-                              setRestorePath(p);
-                              toast.success(`Downloaded to ${p}`);
-                            })
-                            .catch((e) => toast.error(e.message))
-                        }
-                      >
-                        <HardDriveDownload className="mr-1 h-3.5 w-3.5" />
-                        Download
-                      </Button>
+                      <div className="flex gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            googleDriveService
+                              .downloadBackup(f.locator, f.name)
+                              .then((p) => {
+                                setRestorePath(p);
+                                toast.success(`Downloaded to ${p}`);
+                              })
+                              .catch((e) => toast.error(e.message))
+                          }
+                        >
+                          <HardDriveDownload className="mr-1 h-3.5 w-3.5" />
+                          Download
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                          onClick={() => setDeleteDriveTarget(f)}
+                        >
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -974,6 +1034,18 @@ export function DatabaseBackupsPage() {
                           Sync Drive
                         </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                        onClick={() => {
+                          setDeleteLocalAlsoDisk(true);
+                          setDeleteLocalTarget(b);
+                        }}
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -1156,6 +1228,86 @@ export function DatabaseBackupsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Local Backup Dialog */}
+      <Dialog open={Boolean(deleteLocalTarget)} onOpenChange={(o) => !o && setDeleteLocalTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" /> Delete Local Backup
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this backup?
+            </DialogDescription>
+          </DialogHeader>
+          {deleteLocalTarget && (
+            <div className="space-y-3 py-2 text-sm">
+              <div className="rounded border bg-muted/40 p-2.5 space-y-1 text-xs">
+                <div className="font-semibold text-foreground">{deleteLocalTarget.filename}</div>
+                <div className="text-muted-foreground truncate">{deleteLocalTarget.path}</div>
+                <div className="text-muted-foreground">
+                  Size: {(deleteLocalTarget.sizeBytes / 1024).toFixed(1)} KB · Created: {deleteLocalTarget.createdAt}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <Switch
+                  checked={deleteLocalAlsoDisk}
+                  onCheckedChange={setDeleteLocalAlsoDisk}
+                  id="delete-disk-file-switch"
+                />
+                <Label htmlFor="delete-disk-file-switch" className="cursor-pointer text-xs">
+                  Delete backup file (.imbk2) and checksum (.sha256) from disk
+                </Label>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" disabled={deletingLocal} onClick={() => setDeleteLocalTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deletingLocal} onClick={() => void handleConfirmDeleteLocal()}>
+              {deletingLocal ? 'Deleting...' : 'Delete Backup'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Google Drive Backup Dialog */}
+      <Dialog open={Boolean(deleteDriveTarget)} onOpenChange={(o) => !o && setDeleteDriveTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" /> Delete Google Drive Backup
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this backup from Google Drive?
+            </DialogDescription>
+          </DialogHeader>
+          {deleteDriveTarget && (
+            <div className="space-y-3 py-2 text-sm">
+              <div className="rounded border bg-muted/40 p-2.5 space-y-1 text-xs">
+                <div className="font-semibold text-foreground">{deleteDriveTarget.name}</div>
+                <div className="text-muted-foreground">ID: {deleteDriveTarget.id}</div>
+                <div className="text-muted-foreground">
+                  Size: {(deleteDriveTarget.sizeBytes / 1024).toFixed(1)} KB
+                  {deleteDriveTarget.createdTime && ` · Created: ${deleteDriveTarget.createdTime}`}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This will permanently remove the encrypted backup file from your Google Drive folder &quot;{driveStatus?.folderName || 'ImportManagerBackups'}&quot;.
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" disabled={deletingDrive} onClick={() => setDeleteDriveTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deletingDrive} onClick={() => void handleConfirmDeleteDrive()}>
+              {deletingDrive ? 'Deleting...' : 'Delete from Drive'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

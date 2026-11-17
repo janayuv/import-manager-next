@@ -68,6 +68,9 @@ export const backupService = {
   deleteBackupRecord(id: number, deleteFile: boolean): Promise<void> {
     return BackupBindings.DeleteBackupRecord(id, deleteFile);
   },
+  deleteBackupFile(filePath: string): Promise<void> {
+    return BackupBindings.DeleteBackupFile(filePath);
+  },
   restoreBackup(req: RestoreBackupRequest): Promise<RestoreVerificationSummary> {
     return BackupBindings.RestoreBackup(req);
   },
@@ -121,6 +124,9 @@ export const googleDriveService = {
   },
   downloadBackup(fileIDOrLocator: string, targetFilename: string): Promise<string> {
     return DriveBindings.DownloadBackup(fileIDOrLocator, targetFilename);
+  },
+  deleteBackup(fileIDOrLocator: string): Promise<void> {
+    return DriveBindings.DeleteBackup(fileIDOrLocator);
   },
 };
 
