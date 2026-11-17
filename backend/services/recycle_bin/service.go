@@ -70,6 +70,7 @@ var tableRegistry = map[string]tableMeta{
 		},
 		Children: []fkChildSpec{
 			{ChildTable: "invoice_line_items", FKColumn: "item_id"},
+			{ChildTable: "boe_items", FKColumn: "item_id"},
 		},
 	},
 	"shipments": {
@@ -82,6 +83,7 @@ var tableRegistry = map[string]tableMeta{
 		Children: []fkChildSpec{
 			{ChildTable: "invoices", FKColumn: "shipment_id"},
 			{ChildTable: "boe_calculations", FKColumn: "shipment_id"},
+			{ChildTable: "shipment_containers", FKColumn: "shipment_id"},
 			{ChildTable: "expense_invoices", FKColumn: "shipment_id"},
 			{ChildTable: "expenses", FKColumn: "shipment_id"},
 		},
@@ -121,6 +123,10 @@ var tableRegistry = map[string]tableMeta{
 		Parents: []fkParentSpec{
 			{ParentTable: "shipments", FKColumn: "shipment_id"},
 			{ParentTable: "boe_details", FKColumn: "boe_id"},
+		},
+		Children: []fkChildSpec{
+			{ChildTable: "boe_items", FKColumn: "boe_calculation_id"},
+			{ChildTable: "boe_attachments", FKColumn: "boe_calculation_id"},
 		},
 	},
 	"service_providers": {

@@ -171,6 +171,7 @@ func (s *Service) RunLegacyMigration(req models.LegacyMigrationRequest) (models.
 		}
 		if stagePlain {
 			targetDB.SetMaxOpenConns(1)
+			_, _ = targetDB.Exec("PRAGMA foreign_keys = ON;")
 			defer targetDB.Close()
 		}
 	} else {

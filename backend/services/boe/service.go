@@ -1,6 +1,7 @@
 package boe
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/services/audit"
 	"github.com/janayuv/import-manager-next/backend/services/security"
@@ -183,7 +185,7 @@ func (s *Service) Update(id string, in models.BOEDetailInput) (models.BOEDetail,
 	return after, nil
 }
 
-// Delete soft-deletes a BOE detail entry.
+// Delete soft-deletes a BOE detail entry after verifying no active calculations depend on it.
 func (s *Service) Delete(id string) error {
 	sess, err := s.sec.RequirePermission(security.PermDataDelete)
 	if err != nil {
@@ -192,6 +194,11 @@ func (s *Service) Delete(id string) error {
 	before, err := s.getByIDRaw(id)
 	if err != nil {
 		return err
+	}
+	if depErr, err := integrity.CheckDependencies(context.Background(), s.db, "boe_details", id, true); err != nil {
+		return err
+	} else if depErr != nil {
+		return depErr
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	if _, err := s.db.Exec(`UPDATE boe_details SET deleted_at = ?, deleted_by = ? WHERE id = ? AND deleted_at IS NULL`, now, sess.UserID, strings.TrimSpace(id)); err != nil {

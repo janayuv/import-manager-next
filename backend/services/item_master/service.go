@@ -1,6 +1,7 @@
 package item_master
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/repositories"
 	"github.com/janayuv/import-manager-next/backend/services/audit"
@@ -41,6 +43,7 @@ var itemExportHeaders = []string{
 
 // Service implements Item Master CRUD, photo attachment safety, and 20-column CSV import/export.
 type Service struct {
+	db             *sql.DB
 	repo           *repositories.ItemRepository
 	sec            *security.Service
 	audit          *audit.Service
@@ -50,6 +53,7 @@ type Service struct {
 // NewService constructs an item master Service.
 func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service, attachmentsDir string) *Service {
 	return &Service{
+		db:             db,
 		repo:           repositories.NewItemRepository(db),
 		sec:            sec,
 		audit:          auditSvc,
@@ -131,7 +135,7 @@ func (s *Service) Update(id string, in models.ItemInput) (models.Item, error) {
 	return updated, nil
 }
 
-// Delete soft-deletes an item into the Recycle Bin.
+// Delete soft-deletes an item into the Recycle Bin after verifying no active dependencies exist.
 func (s *Service) Delete(id string) error {
 	sess, err := s.sec.RequirePermission(security.PermDataDelete)
 	if err != nil {
@@ -140,6 +144,11 @@ func (s *Service) Delete(id string) error {
 	before, err := s.repo.GetByID(id)
 	if err != nil {
 		return err
+	}
+	if depErr, err := integrity.CheckDependencies(context.Background(), s.db, "items", id, true); err != nil {
+		return err
+	} else if depErr != nil {
+		return depErr
 	}
 	if err := s.repo.SoftDelete(id, sess.UserID); err != nil {
 		return err

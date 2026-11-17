@@ -1,6 +1,7 @@
 package shipment
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/repositories"
 	"github.com/janayuv/import-manager-next/backend/services/audit"
@@ -54,6 +56,7 @@ var shipmentTemplateHeaders = []string{
 
 // Service implements Shipment lifecycle, multi-container tracking, freeze workflow, readiness automation, and CSV stream import.
 type Service struct {
+	db            *sql.DB
 	repo          *repositories.ShipmentRepository
 	containerRepo *repositories.ContainerRepository
 	itemRepo      *repositories.ItemRepository
@@ -65,6 +68,7 @@ type Service struct {
 // NewService constructs a shipment Service.
 func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Service {
 	return &Service{
+		db:            db,
 		repo:          repositories.NewShipmentRepository(db),
 		containerRepo: repositories.NewContainerRepository(db),
 		itemRepo:      repositories.NewItemRepository(db),
@@ -167,7 +171,7 @@ func (s *Service) Unfreeze(id string) (models.Shipment, error) {
 	return updated, nil
 }
 
-// Delete soft-deletes a non-frozen shipment into Recycle Bin.
+// Delete soft-deletes a non-frozen shipment into Recycle Bin after verifying no active dependencies exist.
 func (s *Service) Delete(id string) error {
 	sess, err := s.sec.RequirePermission(security.PermDataDelete)
 	if err != nil {
@@ -179,6 +183,11 @@ func (s *Service) Delete(id string) error {
 	}
 	if before.IsFrozen {
 		return fmt.Errorf("shipment %s is frozen and cannot be deleted", before.ID)
+	}
+	if depErr, err := integrity.CheckDependencies(context.Background(), s.db, "shipments", id, true); err != nil {
+		return err
+	} else if depErr != nil {
+		return depErr
 	}
 	if err := s.repo.SoftDelete(id, sess.UserID); err != nil {
 		return err

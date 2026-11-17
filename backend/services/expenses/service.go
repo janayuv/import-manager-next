@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/database/transactions"
 	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/services/audit"
@@ -163,12 +164,10 @@ func (s *Service) DeleteServiceProvider(id string) error {
 		return err
 	}
 	return transactions.WithinTx(context.Background(), s.db, func(tx *sql.Tx) error {
-		var refCount int
-		if err := tx.QueryRow(`SELECT COUNT(*) FROM expense_invoices WHERE service_provider_id = ? AND deleted_at IS NULL`, id).Scan(&refCount); err != nil {
+		if depErr, err := integrity.CheckDependencies(context.Background(), s.db, "service_providers", id, true); err != nil {
 			return err
-		}
-		if refCount > 0 {
-			return fmt.Errorf("DEPENDENCY: service provider has %d active expense invoice(s)", refCount)
+		} else if depErr != nil {
+			return depErr
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
 		res, err := tx.Exec(`UPDATE service_providers SET deleted_at = ?, deleted_by = ? WHERE id = ? AND deleted_at IS NULL`, now, sess.Username, id)
@@ -322,12 +321,10 @@ func (s *Service) DeleteExpenseType(id string) error {
 		return err
 	}
 	return transactions.WithinTx(context.Background(), s.db, func(tx *sql.Tx) error {
-		var refCount int
-		if err := tx.QueryRow(`SELECT COUNT(*) FROM expenses WHERE expense_type_id = ? AND deleted_at IS NULL`, id).Scan(&refCount); err != nil {
+		if depErr, err := integrity.CheckDependencies(context.Background(), s.db, "expense_types", id, true); err != nil {
 			return err
-		}
-		if refCount > 0 {
-			return fmt.Errorf("DEPENDENCY: expense type is used in %d active expense line(s)", refCount)
+		} else if depErr != nil {
+			return depErr
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
 		res, err := tx.Exec(`UPDATE expense_types SET deleted_at = ?, deleted_by = ? WHERE id = ? AND deleted_at IS NULL`, now, sess.Username, id)

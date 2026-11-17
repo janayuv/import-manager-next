@@ -15,6 +15,7 @@ import (
 
 	appcrypto "github.com/janayuv/import-manager-next/backend/crypto"
 	"github.com/janayuv/import-manager-next/backend/database/connection"
+	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/database/transactions"
 	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/services/audit"
@@ -73,10 +74,11 @@ type childDependencySpec struct {
 
 var tableChildren = map[string][]childDependencySpec{
 	"suppliers":         {{Table: "shipments", Col: "supplier_id"}, {Table: "items", Col: "supplier_id"}},
-	"items":             {{Table: "invoice_line_items", Col: "item_id"}},
-	"shipments":         {{Table: "invoices", Col: "shipment_id"}, {Table: "boe_calculations", Col: "shipment_id"}, {Table: "expense_invoices", Col: "shipment_id"}, {Table: "expenses", Col: "shipment_id"}},
+	"items":             {{Table: "invoice_line_items", Col: "item_id"}, {Table: "boe_items", Col: "item_id"}},
+	"shipments":         {{Table: "invoices", Col: "shipment_id"}, {Table: "boe_calculations", Col: "shipment_id"}, {Table: "shipment_containers", Col: "shipment_id"}, {Table: "expense_invoices", Col: "shipment_id"}, {Table: "expenses", Col: "shipment_id"}},
 	"invoices":          {{Table: "invoice_line_items", Col: "invoice_id"}},
 	"boe_details":       {{Table: "boe_calculations", Col: "boe_id"}},
+	"boe_calculations":  {{Table: "boe_items", Col: "boe_calculation_id"}, {Table: "boe_attachments", Col: "boe_calculation_id"}},
 	"service_providers": {{Table: "expense_invoices", Col: "service_provider_id"}, {Table: "expenses", Col: "service_provider_id"}},
 	"expense_types":     {{Table: "expenses", Col: "expense_type_id"}},
 	"expense_invoices":  {{Table: "expenses", Col: "expense_invoice_id"}, {Table: "expense_attachments", Col: "expense_invoice_id"}},
@@ -458,11 +460,25 @@ func (s *Service) BulkDelete(req models.BulkDeleteRequest) (models.BulkDeleteRes
 		if err := s.verifyHardDeletePin(ctx, sess.UserID, req.Pin); err != nil {
 			return models.BulkDeleteResult{}, err
 		}
-		if totalDeps > highImpactThreshold && strings.TrimSpace(req.HighImpactConfirm) != "DELETE" {
-			return models.BulkDeleteResult{}, fmt.Errorf(
-				"high-impact hard delete affects %d dependent rows (>%d); type DELETE in confirmation to proceed",
-				totalDeps, highImpactThreshold,
-			)
+		if totalDeps > 0 {
+			return models.BulkDeleteResult{
+				TableName:         req.TableName,
+				Mode:              mode,
+				RequestedCount:    len(ids),
+				TotalDependencies: totalDeps,
+				Dependencies:      deps,
+			}, fmt.Errorf("DEPENDENCY: cannot permanently delete %d record(s) from %s because %d dependent record(s) exist across child tables", len(ids), req.TableName, totalDeps)
+		}
+	} else {
+		activeDeps, activeTotal, actErr := integrity.CheckBatchDependencies(ctx, s.db, req.TableName, ids, true)
+		if actErr == nil && activeTotal > 0 {
+			return models.BulkDeleteResult{
+				TableName:         req.TableName,
+				Mode:              mode,
+				RequestedCount:    len(ids),
+				TotalDependencies: activeTotal,
+				Dependencies:      activeDeps,
+			}, fmt.Errorf("DEPENDENCY: cannot soft-delete %d record(s) from %s because %d active dependent record(s) exist", len(ids), req.TableName, activeTotal)
 		}
 	}
 

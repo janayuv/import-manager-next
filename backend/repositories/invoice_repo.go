@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/janayuv/import-manager-next/backend/database/transactions"
 	"github.com/janayuv/import-manager-next/backend/models"
 )
 
@@ -180,19 +182,22 @@ func (r *InvoiceRepository) NextInvoiceID() (string, error) {
 	return fmt.Sprintf("INV-%03d", maxNum+1), rows.Err()
 }
 
-// SoftDelete marks an invoice and its line items as deleted when not frozen.
+// SoftDelete marks an invoice and its line items as deleted within a single atomic transaction.
 func (r *InvoiceRepository) SoftDelete(id, userID string) error {
+	cleanID := strings.TrimSpace(id)
 	now := time.Now().UTC().Format(time.RFC3339)
-	res, err := r.db.Exec(`UPDATE invoices SET deleted_at = ?, deleted_by = ? WHERE id = ? AND deleted_at IS NULL`, now, userID, strings.TrimSpace(id))
-	if err != nil {
+	return transactions.WithinTx(context.Background(), r.db, func(tx *sql.Tx) error {
+		res, err := tx.Exec(`UPDATE invoices SET deleted_at = ?, deleted_by = ? WHERE id = ? AND deleted_at IS NULL`, now, userID, cleanID)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return fmt.Errorf("invoice %q not found", cleanID)
+		}
+		_, err = tx.Exec(`UPDATE invoice_line_items SET deleted_at = ?, deleted_by = ? WHERE invoice_id = ? AND deleted_at IS NULL`, now, userID, cleanID)
 		return err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("invoice %q not found", id)
-	}
-	_, err = r.db.Exec(`UPDATE invoice_line_items SET deleted_at = ?, deleted_by = ? WHERE invoice_id = ? AND deleted_at IS NULL`, now, userID, strings.TrimSpace(id))
-	return err
+	})
 }
 
 // RoundDecimals rounds float values cleanly using standard half-up precision at 0 or 2 decimals.
