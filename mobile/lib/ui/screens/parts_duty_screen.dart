@@ -1,0 +1,194 @@
+import 'package:flutter/material.dart';
+import '../../constants/app_colors.dart';
+import '../../database/db_helper.dart';
+import '../../models/item_part.dart';
+import '../widgets/duty_breakdown_dialog.dart';
+import '../widgets/part_duty_card.dart';
+
+class PartsDutyScreen extends StatefulWidget {
+  const PartsDutyScreen({super.key});
+
+  @override
+  State<PartsDutyScreen> createState() => _PartsDutyScreenState();
+}
+
+class _PartsDutyScreenState extends State<PartsDutyScreen> {
+  List<ItemPart> _items = [];
+  List<String> _categories = ['All'];
+  String _selectedCategory = 'All';
+  String _searchQuery = '';
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initData();
+  }
+
+  Future<void> _initData() async {
+    try {
+      final cats = await DBHelper.instance.getPartCategories();
+      if (mounted) {
+        setState(() {
+          _categories = ['All', ...cats];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading categories: $e');
+    }
+    await _loadParts();
+  }
+
+  Future<void> _loadParts() async {
+    setState(() => _loading = true);
+    try {
+      final list = await DBHelper.instance.getItemsParts(
+        search: _searchQuery,
+        category: _selectedCategory,
+      );
+      if (mounted) {
+        setState(() {
+          _items = list;
+        });
+      }
+    } catch (e, st) {
+      debugPrint('Error loading parts: $e\n$st');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Parts & Duty Structure'),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.totalDuty.withAlpha(25),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.totalDuty.withAlpha(80)),
+            ),
+            child: Text(
+              '${_items.length} PARTS',
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.bold,
+                color: AppColors.totalDuty,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadParts,
+        child: Column(
+          children: [
+            // Search Bar for HS Code & Part No
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              child: TextField(
+                onChanged: (val) {
+                  setState(() => _searchQuery = val);
+                  _loadParts();
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search by Part No, HSN Code, Description...',
+                  prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF94A3B8)),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            setState(() => _searchQuery = '');
+                            _loadParts();
+                          },
+                        )
+                      : null,
+                ),
+              ),
+            ),
+
+            // Category Filter Pills
+            if (_categories.length > 1) ...[
+              SizedBox(
+                height: 38,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _categories.length,
+                  itemBuilder: (context, index) {
+                    final cat = _categories[index];
+                    final isSelected = _selectedCategory == cat;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(
+                          cat,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                        selected: isSelected,
+                        selectedColor: AppColors.primary,
+                        backgroundColor: Theme.of(context).cardColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(
+                            color: isSelected ? AppColors.primary : AppColors.darkBorder,
+                          ),
+                        ),
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() => _selectedCategory = cat);
+                            _loadParts();
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+
+            // Parts List
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _items.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.category_outlined, size: 48, color: Colors.grey.withAlpha(120)),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'No matching parts or HS codes found',
+                                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          itemCount: _items.length,
+                          itemBuilder: (context, index) {
+                            final item = _items[index];
+                            return PartDutyCard(
+                              item: item,
+                              onTap: () => DutyBreakdownDialog.show(context, item),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
