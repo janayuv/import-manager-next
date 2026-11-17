@@ -30,6 +30,23 @@ export function UpdateStatus(calcID: string, newStatus: string): $CancellablePro
     return $Call.ByID(722886702, calcID, newStatus);
 }
 
+/**
+ * GetByID returns the complete calculation dossier, linked BOE record, attachments, and reconciliation metrics.
+ */
+export function GetByID(calcID: string): $CancellablePromise<models$0.BOECalculationDetail> {
+    return $Call.ByID(291202655, calcID).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
+ * Delete soft-deletes a saved BOE calculation record and moves it to Recycle Bin.
+ */
+export function Delete(calcID: string): $CancellablePromise<void> {
+    return $Call.ByID(742688794, calcID);
+}
+
 // Private type creation functions
 const $$createType0 = models$0.BOECalculationSummary.createFrom;
 const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = models$0.BOECalculationDetail.createFrom;

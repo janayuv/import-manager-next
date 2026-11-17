@@ -96,6 +96,11 @@ export function InvoiceWizardPage() {
   const [step, setStep] = React.useState<1 | 2 | 3>(1);
   const [editingInvoiceId, setEditingInvoiceId] = React.useState<string>(editIdParam);
   const [dbDrafts, setDbDrafts] = React.useState<InvoiceSummary[]>([]);
+  const [allInvoices, setAllInvoices] = React.useState<InvoiceSummary[]>([]);
+  const [editingTaxLineIdx, setEditingTaxLineIdx] = React.useState<number | null>(null);
+  const [taxBcd, setTaxBcd] = React.useState<number>(0);
+  const [taxSws, setTaxSws] = React.useState<number>(0);
+  const [taxIgst, setTaxIgst] = React.useState<number>(0);
 
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
   const [items, setItems] = React.useState<Item[]>([]);
@@ -166,11 +171,20 @@ export function InvoiceWizardPage() {
       }));
       setLines(loadedLines);
       setStep(2);
-      toast.info(`Loaded draft invoice ${detail.invoice.id} for editing`);
+      toast.info(`Loaded invoice ${detail.invoice.id} (${detail.invoice.status}) for editing`);
     } catch (err) {
-      toast.error(`Failed to load draft ${invoiceId}: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(`Failed to load invoice ${invoiceId}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, []);
+
+  React.useEffect(() => {
+    if (editingTaxLineIdx !== null && lines[editingTaxLineIdx]) {
+      const l = lines[editingTaxLineIdx];
+      setTaxBcd(l.dutyPercent);
+      setTaxSws(l.swsPercent);
+      setTaxIgst(l.igstPercent);
+    }
+  }, [editingTaxLineIdx, lines]);
 
   React.useEffect(() => {
     void (async () => {
@@ -197,6 +211,7 @@ export function InvoiceWizardPage() {
         setShipments(eligibleShipments);
         setItems(catalog?.items ?? []);
         setDbDrafts(Array.isArray(draftList) ? draftList : []);
+        setAllInvoices(sumList);
 
         if (editIdParam) {
           await loadDraftForEdit(editIdParam);
@@ -419,6 +434,34 @@ export function InvoiceWizardPage() {
     }
   };
 
+  const handleSaveTaxRates = () => {
+    if (editingTaxLineIdx === null) return;
+    const next = lines.map((l, i) =>
+      i === editingTaxLineIdx
+        ? {
+            ...l,
+            dutyPercent: taxBcd,
+            swsPercent: taxSws,
+            igstPercent: taxIgst,
+          }
+        : l,
+    );
+    setLines(next);
+    saveLocalDraft(next);
+    setEditingTaxLineIdx(null);
+    toast.success('Updated customs duty & tax rates');
+  };
+
+  const handleRemoveLine = (idx: number) => {
+    const target = lines[idx];
+    const next = lines.filter((_, i) => i !== idx);
+    setLines(next);
+    saveLocalDraft(next);
+    if (target) {
+      toast.info(`Removed ${target.partNumber} from lines`);
+    }
+  };
+
   const handleSubmit = async (finalize: boolean) => {
     if (!selectedShipmentId) {
       toast.error('Select a shipment first');
@@ -621,6 +664,36 @@ export function InvoiceWizardPage() {
                     </Button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {allInvoices.length > 0 && (
+              <div className="space-y-2 rounded-md border border-border bg-card p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                    Or Edit an Existing Commercial Invoice ({allInvoices.length})
+                  </p>
+                  <span className="text-[11px] text-muted-foreground">Select an invoice to edit or remove its lines</span>
+                </div>
+                <Select
+                  value={editingInvoiceId}
+                  onValueChange={(val) => {
+                    if (val) {
+                      void loadDraftForEdit(val);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Choose an existing invoice to edit lines..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allInvoices.map((inv) => (
+                      <SelectItem key={inv.id} value={inv.id}>
+                        {inv.id}: {inv.invoiceNumber} — {inv.supplierName} ({inv.status}, {inv.lineCount} lines • {inv.currency} {inv.computedTotal.toFixed(inv.invoiceTotalDecimals)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
@@ -937,6 +1010,15 @@ export function InvoiceWizardPage() {
               </p>
             )}
 
+            <div className="rounded-md border border-border/70 bg-muted/40 p-3 text-xs flex flex-wrap items-center justify-between gap-2">
+              <div className="text-muted-foreground">
+                <span className="font-semibold text-foreground">💡 How to edit or remove line items:</span> Edit <strong>Quantity</strong> and <strong>Unit Price</strong> directly in the table cells below. Click the <strong>Customs Rates</strong> button to customize BCD/SWS/IGST. Click the red <strong>trash button</strong> to remove any line item.
+              </div>
+              <div className="font-mono text-xs font-medium text-foreground bg-background px-2 py-1 rounded border">
+                {lines.length} Line Item{lines.length === 1 ? '' : 's'}
+              </div>
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -945,13 +1027,14 @@ export function InvoiceWizardPage() {
                   <TableHead>Qty</TableHead>
                   <TableHead>Unit Price</TableHead>
                   <TableHead>Line Total</TableHead>
+                  <TableHead>Customs Rates</TableHead>
                   <TableHead className="text-right">Remove</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lines.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
                       Add catalog items above or paste multi-line spreadsheet data.
                     </TableCell>
                   </TableRow>
@@ -998,11 +1081,25 @@ export function InvoiceWizardPage() {
                         <TableCell className="font-mono text-xs">
                           {lineTotal.toFixed(lineTotalDecimals)}
                         </TableCell>
+                        <TableCell className="text-xs">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] font-mono px-2"
+                            onClick={() => setEditingTaxLineIdx(idx)}
+                            title="Customize BCD, SWS, IGST rates for this line"
+                          >
+                            {ln.dutyPercent}% / {ln.swsPercent}% / {ln.igstPercent}%
+                          </Button>
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
+                            onClick={() => handleRemoveLine(idx)}
+                            title="Remove line item"
+                            aria-label={`Remove line item ${ln.partNumber}`}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -1133,6 +1230,65 @@ export function InvoiceWizardPage() {
               Cancel
             </Button>
             <Button onClick={() => void handleMultiLinePaste()}>Parse &amp; Append</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Customize Customs Duty & Taxes Modal for Wizard Line */}
+      <Dialog
+        open={editingTaxLineIdx !== null}
+        onOpenChange={(o) => !o && setEditingTaxLineIdx(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              Customs Rates: {editingTaxLineIdx !== null ? lines[editingTaxLineIdx]?.partNumber : ''}
+            </DialogTitle>
+            <DialogDescription>
+              Adjust customs duty (BCD), SWS, and IGST percentages for this line item.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="tax-bcd" className="text-xs">BCD / Customs Duty (%)</Label>
+              <Input
+                id="tax-bcd"
+                type="number"
+                step="0.1"
+                value={taxBcd}
+                onChange={(e) => setTaxBcd(Number.parseFloat(e.target.value) || 0)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tax-sws" className="text-xs">Social Welfare Surcharge - SWS (%)</Label>
+              <Input
+                id="tax-sws"
+                type="number"
+                step="0.1"
+                value={taxSws}
+                onChange={(e) => setTaxSws(Number.parseFloat(e.target.value) || 0)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tax-igst" className="text-xs">Integrated GST - IGST (%)</Label>
+              <Input
+                id="tax-igst"
+                type="number"
+                step="0.1"
+                value={taxIgst}
+                onChange={(e) => setTaxIgst(Number.parseFloat(e.target.value) || 0)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditingTaxLineIdx(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTaxRates}>
+              Save Rates
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

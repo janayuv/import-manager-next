@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
-import { Calculator, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { Calculator, Eye, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,12 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
+import { ViewReconciledBoeDialog } from '@/components/boe/ViewReconciledBoeDialog';
+import { EditReconciledBoeDialog } from '@/components/boe/EditReconciledBoeDialog';
+import {
+  DeleteReconciledBoeDialog,
+  type DeleteReconciledBoeTarget,
+} from '@/components/boe/DeleteReconciledBoeDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModuleSettings } from '@/contexts/ThemeContext';
 import {
@@ -98,6 +104,14 @@ export function BOERegistryPage() {
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<BOEDetail | null>(null);
   const [importOpen, setImportOpen] = React.useState(false);
+
+  // Calculation dialogs
+  const [viewCalcId, setViewCalcId] = React.useState<string | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [editCalcId, setEditCalcId] = React.useState<string | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [deleteCalcTarget, setDeleteCalcTarget] = React.useState<DeleteReconciledBoeTarget | null>(null);
+  const [deleteCalcOpen, setDeleteCalcOpen] = React.useState(false);
 
   React.useEffect(() => {
     setSummaryPage(1);
@@ -255,12 +269,13 @@ export function BOERegistryPage() {
                     <TableHead>Duty Calc (INR)</TableHead>
                     <TableHead>Duty Paid (INR)</TableHead>
                     <TableHead>Recon Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pagedSummaries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
                         No BOE calculations saved yet.
                       </TableCell>
                     </TableRow>
@@ -307,6 +322,59 @@ export function BOERegistryPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              title="View Reconciled BOE Dossier"
+                              onClick={() => {
+                                setViewCalcId(row.id);
+                                setViewOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                              <span className="sr-only">View</span>
+                            </Button>
+                            {canWrite && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                title="Edit Reconciled BOE"
+                                onClick={() => {
+                                  setEditCalcId(row.id);
+                                  setEditOpen(true);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                                <span className="sr-only">Edit</span>
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                title="Delete BOE Calculation"
+                                onClick={() => {
+                                  setDeleteCalcTarget({
+                                    id: row.id,
+                                    invoiceNumber: row.invoiceNumber,
+                                    shipmentId: row.shipmentId,
+                                    beNumber: row.beNumber,
+                                    dutyPaid: row.dutyPaid,
+                                  });
+                                  setDeleteCalcOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -493,6 +561,34 @@ export function BOERegistryPage() {
         onDownloadTemplate={() => boeService.downloadTemplateCsv()}
         onImport={(content) => boeService.importCsv(content)}
         onCompleted={loadAll}
+      />
+
+      {/* Reconciled BOE View Dialog */}
+      <ViewReconciledBoeDialog
+        calcId={viewCalcId}
+        open={viewOpen}
+        onOpenChange={setViewOpen}
+        canEdit={canWrite}
+        onEdit={(id) => {
+          setEditCalcId(id);
+          setEditOpen(true);
+        }}
+      />
+
+      {/* Reconciled BOE Edit Dialog */}
+      <EditReconciledBoeDialog
+        calcId={editCalcId}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={() => void loadAll()}
+      />
+
+      {/* Reconciled BOE Delete Dialog */}
+      <DeleteReconciledBoeDialog
+        target={deleteCalcTarget}
+        open={deleteCalcOpen}
+        onOpenChange={setDeleteCalcOpen}
+        onDeleted={() => void loadAll()}
       />
     </div>
   );

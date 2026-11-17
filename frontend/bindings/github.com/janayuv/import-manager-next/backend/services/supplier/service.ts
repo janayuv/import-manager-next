@@ -33,7 +33,7 @@ export function Create($in: models$0.SupplierInput): $CancellablePromise<models$
 }
 
 /**
- * Delete soft-deletes a supplier into the Recycle Bin.
+ * Delete soft-deletes a supplier into the Recycle Bin after verifying no active dependencies exist.
  */
 export function Delete(id: string): $CancellablePromise<void> {
     return $Call.ByID(1997488975, id);

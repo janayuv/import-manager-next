@@ -6,12 +6,14 @@ import type {
   BOECalcLineResult,
   BOECalcParams,
   BOECalculationContext,
+  BOECalculationDetail,
   BOECalculationItemInput,
   BOECalculationResult,
   BOECalculationSummary,
   BOEDetail,
   BOEDetailInput,
   BOEOverrideImportResult,
+  BOEReconciliationDiff,
   CSVImportResult,
   IncotermRule,
 } from '../../bindings/github.com/janayuv/import-manager-next/backend/models/models.js';
@@ -21,12 +23,14 @@ export type {
   BOECalcLineResult,
   BOECalcParams,
   BOECalculationContext,
+  BOECalculationDetail,
   BOECalculationItemInput,
   BOECalculationResult,
   BOECalculationSummary,
   BOEDetail,
   BOEDetailInput,
   BOEOverrideImportResult,
+  BOEReconciliationDiff,
   CSVImportResult,
   IncotermRule,
 };
@@ -65,6 +69,9 @@ export const boeEntryService = {
   loadShipmentContext(shipmentId: string): Promise<BOECalculationContext> {
     return BoeEntryBindings.LoadShipmentContext(shipmentId);
   },
+  loadCalculationContext(calcId: string): Promise<BOECalculationContext> {
+    return BoeEntryBindings.LoadCalculationContext(calcId);
+  },
   previewCalculation(params: BOECalcParams): Promise<BOECalculationResult> {
     return BoeEntryBindings.PreviewCalculation(params);
   },
@@ -80,7 +87,13 @@ export const boeSummaryService = {
   list(search = '', status = ''): Promise<BOECalculationSummary[]> {
     return BoeSummaryBindings.List(search, status).then((r) => r ?? []);
   },
+  getById(calcId: string): Promise<BOECalculationDetail> {
+    return BoeSummaryBindings.GetByID(calcId);
+  },
   updateStatus(calcId: string, status: string): Promise<void> {
     return BoeSummaryBindings.UpdateStatus(calcId, status);
+  },
+  delete(calcId: string): Promise<void> {
+    return BoeSummaryBindings.Delete(calcId);
   },
 };

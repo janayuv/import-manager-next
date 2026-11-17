@@ -40,7 +40,7 @@ export function CreateContainer($in: models$0.ShipmentContainerInput): $Cancella
 }
 
 /**
- * Delete soft-deletes a non-frozen shipment into Recycle Bin.
+ * Delete soft-deletes a non-frozen shipment into Recycle Bin after verifying no active dependencies exist.
  */
 export function Delete(id: string): $CancellablePromise<void> {
     return $Call.ByID(2305031493, id);

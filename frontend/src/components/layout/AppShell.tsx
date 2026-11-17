@@ -9,6 +9,7 @@ import {
   Box,
   Calculator,
   Database,
+  FileCheck2,
   FileSpreadsheet,
   FileText,
   HelpCircle,
@@ -75,6 +76,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: 'Customs & Finance',
     items: [
       { to: '/boe', label: 'BOE Registry', icon: FileSpreadsheet },
+      { to: '/reconciled-boe', label: 'Reconciled BOEs', icon: FileCheck2 },
       { to: '/boe-entry', label: 'BOE Entry', icon: Calculator },
       { to: '/expenses', label: 'Expenses', icon: Receipt },
       { to: '/expense-reports', label: 'Expense Reports', icon: BarChart3 },

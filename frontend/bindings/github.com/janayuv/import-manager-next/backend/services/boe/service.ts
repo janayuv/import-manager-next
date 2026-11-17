@@ -24,7 +24,7 @@ export function Create($in: models$0.BOEDetailInput): $CancellablePromise<models
 }
 
 /**
- * Delete soft-deletes a BOE detail entry.
+ * Delete soft-deletes a BOE detail entry after verifying no active calculations depend on it.
  */
 export function Delete(id: string): $CancellablePromise<void> {
     return $Call.ByID(3215507731, id);

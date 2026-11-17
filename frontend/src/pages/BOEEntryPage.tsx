@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { exportBOEExcel, exportBOEPdf } from '@/lib/boe-export';
+import { useSearchParams } from 'react-router-dom';
 import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
 import { LinkedBoeSelector } from '@/components/boe/LinkedBoeSelector';
 import { IcegateIngestionDialog, type ParsedIcegateBoe } from '@/components/boe/IcegateIngestionDialog';
@@ -83,10 +84,14 @@ const TRADE_AGREEMENTS = [
 ] as const;
 
 export function BOEEntryPage() {
+  const [searchParams] = useSearchParams();
+  const urlShipmentId = searchParams.get('shipmentId') || '';
+  const urlCalcId = searchParams.get('calcId') || '';
+
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
   const [boes, setBoes] = React.useState<BOEDetail[]>([]);
   const [allBoes, setAllBoes] = React.useState<BOEDetail[]>([]);
-  const [selectedShipmentId, setSelectedShipmentId] = React.useState('');
+  const [selectedShipmentId, setSelectedShipmentId] = React.useState(urlShipmentId);
   const [params, setParams] = React.useState<BOECalcParams | null>(null);
   const [result, setResult] = React.useState<BOECalculationResult | null>(null);
 
@@ -177,18 +182,26 @@ export function BOEEntryPage() {
   }, []);
 
   React.useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    void loadData(urlShipmentId);
+  }, [loadData, urlShipmentId]);
 
   React.useEffect(() => {
-    if (!selectedShipmentId) {
+    if (!selectedShipmentId && !urlCalcId) {
       setParams(null);
       setResult(null);
       return;
     }
     void (async () => {
       try {
-        const ctx = await boeEntryService.loadShipmentContext(selectedShipmentId);
+        let ctx;
+        if (urlCalcId) {
+          ctx = await boeEntryService.loadCalculationContext(urlCalcId);
+          if (ctx.params?.shipmentId && ctx.params.shipmentId !== selectedShipmentId) {
+            setSelectedShipmentId(ctx.params.shipmentId);
+          }
+        } else {
+          ctx = await boeEntryService.loadShipmentContext(selectedShipmentId);
+        }
         setParams(ctx.params);
         setResult(ctx.result);
       } catch (err) {
@@ -197,7 +210,7 @@ export function BOEEntryPage() {
         toast.error(err instanceof Error ? err.message : String(err));
       }
     })();
-  }, [selectedShipmentId]);
+  }, [selectedShipmentId, urlCalcId]);
 
   const recompute = React.useCallback(async (nextParams: BOECalcParams) => {
     setParams(nextParams);

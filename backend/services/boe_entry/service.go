@@ -177,6 +177,48 @@ func (s *Service) LoadShipmentContext(shipmentID string) (models.BOECalculationC
 	}, nil
 }
 
+// LoadCalculationContext loads a specific BOE calculation by ID along with its parent shipment context.
+func (s *Service) LoadCalculationContext(calcID string) (models.BOECalculationContext, error) {
+	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
+		return models.BOECalculationContext{}, err
+	}
+	var shipmentID, boeID, status, formJSON, itemJSON, resJSON string
+	err := s.db.QueryRow(`
+		SELECT shipment_id, COALESCE(boe_id,''), status, form_values_json, item_inputs_json, calculation_result_json
+		FROM boe_calculations
+		WHERE id = ? AND deleted_at IS NULL`, strings.TrimSpace(calcID)).Scan(&shipmentID, &boeID, &status, &formJSON, &itemJSON, &resJSON)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.BOECalculationContext{}, fmt.Errorf("BOE calculation %q not found", calcID)
+		}
+		return models.BOECalculationContext{}, err
+	}
+	sh, err := s.shipRepo.GetByID(shipmentID)
+	if err != nil {
+		return models.BOECalculationContext{}, err
+	}
+	var params models.BOECalcParams
+	var result models.BOECalculationResult
+	if err := json.Unmarshal([]byte(formJSON), &params); err != nil {
+		return models.BOECalculationContext{}, fmt.Errorf("unmarshal form params: %w", err)
+	}
+	if err := json.Unmarshal([]byte(resJSON), &result); err != nil {
+		return models.BOECalculationContext{}, fmt.Errorf("unmarshal result: %w", err)
+	}
+	params.ID = calcID
+	params.BOEID = boeID
+	params.Status = status
+	if len(params.LineItems) == 0 {
+		_ = json.Unmarshal([]byte(itemJSON), &params.LineItems)
+	}
+	return models.BOECalculationContext{
+		Shipment: sh,
+		Params:   params,
+		Result:   result,
+		HasSaved: true,
+	}, nil
+}
+
 // ParseOverrideCSV parses rate overrides (`partNo, calculationMethod, boeBcdRate, boeSwsRate, boeIgstRate`),
 // skipping unknown parts or IGST mismatches with warnings.
 func (s *Service) ParseOverrideCSV(csvContent string, currentItems []models.BOECalculationItemInput) (models.BOEOverrideImportResult, error) {

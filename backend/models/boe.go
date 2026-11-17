@@ -186,3 +186,39 @@ type BOEOverrideImportResult struct {
 	SkippedCount int                       `json:"skippedCount"`
 	Warnings     []CSVImportRowError       `json:"warnings"`
 }
+
+// BOEReconciliationDiff captures financial variance between computed duty and customs challan payment.
+type BOEReconciliationDiff struct {
+	ComputedDuty           float64 `json:"computedDuty"`
+	CashDuty               float64 `json:"cashDuty"`
+	DutyPaid               float64 `json:"dutyPaid"`
+	DutyDifference         float64 `json:"dutyDifference"`
+	IsReconciled           bool    `json:"isReconciled"`
+	AssessableValue        float64 `json:"assessableValue"`
+	ChallanAssessableValue float64 `json:"challanAssessableValue"`
+	AssessableDifference   float64 `json:"assessableDifference"`
+}
+
+// BOECalculationDetail provides complete dossier for inspecting, auditing, viewing, and exporting a saved/reconciled BOE.
+type BOECalculationDetail struct {
+	ID             string                `json:"id"`
+	ShipmentID     string                `json:"shipmentId"`
+	BOEID          string                `json:"boeId"`
+	BENumber       string                `json:"beNumber"`
+	BEDate         string                `json:"beDate"`
+	Location       string                `json:"location"`
+	ChallanNumber  string                `json:"challanNumber"`
+	PaymentDate    string                `json:"paymentDate"`
+	DutyPaid       float64               `json:"dutyPaid"`
+	RefID          string                `json:"refId"`
+	TransactionID  string                `json:"transactionId"`
+	SupplierName   string                `json:"supplierName"`
+	InvoiceNumber  string                `json:"invoiceNumber"`
+	Status         string                `json:"status"`
+	CreatedAt      string                `json:"createdAt"`
+	Params         BOECalcParams         `json:"params"`
+	Result         BOECalculationResult  `json:"result"`
+	Attachments    []BOEAttachment       `json:"attachments"`
+	Reconciliation BOEReconciliationDiff `json:"reconciliation"`
+}
+

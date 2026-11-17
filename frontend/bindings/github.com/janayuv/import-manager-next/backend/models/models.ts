@@ -814,6 +814,146 @@ export class BOECalculationSummary {
 }
 
 /**
+ * BOEReconciliationDiff captures financial variance between computed duty and customs challan payment.
+ */
+export class BOEReconciliationDiff {
+    "computedDuty": number;
+    "cashDuty": number;
+    "dutyPaid": number;
+    "dutyDifference": number;
+    "isReconciled": boolean;
+    "assessableValue": number;
+    "challanAssessableValue": number;
+    "assessableDifference": number;
+
+    constructor($$source: Partial<BOEReconciliationDiff> = {}) {
+        if (!("computedDuty" in $$source)) {
+            this["computedDuty"] = 0;
+        }
+        if (!("cashDuty" in $$source)) {
+            this["cashDuty"] = 0;
+        }
+        if (!("dutyPaid" in $$source)) {
+            this["dutyPaid"] = 0;
+        }
+        if (!("dutyDifference" in $$source)) {
+            this["dutyDifference"] = 0;
+        }
+        if (!("isReconciled" in $$source)) {
+            this["isReconciled"] = false;
+        }
+        if (!("assessableValue" in $$source)) {
+            this["assessableValue"] = 0;
+        }
+        if (!("challanAssessableValue" in $$source)) {
+            this["challanAssessableValue"] = 0;
+        }
+        if (!("assessableDifference" in $$source)) {
+            this["assessableDifference"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    static createFrom($$source: any = {}): BOEReconciliationDiff {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new BOEReconciliationDiff($$parsedSource as Partial<BOEReconciliationDiff>);
+    }
+}
+
+/**
+ * BOECalculationDetail provides complete dossier for inspecting, auditing, viewing, and exporting a saved/reconciled BOE.
+ */
+export class BOECalculationDetail {
+    "id": string;
+    "shipmentId": string;
+    "boeId": string;
+    "beNumber": string;
+    "beDate": string;
+    "location": string;
+    "challanNumber": string;
+    "paymentDate": string;
+    "dutyPaid": number;
+    "refId": string;
+    "transactionId": string;
+    "supplierName": string;
+    "invoiceNumber": string;
+    "status": string;
+    "createdAt": string;
+    "params": BOECalcParams;
+    "result": BOECalculationResult;
+    "attachments": BOEAttachment[];
+    "reconciliation": BOEReconciliationDiff;
+
+    constructor($$source: Partial<BOECalculationDetail> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("boeId" in $$source)) {
+            this["boeId"] = "";
+        }
+        if (!("beNumber" in $$source)) {
+            this["beNumber"] = "";
+        }
+        if (!("beDate" in $$source)) {
+            this["beDate"] = "";
+        }
+        if (!("location" in $$source)) {
+            this["location"] = "";
+        }
+        if (!("challanNumber" in $$source)) {
+            this["challanNumber"] = "";
+        }
+        if (!("paymentDate" in $$source)) {
+            this["paymentDate"] = "";
+        }
+        if (!("dutyPaid" in $$source)) {
+            this["dutyPaid"] = 0;
+        }
+        if (!("refId" in $$source)) {
+            this["refId"] = "";
+        }
+        if (!("transactionId" in $$source)) {
+            this["transactionId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("params" in $$source)) {
+            this["params"] = new BOECalcParams();
+        }
+        if (!("result" in $$source)) {
+            this["result"] = new BOECalculationResult();
+        }
+        if (!("attachments" in $$source)) {
+            this["attachments"] = [];
+        }
+        if (!("reconciliation" in $$source)) {
+            this["reconciliation"] = new BOEReconciliationDiff();
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    static createFrom($$source: any = {}): BOECalculationDetail {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new BOECalculationDetail($$parsedSource as Partial<BOECalculationDetail>);
+    }
+}
+
+/**
  * BOEDetail mirrors a row in boe_details.
  */
 export class BOEDetail {

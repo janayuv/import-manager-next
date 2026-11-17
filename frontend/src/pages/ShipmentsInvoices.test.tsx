@@ -910,4 +910,265 @@ describe('Stage 5 Shipments & Invoice Wizard UI', () => {
       expect(screen.queryByText(/DEVP\/INZI260827-01/i)).not.toBeInTheDocument();
     });
   });
+
+  it('allows inspecting invoice, editing a line item, and saving changes', async () => {
+    const mockDetail = {
+      invoice: {
+        id: 'INV-100',
+        shipmentId: 'SHP-100',
+        supplierId: 'SUP-001',
+        supplierName: 'Acme Corp',
+        invoiceNumber: 'INV-ACME-01',
+        invoiceDate: '2026-11-01',
+        currency: 'USD',
+        shipmentInvoiceValue: 200.0,
+        computedTotal: 200.0,
+        lineCount: 2,
+        status: 'Finalized',
+        lineTotalDecimals: 2,
+        invoiceTotalDecimals: 2,
+        shipmentFrozen: false,
+      },
+      lines: [
+        {
+          id: 'IL-1',
+          invoiceId: 'INV-100',
+          itemId: 'ITM-1',
+          partNumber: 'PART-A',
+          itemDescription: 'Part A Description',
+          unit: 'PCS',
+          hsnCode: '8501',
+          quantity: 2,
+          unitPrice: 50.0,
+          masterUnitPrice: 50.0,
+          lineTotal: 100.0,
+          dutyPercent: 7.5,
+          swsPercent: 10,
+          igstPercent: 18,
+          priceDiverged: false,
+        },
+        {
+          id: 'IL-2',
+          invoiceId: 'INV-100',
+          itemId: 'ITM-2',
+          partNumber: 'PART-B',
+          itemDescription: 'Part B Description',
+          unit: 'PCS',
+          hsnCode: '8502',
+          quantity: 2,
+          unitPrice: 50.0,
+          masterUnitPrice: 50.0,
+          lineTotal: 100.0,
+          dutyPercent: 5.0,
+          swsPercent: 10,
+          igstPercent: 18,
+          priceDiverged: false,
+        },
+      ],
+    };
+
+    vi.mocked(invoiceService.list).mockResolvedValue([mockDetail.invoice]);
+    vi.mocked(invoiceService.getDetail).mockResolvedValue(mockDetail);
+    vi.mocked(invoiceWizardService.saveInvoice).mockResolvedValue({
+      ...mockDetail,
+      lines: [
+        { ...mockDetail.lines[0]!, quantity: 3, lineTotal: 150.0 },
+        mockDetail.lines[1]!,
+      ],
+      invoice: { ...mockDetail.invoice, computedTotal: 250.0, status: 'Draft' },
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <InvoicesPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('INV-100')).toBeInTheDocument();
+    });
+
+    // Inspect the invoice to view line items
+    fireEvent.click(screen.getByTitle('View Details'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Part A Description')).toBeInTheDocument();
+      expect(screen.getByText('Part B Description')).toBeInTheDocument();
+    });
+
+    // Click Edit on the first line item
+    const editLineBtns = screen.getAllByTitle('Edit line item');
+    expect(editLineBtns.length).toBe(2);
+    fireEvent.click(editLineBtns[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Edit Line Item: PART-A/i)).toBeInTheDocument();
+    });
+
+    // Change quantity to 3
+    const qtyInput = screen.getByLabelText(/Quantity \*/i);
+    fireEvent.change(qtyInput, { target: { value: '3' } });
+
+    // Save changes
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => {
+      expect(invoiceWizardService.saveInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          invoiceId: 'INV-100',
+          shipmentId: 'SHP-100',
+          lines: expect.arrayContaining([
+            expect.objectContaining({ itemId: 'ITM-1', quantity: 3, unitPrice: 50.0 }),
+          ]),
+        }),
+      );
+    });
+  });
+
+  it('allows removing a line item with confirmation, and blocks removing the only line item', async () => {
+    const mockDetailMulti = {
+      invoice: {
+        id: 'INV-200',
+        shipmentId: 'SHP-200',
+        supplierId: 'SUP-001',
+        supplierName: 'Acme Corp',
+        invoiceNumber: 'INV-ACME-02',
+        invoiceDate: '2026-11-02',
+        currency: 'USD',
+        shipmentInvoiceValue: 200.0,
+        computedTotal: 200.0,
+        lineCount: 2,
+        status: 'Finalized',
+        lineTotalDecimals: 2,
+        invoiceTotalDecimals: 2,
+        shipmentFrozen: false,
+      },
+      lines: [
+        {
+          id: 'IL-1',
+          invoiceId: 'INV-200',
+          itemId: 'ITM-1',
+          partNumber: 'PART-A',
+          itemDescription: 'Part A Description',
+          unit: 'PCS',
+          hsnCode: '8501',
+          quantity: 2,
+          unitPrice: 50.0,
+          masterUnitPrice: 50.0,
+          lineTotal: 100.0,
+          dutyPercent: 7.5,
+          swsPercent: 10,
+          igstPercent: 18,
+          priceDiverged: false,
+        },
+        {
+          id: 'IL-2',
+          invoiceId: 'INV-200',
+          itemId: 'ITM-2',
+          partNumber: 'PART-B',
+          itemDescription: 'Part B Description',
+          unit: 'PCS',
+          hsnCode: '8502',
+          quantity: 2,
+          unitPrice: 50.0,
+          masterUnitPrice: 50.0,
+          lineTotal: 100.0,
+          dutyPercent: 5.0,
+          swsPercent: 10,
+          igstPercent: 18,
+          priceDiverged: false,
+        },
+      ],
+    };
+
+    vi.mocked(invoiceService.list).mockResolvedValue([mockDetailMulti.invoice]);
+    vi.mocked(invoiceService.getDetail).mockResolvedValue(mockDetailMulti);
+    vi.mocked(invoiceWizardService.saveInvoice).mockResolvedValue({
+      ...mockDetailMulti,
+      lines: [mockDetailMulti.lines[0]!],
+      invoice: { ...mockDetailMulti.invoice, lineCount: 1, computedTotal: 100.0, status: 'Draft' },
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <InvoicesPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('INV-200')).toBeInTheDocument();
+    });
+
+    // Inspect
+    fireEvent.click(screen.getByTitle('View Details'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Part A Description')).toBeInTheDocument();
+    });
+
+    // Remove the second line item
+    const removeLineBtns = screen.getAllByTitle('Remove line item');
+    expect(removeLineBtns.length).toBe(2);
+    fireEvent.click(removeLineBtns[1]!);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Remove Line Item' })).toBeInTheDocument();
+      expect(screen.getByText(/Are you sure you want to remove line item/i)).toBeInTheDocument();
+    });
+
+    // Confirm removal
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Line Item' }));
+
+    await waitFor(() => {
+      expect(invoiceWizardService.saveInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          invoiceId: 'INV-200',
+          lines: [expect.objectContaining({ itemId: 'ITM-1' })],
+        }),
+      );
+    });
+  });
+
+  it('renders Edit Invoice in Wizard for Finalized invoices', async () => {
+    vi.mocked(invoiceService.list).mockResolvedValue([
+      {
+        id: 'INV-300',
+        shipmentId: 'SHP-300',
+        supplierId: 'SUP-001',
+        supplierName: 'Acme Corp',
+        invoiceNumber: 'INV-300-FINAL',
+        invoiceDate: '2026-11-03',
+        currency: 'USD',
+        shipmentInvoiceValue: 500.0,
+        computedTotal: 500.0,
+        lineCount: 3,
+        status: 'Finalized',
+        lineTotalDecimals: 2,
+        invoiceTotalDecimals: 2,
+        shipmentFrozen: false,
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <InvoicesPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('INV-300')).toBeInTheDocument();
+      expect(screen.getByText('Finalized')).toBeInTheDocument();
+    });
+
+    // Verify Edit Invoice in Wizard action link exists for finalized invoice
+    const editBtn = screen.getByTitle('Edit Invoice in Wizard');
+    expect(editBtn).toBeInTheDocument();
+    expect(editBtn.closest('a')).toHaveAttribute('href', '/invoice-wizard?id=INV-300');
+  });
 });

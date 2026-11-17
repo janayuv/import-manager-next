@@ -7,6 +7,7 @@ import {
   Calculator,
   Command,
   Database,
+  FileCheck2,
   FileSpreadsheet,
   FileText,
   History,
@@ -135,6 +136,15 @@ export function CommandPaletteDialog({
         icon: FileSpreadsheet,
         keywords: ['bill of entry', 'challan', 'customs duty', 'icegate'],
         action: () => nav('/boe'),
+      },
+      {
+        id: 'nav-reconciled-boe',
+        title: 'Reconciled BOE Module',
+        subtitle: 'View, edit, and delete reconciled customs Bill of Entry calculations',
+        category: 'Customs & ERP',
+        icon: FileCheck2,
+        keywords: ['reconciled boe', 'duty calculations', 'reconciled', 'customs reconcile'],
+        action: () => nav('/reconciled-boe'),
       },
       {
         id: 'nav-boe-entry',

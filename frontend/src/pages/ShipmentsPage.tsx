@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -1219,11 +1220,30 @@ export function ShipmentsPage() {
                 {(detail.invoices ?? []).length === 0 ? (
                   <p className="text-xs text-muted-foreground">No invoices saved yet.</p>
                 ) : (
-                  <ul className="space-y-1 text-xs">
+                  <ul className="space-y-1.5 text-xs">
                     {(detail.invoices ?? []).map((inv) => (
-                      <li key={inv.id} className="flex justify-between rounded border border-border px-2 py-1">
-                        <span>{inv.id} ({inv.status})</span>
-                        <span>{inv.lineCount} lines • {inv.currency} {inv.computedTotal.toFixed(2)}</span>
+                      <li key={inv.id} className="flex flex-wrap items-center justify-between rounded border border-border px-2.5 py-1.5 gap-2">
+                        <div className="min-w-0">
+                          <span className="font-mono font-semibold">{inv.id}</span>
+                          <span className="text-muted-foreground ml-1.5">({inv.status})</span>
+                          <span className="ml-2 font-mono text-muted-foreground">
+                            {inv.lineCount} line{inv.lineCount === 1 ? '' : 's'} • {inv.currency} {inv.computedTotal.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" asChild>
+                            <Link to={`/invoices?search=${encodeURIComponent(inv.id)}`} title="View invoice details and manage line items">
+                              View Lines
+                            </Link>
+                          </Button>
+                          {!inv.shipmentFrozen && (
+                            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-primary" asChild>
+                              <Link to={`/invoice-wizard?id=${encodeURIComponent(inv.id)}`} title="Edit or remove line items in wizard">
+                                Edit Lines
+                              </Link>
+                            </Button>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>

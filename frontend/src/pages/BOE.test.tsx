@@ -115,6 +115,16 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
     await waitFor(() => expect(screen.getByText('INV-100')).toBeInTheDocument());
     expect(screen.getByText('Bosch GmbH')).toBeInTheDocument();
 
+    // Verify View, Edit, and Delete options exist for calculation rows
+    expect(screen.getByTitle('View Reconciled BOE Dossier')).toBeInTheDocument();
+    expect(screen.getByTitle('Edit Reconciled BOE')).toBeInTheDocument();
+    expect(screen.getByTitle('Delete BOE Calculation')).toBeInTheDocument();
+
+    // Open Delete confirmation
+    fireEvent.click(screen.getByTitle('Delete BOE Calculation'));
+    expect(await screen.findByText(/Delete BOE Calculation\?/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
     const registryTab = screen.getByRole('tab', { name: /BE Challan Registry/i });
     fireEvent.mouseDown(registryTab);
     fireEvent.click(registryTab);

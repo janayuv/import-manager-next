@@ -25,6 +25,15 @@ export function LoadShipmentContext(shipmentID: string): $CancellablePromise<mod
 }
 
 /**
+ * LoadCalculationContext loads a specific BOE calculation by ID along with its parent shipment context.
+ */
+export function LoadCalculationContext(calcID: string): $CancellablePromise<models$0.BOECalculationContext> {
+    return $Call.ByID(4069424505, calcID).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * ParseOverrideCSV parses rate overrides (`partNo, calculationMethod, boeBcdRate, boeSwsRate, boeIgstRate`),
  * skipping unknown parts or IGST mismatches with warnings.
  */

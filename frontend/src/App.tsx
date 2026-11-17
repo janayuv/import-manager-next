@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { BOEEntryPage } from '@/pages/BOEEntryPage';
 import { BOERegistryPage } from '@/pages/BOERegistryPage';
+import { ReconciledBOEPage } from '@/pages/ReconciledBOEPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { DatabaseBackupsPage } from '@/pages/DatabaseBackupsPage';
 import { ExpenseReportsPage } from '@/pages/ExpenseReportsPage';
@@ -70,6 +71,14 @@ function AuthenticatedRoutes() {
             element={
               <RequirePermission permission="data.write">
                 <BOEEntryPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="reconciled-boe"
+            element={
+              <RequirePermission permission="data.read">
+                <ReconciledBOEPage />
               </RequirePermission>
             }
           />

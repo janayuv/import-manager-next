@@ -204,6 +204,14 @@ func TestBOEEntrySaveBlockersOverridesAndTransitions(t *testing.T) {
 		t.Fatalf("expected Reconciled status, got %s", saved.Status)
 	}
 
+	loadedCtx, err := entrySvc.LoadCalculationContext(saved.ID)
+	if err != nil {
+		t.Fatalf("load calculation context: %v", err)
+	}
+	if loadedCtx.Params.ID != saved.ID || loadedCtx.Params.Status != "Reconciled" {
+		t.Fatalf("unexpected loaded context: %+v", loadedCtx)
+	}
+
 	shAfter, _ := shipSvc.GetByID(sh.ID)
 	if shAfter.Status != "customs-clearance" && shAfter.Status != "ready-dly" {
 		t.Fatalf("expected shipment status updated after BOE save, got %s", shAfter.Status)
