@@ -18,6 +18,7 @@ test-results/
 
 # Local databases, logs, secrets, and exports
 *.db
+!mobile/assets/default_import_manager.db
 *.db-wal
 *.db-shm
 *.imkey
