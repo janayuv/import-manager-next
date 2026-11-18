@@ -84,3 +84,30 @@ func TestDriverCanOpenPlaintextLegacyDatabase(t *testing.T) {
 		t.Fatalf("expected 1 supplier from legacy plaintext DB, got cnt=%d err=%v", cnt, err)
 	}
 }
+
+func TestShrinkMemoryAndCheckpointWAL(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "shrink_test.db")
+	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+	mgr, err := connection.OpenEncrypted(dbPath, key)
+	if err != nil {
+		t.Fatalf("OpenEncrypted failed: %v", err)
+	}
+	defer mgr.Close()
+
+	if _, err := mgr.DB().Exec(`CREATE TABLE cache_test (id INTEGER PRIMARY KEY, payload TEXT);`); err != nil {
+		t.Fatalf("create table failed: %v", err)
+	}
+	for i := 0; i < 50; i++ {
+		if _, err := mgr.DB().Exec(`INSERT INTO cache_test (payload) VALUES (hex(randomblob(1024)));`); err != nil {
+			t.Fatalf("insert failed: %v", err)
+		}
+	}
+
+	if err := mgr.CheckpointWAL(); err != nil {
+		t.Fatalf("CheckpointWAL failed: %v", err)
+	}
+	if err := mgr.ShrinkMemory(); err != nil {
+		t.Fatalf("ShrinkMemory failed: %v", err)
+	}
+}

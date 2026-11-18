@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { downloadTextFile } from '@/lib/download';
-import { formatINR } from '@/pages/PartPeriodAnalysisPage';
+import { formatINR } from '@/lib/format';
 
 interface LandedCostSimulatorDialogProps {
   open: boolean;

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { formatINR } from '@/pages/PartPeriodAnalysisPage';
+import { formatINR } from '@/lib/format';
 
 export interface ParsedIcegateBoe {
   beNumber: string;

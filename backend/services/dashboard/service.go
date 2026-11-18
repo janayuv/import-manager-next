@@ -410,7 +410,7 @@ func (s *Service) loadRecentActivity() ([]models.DashboardActivityItem, error) {
 		       COALESCE(user_id,''), COALESCE(created_at,'')
 		FROM audit_logs
 		ORDER BY id DESC
-		LIMIT 12`)
+		LIMIT 5`)
 	if err != nil {
 		return nil, err
 	}

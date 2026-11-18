@@ -81,6 +81,20 @@ export function OpenExternalURL(url: string): $CancellablePromise<void> {
     return $Call.ByID(1691046826, url);
 }
 
+/**
+ * GetMemoryStats returns real-time operating system working set and Go heap allocation metrics.
+ */
+export function GetMemoryStats(): $CancellablePromise<any> {
+    return $Call.ByName("main.AppService.GetMemoryStats");
+}
+
+/**
+ * TrimMemory requests immediate process working set release, database cache purge, and runtime GC.
+ */
+export function TrimMemory(aggressive: boolean): $CancellablePromise<any> {
+    return $Call.ByName("main.AppService.TrimMemory", aggressive);
+}
+
 // Private type creation functions
 const $$createType0 = connection$0.HealthInfo.createFrom;
 const $$createType1 = updater$0.UpdateCheckResult.createFrom;

@@ -8,6 +8,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/app/bootstrap"
 	"github.com/janayuv/import-manager-next/backend/app/lifecycle"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
@@ -32,6 +33,7 @@ func main() {
 		Description: "Import Manager Next Generation Desktop ERP",
 		Services: []application.Service{
 			application.NewService(appService),
+			application.NewService(rt.Memory),
 			application.NewService(rt.Security),
 			application.NewService(rt.Audit),
 			application.NewService(rt.Options),
@@ -63,7 +65,7 @@ func main() {
 		},
 	})
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "Import Manager — Next Generation ERP",
 		Width:            1360,
 		Height:           840,
@@ -71,6 +73,25 @@ func main() {
 		MinHeight:        680,
 		BackgroundColour: application.NewRGB(248, 250, 252),
 		URL:              "/",
+	})
+
+	// Premium desktop lifecycle memory management:
+	// Automatically trim process working set, purge SQLite cache, and free OS memory on minimize
+	window.OnWindowEvent(events.Common.WindowMinimise, func(e *application.WindowEvent) {
+		rt.Logger.Info("window minimized: executing background working set trim")
+		_, _ = rt.Memory.OptimizeMemory(true)
+	})
+
+	// Low memory pressure handling from Windows OS
+	app.Event.OnApplicationEvent(events.Common.LowMemory, func(e *application.ApplicationEvent) {
+		rt.Logger.Warn("system low memory detected: executing aggressive memory trim")
+		_, _ = rt.Memory.OptimizeMemory(true)
+	})
+
+	// Sleep / Hibernate preparation
+	app.Event.OnApplicationEvent(events.Common.SystemWillSleep, func(e *application.ApplicationEvent) {
+		rt.Logger.Info("system sleep detected: flushing database WAL and trimming memory")
+		_, _ = rt.Memory.OptimizeMemory(true)
 	})
 
 	if err := app.Run(); err != nil {

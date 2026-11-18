@@ -100,6 +100,9 @@ func TestRealDashboardKPIsFYFilteringCacheAndSettings(t *testing.T) {
 	if ovAll.KPIs.TotalShipments != 2 || ovAll.KPIs.CompletedShipments != 1 {
 		t.Fatalf("expected 2 total / 1 completed under FY=all, got %+v", ovAll.KPIs)
 	}
+	if len(ovAll.RecentActivity) > 5 {
+		t.Fatalf("expected RecentActivity to be at most 5 items, got %d", len(ovAll.RecentActivity))
+	}
 
 	snapDate, err := rt.Dashboard.RebuildDailySnapshot()
 	if err != nil || snapDate == "" {

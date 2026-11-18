@@ -42,7 +42,103 @@ type CopyAttachedResult struct {
 	Warnings          []string
 }
 
-// QuoteIdent safely wraps a SQLite identifier in double quotes.
+// DefaultPriorityOrder defines canonical parent-first entity order for ImportManager tables.
+var DefaultPriorityOrder = []string{
+	"roles",
+	"role_permissions",
+	"users",
+	"app_settings",
+	"backup_schedules",
+	"suppliers",
+	"items",
+	"service_providers",
+	"expense_types",
+	"shipments",
+	"invoices",
+	"invoice_line_items",
+	"boe_details",
+	"boe_calculations",
+	"boe_items",
+	"boe_attachments",
+	"shipment_containers",
+	"expense_invoices",
+	"expenses",
+	"expense_attachments",
+	"workflow_exceptions",
+	"workflow_incidents",
+	"audit_log",
+}
+
+func sortTablesByDependencyTx(ctx context.Context, tx *sql.Tx, schema string, tables []string) []string {
+	tableSet := make(map[string]struct{}, len(tables))
+	for _, t := range tables {
+		tableSet[t] = struct{}{}
+	}
+
+	deps := make(map[string][]string)
+	for _, tbl := range tables {
+		rows, err := tx.QueryContext(ctx, fmt.Sprintf(`PRAGMA %s.foreign_key_list(%s);`, QuoteIdent(schema), QuoteIdent(tbl)))
+		if err != nil {
+			continue
+		}
+		for rows.Next() {
+			var id, seq int
+			var parentTable, from, to, onUpdate, onDelete, match sql.NullString
+			if err := rows.Scan(&id, &seq, &parentTable, &from, &to, &onUpdate, &onDelete, &match); err == nil && parentTable.Valid {
+				p := parentTable.String
+				if p != tbl {
+					if _, ok := tableSet[p]; ok {
+						deps[tbl] = append(deps[tbl], p)
+					}
+				}
+			}
+		}
+		_ = rows.Close()
+	}
+
+	inDegree := make(map[string]int, len(tables))
+	children := make(map[string][]string)
+	for _, tbl := range tables {
+		inDegree[tbl] = len(deps[tbl])
+		for _, p := range deps[tbl] {
+			children[p] = append(children[p], tbl)
+		}
+	}
+
+	var queue []string
+	for _, tbl := range tables {
+		if inDegree[tbl] == 0 {
+			queue = append(queue, tbl)
+		}
+	}
+
+	var sorted []string
+	visited := make(map[string]struct{})
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+		if _, ok := visited[curr]; ok {
+			continue
+		}
+		visited[curr] = struct{}{}
+		sorted = append(sorted, curr)
+		for _, ch := range children[curr] {
+			inDegree[ch]--
+			if inDegree[ch] <= 0 {
+				queue = append(queue, ch)
+			}
+		}
+	}
+
+	for _, tbl := range tables {
+		if _, ok := visited[tbl]; !ok {
+			sorted = append(sorted, tbl)
+			visited[tbl] = struct{}{}
+		}
+	}
+	return sorted
+}
+
 func QuoteIdent(name string) string {
 	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
@@ -238,9 +334,14 @@ func CopyAttachedTables(ctx context.Context, db *sql.DB, attachedPath, attachedK
 		srcSet[t] = struct{}{}
 	}
 
+	priorityOrder := opts.PriorityOrder
+	if len(priorityOrder) == 0 {
+		priorityOrder = DefaultPriorityOrder
+	}
+
 	orderedTables := make([]string, 0, len(dstTables))
 	seen := make(map[string]struct{})
-	for _, p := range opts.PriorityOrder {
+	for _, p := range priorityOrder {
 		if _, ok := dstSet[p]; ok {
 			if _, okSrc := srcSet[p]; okSrc && !slices.Contains(opts.ExcludeTables, p) {
 				orderedTables = append(orderedTables, p)
@@ -268,6 +369,20 @@ func CopyAttachedTables(ctx context.Context, db *sql.DB, attachedPath, attachedK
 		}
 	}()
 
+	orderedTables = sortTablesByDependencyTx(ctx, tx, "main", orderedTables)
+
+	if opts.ReplaceExisting {
+		// Clear destination tables in reverse dependency order (children before parents).
+		// This ensures child records are removed before their parents, satisfying
+		// SQLite DELETE protection triggers and foreign key constraints cleanly.
+		for i := len(orderedTables) - 1; i >= 0; i-- {
+			tbl := orderedTables[i]
+			if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM main.%s;`, QuoteIdent(tbl))); err != nil {
+				return result, fmt.Errorf("clear destination table %s: %w", tbl, err)
+			}
+		}
+	}
+
 	for _, tbl := range orderedTables {
 		srcCols, err := listColumnsTx(ctx, tx, alias, tbl)
 		if err != nil {
@@ -288,12 +403,6 @@ func CopyAttachedTables(ctx context.Context, db *sql.DB, attachedPath, attachedK
 			quotedCols = append(quotedCols, QuoteIdent(c))
 		}
 		colList := strings.Join(quotedCols, ", ")
-
-		if opts.ReplaceExisting {
-			if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM main.%s;`, QuoteIdent(tbl))); err != nil {
-				return result, fmt.Errorf("clear destination table %s: %w", tbl, err)
-			}
-		}
 
 		insertVerb := "INSERT OR REPLACE"
 		if tbl == "roles" || tbl == "role_permissions" {

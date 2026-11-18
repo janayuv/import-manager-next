@@ -78,13 +78,14 @@ jobs:
             "$hash  $($_.Name)" | Out-File -Append -Encoding utf8 "bin\SHA256SUMS.txt"
           }
 
-      - name: Upload Windows Installer Artifacts
+      - name: Upload Windows & Android Installer Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: import-manager-windows-installer
+          name: import-manager-release-artifacts
           path: |
             bin/*.exe
             bin/*.zip
+            bin/*.apk
             bin/SHA256SUMS.txt
 
       - name: Create GitHub Release
@@ -94,5 +95,6 @@ jobs:
           files: |
             bin/*.exe
             bin/*.zip
+            bin/*.apk
             bin/SHA256SUMS.txt
           generate_release_notes: true

@@ -567,3 +567,288 @@ func (s *Service) GetWarehouseDwellReport(filter string) ([]models.WarehouseDwel
 	}
 	return s.containerRepo.ListWarehouseDwell(filter)
 }
+
+func parseTransitDate(raw string) (time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, errors.New("empty date")
+	}
+	formats := []string{
+		"2006-01-02",
+		"02-01-2006",
+		"02-Jan-2006",
+		"2006/01/02",
+		"02/01/2006",
+		"2006-01-02 15:04:05",
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, raw); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unrecognized date format: %q", raw)
+}
+
+func formatTransitDate(raw string) string {
+	t, err := parseTransitDate(raw)
+	if err != nil {
+		return raw
+	}
+	return t.Format("02-Jan-2006")
+}
+
+// ComputeTransitStatusAndDays determines transit period and automated status according to the template rules:
+// - Status is automatic:
+//   Pending (ETA missing)
+//   In Transit (ETA today or later and no ATA)
+//   Delayed (ETA passed and no ATA)
+//   Arrived (ATA entered)
+// - Transit Period (Days) is calculated automatically as ETA minus ETD (calendar days).
+func ComputeTransitStatusAndDays(etdStr, etaStr, dateOfDelivery, shipmentStatus string, today time.Time) (string, *int) {
+	var transitDays *int
+	etdStr = strings.TrimSpace(etdStr)
+	etaStr = strings.TrimSpace(etaStr)
+	dateOfDelivery = strings.TrimSpace(dateOfDelivery)
+
+	if etdStr != "" && etaStr != "" {
+		etd, err1 := parseTransitDate(etdStr)
+		eta, err2 := parseTransitDate(etaStr)
+		if err1 == nil && err2 == nil {
+			days := int(eta.Sub(etd).Hours() / 24)
+			transitDays = &days
+		}
+	}
+
+	isArrived := (dateOfDelivery != "") ||
+		strings.EqualFold(shipmentStatus, "delivered") ||
+		strings.EqualFold(shipmentStatus, "arrived") ||
+		strings.EqualFold(shipmentStatus, "completed")
+
+	if isArrived {
+		return "Arrived", transitDays
+	}
+
+	if etaStr == "" {
+		return "Pending", transitDays
+	}
+
+	eta, err := parseTransitDate(etaStr)
+	if err != nil {
+		return "Pending", transitDays
+	}
+
+	todayMidnight := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())
+	etaMidnight := time.Date(eta.Year(), eta.Month(), eta.Day(), 0, 0, 0, 0, today.Location())
+
+	if etaMidnight.Before(todayMidnight) {
+		return "Delayed", transitDays
+	}
+	return "In Transit", transitDays
+}
+
+// GetTransitShipmentReport compiles the Transit Shipment tracker dataset, live summary KPIs, and status breakdown.
+func (s *Service) GetTransitShipmentReport(filter models.TransitShipmentFilter) (models.TransitShipmentReport, error) {
+	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
+		return models.TransitShipmentReport{}, err
+	}
+
+	pageReq := models.ShipmentPageRequest{
+		Search:     filter.Search,
+		SupplierID: filter.SupplierID,
+		Page:       1,
+		PageSize:   500,
+		SortBy:     "invoiceDate",
+		SortDir:    "DESC",
+	}
+
+	page, err := s.repo.List(pageReq)
+	if err != nil {
+		return models.TransitShipmentReport{}, err
+	}
+
+	now := time.Now()
+	var allItems []models.TransitShipmentItem
+	var filteredItems []models.TransitShipmentItem
+
+	var totalTransitDays int
+	var transitDaysCount int
+	inTransitCount := 0
+	arrivedCount := 0
+	delayedCount := 0
+	pendingCount := 0
+
+	sNo := 1
+	for _, sh := range page.Items {
+		if filter.StartDate != "" && sh.InvoiceDate != "" && sh.InvoiceDate < filter.StartDate {
+			continue
+		}
+		if filter.EndDate != "" && sh.InvoiceDate != "" && sh.InvoiceDate > filter.EndDate {
+			continue
+		}
+
+		status, transitDays := ComputeTransitStatusAndDays(sh.ETD, sh.ETA, sh.DateOfDelivery, sh.Status, now)
+
+		if transitDays != nil {
+			totalTransitDays += *transitDays
+			transitDaysCount++
+		}
+
+		switch status {
+		case "In Transit":
+			inTransitCount++
+		case "Arrived":
+			arrivedCount++
+		case "Delayed":
+			delayedCount++
+		case "Pending":
+			pendingCount++
+		}
+
+		remarks := ""
+		if sh.ContainerNumber != "" {
+			remarks = "Container: " + sh.ContainerNumber
+		}
+
+		item := models.TransitShipmentItem{
+			SNo:             sNo,
+			ID:              sh.ID,
+			SupplierID:      sh.SupplierID,
+			SupplierName:    sh.SupplierName,
+			InvoiceNumber:   sh.InvoiceNumber,
+			InvoiceDate:     sh.InvoiceDate,
+			VesselVoyage:    sh.VesselName,
+			ETD:             sh.ETD,
+			ETA:             sh.ETA,
+			TransitDays:     transitDays,
+			Status:          status,
+			Remarks:         remarks,
+			DateOfDelivery:  sh.DateOfDelivery,
+			BLAWBNumber:     sh.BLAWBNumber,
+			ContainerNumber: sh.ContainerNumber,
+			GrossWeightKg:   sh.GrossWeightKg,
+			InvoiceValue:    sh.InvoiceValue,
+			InvoiceCurrency: sh.InvoiceCurrency,
+		}
+		sNo++
+
+		allItems = append(allItems, item)
+
+		statusFilter := strings.ToLower(strings.TrimSpace(filter.Status))
+		if statusFilter != "" && statusFilter != "all" {
+			normalizedStatus := strings.ToLower(strings.ReplaceAll(status, " ", "-"))
+			if normalizedStatus != statusFilter {
+				continue
+			}
+		}
+		filteredItems = append(filteredItems, item)
+	}
+
+	totalCount := len(allItems)
+	avgTransit := 0.0
+	if transitDaysCount > 0 {
+		avgTransit = float64(totalTransitDays) / float64(transitDaysCount)
+		avgTransit = float64(int(avgTransit*10+0.5)) / 10.0
+	}
+
+	calcPct := func(count int) float64 {
+		if totalCount == 0 {
+			return 0
+		}
+		return float64(int((float64(count)/float64(totalCount)*1000)+0.5)) / 10.0
+	}
+
+	summary := models.TransitShipmentSummary{
+		TotalShipments:        totalCount,
+		InTransit:             inTransitCount,
+		Arrived:               arrivedCount,
+		Delayed:               delayedCount,
+		Pending:               pendingCount,
+		AveragePlannedTransit: avgTransit,
+	}
+
+	breakdown := []models.TransitStatusCount{
+		{Status: "In Transit", Count: inTransitCount, Pct: calcPct(inTransitCount)},
+		{Status: "Arrived", Count: arrivedCount, Pct: calcPct(arrivedCount)},
+		{Status: "Delayed", Count: delayedCount, Pct: calcPct(delayedCount)},
+		{Status: "Pending", Count: pendingCount, Pct: calcPct(pendingCount)},
+	}
+
+	return models.TransitShipmentReport{
+		Summary:   summary,
+		Breakdown: breakdown,
+		Items:     filteredItems,
+	}, nil
+}
+
+// ExportTransitShipmentsCSV generates the exact template-compliant CSV for Import Shipment Transit Details.
+func (s *Service) ExportTransitShipmentsCSV(filter models.TransitShipmentFilter) (string, error) {
+	report, err := s.GetTransitShipmentReport(filter)
+	if err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	sb.WriteString("IMPORT SHIPMENT TRANSIT DETAILS,,,,,,,,,\r\n")
+	sb.WriteString(",,,,,,,,,\r\n")
+	sb.WriteString("S.No.,Shipper / Supplier,Invoice No.,Invoice Date,Vessel / Voyage,ETD,ETA,Transit Period (Days),Shipment Status,Remarks\r\n")
+
+	for idx, itm := range report.Items {
+		transitDaysStr := ""
+		if itm.TransitDays != nil {
+			transitDaysStr = strconv.Itoa(*itm.TransitDays)
+		}
+		row := []string{
+			strconv.Itoa(idx + 1),
+			itm.SupplierName,
+			itm.InvoiceNumber,
+			formatTransitDate(itm.InvoiceDate),
+			itm.VesselVoyage,
+			formatTransitDate(itm.ETD),
+			formatTransitDate(itm.ETA),
+			transitDaysStr,
+			itm.Status,
+			itm.Remarks,
+		}
+		escaped := make([]string, len(row))
+		for i, v := range row {
+			if strings.ContainsAny(v, ",\"\r\n") {
+				escaped[i] = `"` + strings.ReplaceAll(v, `"`, `""`) + `"`
+			} else {
+				escaped[i] = v
+			}
+		}
+		sb.WriteString(strings.Join(escaped, ",") + "\r\n")
+	}
+
+	sb.WriteString("IMPORT SHIPMENT OVERVIEW,,,,\r\n")
+	sb.WriteString("Live summary based on entries in the Shipment Tracker sheet,,,,\r\n")
+	sb.WriteString(",,,,\r\n")
+	sb.WriteString("Total Shipments,,In Transit,,Arrived\r\n")
+	sb.WriteString(fmt.Sprintf("%d,,%d,,%d\r\n", report.Summary.TotalShipments, report.Summary.InTransit, report.Summary.Arrived))
+	sb.WriteString(",,,,\r\n")
+	sb.WriteString(",,,,\r\n")
+	sb.WriteString("Delayed,,Pending,,Average Planned Transit (Days)\r\n")
+	sb.WriteString(fmt.Sprintf("%d,,%d,,%.1f\r\n", report.Summary.Delayed, report.Summary.Pending, report.Summary.AveragePlannedTransit))
+	sb.WriteString(",,,,\r\n")
+	sb.WriteString(",,,,\r\n")
+	sb.WriteString(",,,,\r\n")
+	sb.WriteString("Shipment Status Breakdown,,,,\r\n")
+	sb.WriteString("Status,Count,,,\r\n")
+	sb.WriteString(fmt.Sprintf("In Transit,%d,,,\r\n", report.Summary.InTransit))
+	sb.WriteString(fmt.Sprintf("Arrived,%d,,,\r\n", report.Summary.Arrived))
+	sb.WriteString(fmt.Sprintf("Delayed,%d,,,\r\n", report.Summary.Delayed))
+	sb.WriteString(fmt.Sprintf("Pending,%d,,,\r\n", report.Summary.Pending))
+	sb.WriteString("HOW TO USE THIS TEMPLATE,\r\n")
+	sb.WriteString(",\r\n")
+	sb.WriteString("1. Enter shipment details,Use the light-blue cells in the Shipment Tracker sheet. One row represents one import shipment / invoice.\r\n")
+	sb.WriteString("2. Required fields,\"Enter at least the Shipper / Supplier, Invoice No., ETD and ETA to calculate the planned transit period.\"\r\n")
+	sb.WriteString("3. Transit Period,Transit Period (Days) is calculated automatically as ETA minus ETD.\r\n")
+	sb.WriteString("4. Actual Transit,Enter ATD (Actual Time of Departure) and ATA (Actual Time of Arrival). Actual Transit (Days) is calculated automatically.\r\n")
+	sb.WriteString("5. Shipment Status,\"Status is automatic: Pending (ETA missing), In Transit (ETA today or later and no ATA), Delayed (ETA passed and no ATA), Arrived (ATA entered).\"\r\n")
+	sb.WriteString("6. Dashboard,The Dashboard updates automatically based on the Shipment Tracker entries.\r\n")
+	sb.WriteString("7. Date format,Enter real Excel dates. The workbook displays dates as dd-mmm-yyyy.\r\n")
+	sb.WriteString("8. Capacity,The template is preformatted for 200 shipment entries. Extend the formulas/table if you need more rows.\r\n")
+	sb.WriteString("Note,Transit period is calendar days (not working days).\r\n")
+
+	return "\xEF\xBB\xBF" + sb.String(), nil
+}

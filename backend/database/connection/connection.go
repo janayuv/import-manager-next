@@ -70,6 +70,22 @@ func OpenEncrypted(dbPath, hexOrPassKey string) (*Manager, error) {
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
 	}
 
+	// Optimize memory consumption & page cache bounds for desktop efficiency:
+	// - cache_size = -16000: caps in-memory cache to 16 MiB per connection
+	// - mmap_size = 67108864: enables up to 64 MiB memory-mapped I/O for high read throughput without memory bloat
+	// - temp_store = MEMORY: caches temporary indexes and aggregates in RAM without disk churn
+	optimizations := []string{
+		"PRAGMA cache_size = -16000;",
+		"PRAGMA mmap_size = 67108864;",
+		"PRAGMA temp_store = MEMORY;",
+	}
+	for _, pragma := range optimizations {
+		if _, err := db.Exec(pragma); err != nil {
+			// Non-fatal if specific pragma unsupported in driver build
+			continue
+		}
+	}
+
 	return &Manager{db: db, dbPath: dbPath}, nil
 }
 
@@ -110,6 +126,31 @@ func (m *Manager) Health() (HealthInfo, error) {
 	}
 
 	return info, nil
+}
+
+// ShrinkMemory executes SQLite's PRAGMA shrink_memory to release cached pages back to the process heap.
+func (m *Manager) ShrinkMemory() error {
+	m.mu.RLock()
+	db := m.db
+	m.mu.RUnlock()
+	if db == nil {
+		return errors.New("database connection is closed")
+	}
+	_, err := db.Exec("PRAGMA shrink_memory;")
+	return err
+}
+
+// CheckpointWAL flushes uncommitted WAL journal frames to main database storage and checkpoints passively,
+// allowing SQLite to trim memory-mapped WAL index buffers.
+func (m *Manager) CheckpointWAL() error {
+	m.mu.RLock()
+	db := m.db
+	m.mu.RUnlock()
+	if db == nil {
+		return errors.New("database connection is closed")
+	}
+	_, err := db.Exec("PRAGMA wal_checkpoint(PASSIVE);")
+	return err
 }
 
 // Close closes the database handle cleanly.
