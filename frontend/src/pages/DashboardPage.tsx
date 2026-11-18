@@ -52,6 +52,7 @@ import {
 export function DashboardPage() {
   const { hasPermission } = useAuth();
   const canRebuild = hasPermission('data.write');
+  const canViewAudit = hasPermission('admin.activity_log');
 
   const [financialYear, setFinancialYear] = React.useState('all');
   const [overview, setOverview] = React.useState<DashboardOverview | null>(null);
@@ -394,8 +395,16 @@ export function DashboardPage() {
             </Card>
 
             <Card className="lg:col-span-2">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-base">Recent ERP Activity</CardTitle>
+                {canViewAudit && (
+                  <Link
+                    to="/admin/activity-log"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-4 hover:underline"
+                  >
+                    View all
+                  </Link>
+                )}
               </CardHeader>
               <CardContent>
                 <Table>
@@ -415,7 +424,7 @@ export function DashboardPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      overview.recentActivity.map((act) => (
+                      overview.recentActivity.slice(0, 5).map((act) => (
                         <TableRow key={act.id}>
                           <TableCell>
                             <Badge variant="outline">{act.action}</Badge>

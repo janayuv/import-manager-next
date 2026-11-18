@@ -66,16 +66,9 @@ import {
   type PartPeriodAnalysisRequest,
 } from '@/services/expense-service';
 import { supplierService, type Supplier } from '@/services/master-service';
+import { formatINR, formatCurr } from '@/lib/format';
 
-export function formatINR(val?: number): string {
-  if (val === undefined || val === null || isNaN(val)) return '₹0.00';
-  return '₹' + val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-export function formatCurr(val?: number, curr = 'USD'): string {
-  if (val === undefined || val === null || isNaN(val)) return `0.00 ${curr}`;
-  return `${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}`;
-}
+export { formatINR, formatCurr };
 
 // Preset date ranges
 function getPresetDates(preset: string): { startDate: string; endDate: string } {

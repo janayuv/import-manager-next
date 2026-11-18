@@ -6,6 +6,7 @@ import {
   Box,
   Calculator,
   Command,
+  Compass,
   Database,
   FileCheck2,
   FileSpreadsheet,
@@ -91,6 +92,15 @@ export function CommandPaletteDialog({
         icon: Ship,
         keywords: ['shipping', 'cargo', 'bl', 'awb', 'vessel'],
         action: () => nav('/shipments'),
+      },
+      {
+        id: 'nav-transit-shipments',
+        title: 'Transit Shipment Tracker',
+        subtitle: 'Track in-transit shipments, planned vs actual duration and export overview',
+        category: 'Navigation',
+        icon: Compass,
+        keywords: ['transit', 'shipping', 'etd', 'eta', 'tracking', 'voyage', 'export'],
+        action: () => nav('/transit-shipments'),
       },
       {
         id: 'nav-invoices',

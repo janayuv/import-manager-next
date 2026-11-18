@@ -12,6 +12,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/database/migrations"
 	"github.com/janayuv/import-manager-next/backend/logging"
+	"github.com/janayuv/import-manager-next/backend/memory"
 	"github.com/janayuv/import-manager-next/backend/scheduler"
 	"github.com/janayuv/import-manager-next/backend/services/audit"
 	"github.com/janayuv/import-manager-next/backend/services/backup"
@@ -26,6 +27,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/invoice"
 	"github.com/janayuv/import-manager-next/backend/services/invoice_wizard"
 	"github.com/janayuv/import-manager-next/backend/services/item_master"
+	memService "github.com/janayuv/import-manager-next/backend/services/memory"
 	"github.com/janayuv/import-manager-next/backend/services/options"
 	"github.com/janayuv/import-manager-next/backend/services/recycle_bin"
 	"github.com/janayuv/import-manager-next/backend/services/reports"
@@ -69,6 +71,8 @@ type Runtime struct {
 	Workflow           *workflow.Service
 	Updater            *updater.Service
 	Scheduler          *scheduler.Scheduler
+	MemoryMgr          *memory.Manager
+	Memory             *memService.Service
 }
 
 // Initialize resolves configuration, opens logging, fetches/creates the SQLCipher database key
@@ -169,6 +173,11 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 
 	updaterSvc := updater.NewService(cfg, securitySvc, auditSvc)
 
+	memMgr := memory.NewManager(dbMgr, logger, memory.Config{
+		AutoTrimEnabled: true,
+	})
+	memSvc := memService.NewService(memMgr, securitySvc, auditSvc)
+
 	logger.Info("runtime initialized",
 		"app", cfg.AppName,
 		"version", cfg.AppVersion,
@@ -215,12 +224,17 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		Workflow:           workflowSvc,
 		Updater:            updaterSvc,
 		Scheduler:          sched,
+		MemoryMgr:          memMgr,
+		Memory:             memSvc,
 	}, nil
 }
 
 // Shutdown flushes and closes open database and log handles cleanly.
 func (r *Runtime) Shutdown() error {
 	var firstErr error
+	if r.MemoryMgr != nil {
+		_ = r.MemoryMgr.Close()
+	}
 	if r.Scheduler != nil {
 		r.Scheduler.Stop()
 	}

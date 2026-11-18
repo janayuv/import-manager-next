@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { trimMemory } from '@/services/app-service';
 import {
   Activity,
   AlertTriangle,
@@ -8,6 +9,7 @@ import {
   Bot,
   Box,
   Calculator,
+  Compass,
   Database,
   FileCheck2,
   FileSpreadsheet,
@@ -67,6 +69,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/suppliers', label: 'Suppliers', icon: Users },
       { to: '/shipments', label: 'Shipments', icon: Ship },
+      { to: '/transit-shipments', label: 'Transit Tracker', icon: Compass },
       { to: '/invoices', label: 'Invoices', icon: FileText },
       { to: '/invoice-wizard', label: 'Invoice Wizard', icon: Wand2 },
       { to: '/items', label: 'Item Master', icon: Box },
@@ -163,6 +166,26 @@ export function AppShell() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sidebarHidden, toggleSidebar]);
+
+  // Premium desktop lifecycle memory management:
+  // Trigger proactive memory optimization when user minimizes or switches away
+  React.useEffect(() => {
+    let timer: number | null = null;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        timer = window.setTimeout(() => {
+          void trimMemory(false);
+        }, 1200);
+      } else if (timer) {
+        window.clearTimeout(timer);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (timer) window.clearTimeout(timer);
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -375,7 +398,18 @@ export function AppShell() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6">
-          <Outlet />
+          <React.Suspense
+            fallback={
+              <div className="flex min-h-[300px] w-full items-center justify-center">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="text-xs text-muted-foreground">Loading workspace module...</span>
+                </div>
+              </div>
+            }
+          >
+            <Outlet />
+          </React.Suspense>
         </main>
 
         <AppStatusBar

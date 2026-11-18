@@ -61,6 +61,13 @@ export function DownloadTemplateCSV(): $CancellablePromise<string> {
 }
 
 /**
+ * ExportTransitShipmentsCSV generates the exact template-compliant CSV for Import Shipment Transit Details.
+ */
+export function ExportTransitShipmentsCSV(filter: models$0.TransitShipmentFilter): $CancellablePromise<string> {
+    return $Call.ByID(912304378, filter);
+}
+
+/**
  * Freeze places a terminal commercial lock on a shipment.
  */
 export function Freeze(id: string): $CancellablePromise<models$0.Shipment> {
@@ -88,11 +95,20 @@ export function GetDetail(id: string): $CancellablePromise<models$0.ShipmentDeta
 }
 
 /**
+ * GetTransitShipmentReport compiles the Transit Shipment tracker dataset, live summary KPIs, and status breakdown.
+ */
+export function GetTransitShipmentReport(filter: models$0.TransitShipmentFilter): $CancellablePromise<models$0.TransitShipmentReport> {
+    return $Call.ByID(3647159997, filter).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
+/**
  * GetWarehouseDwellReport returns container dwell time metrics and storage estimates across warehouses.
  */
 export function GetWarehouseDwellReport(filter: string): $CancellablePromise<models$0.WarehouseDwellSummary[]> {
     return $Call.ByID(220437733, filter).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
@@ -101,7 +117,7 @@ export function GetWarehouseDwellReport(filter: string): $CancellablePromise<mod
  */
 export function ImportCSV(fileName: string, content: string): $CancellablePromise<models$0.CSVImportResult> {
     return $Call.ByID(3552864897, fileName, content).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -110,7 +126,7 @@ export function ImportCSV(fileName: string, content: string): $CancellablePromis
  */
 export function List(req: models$0.ShipmentPageRequest): $CancellablePromise<models$0.ShipmentPage> {
     return $Call.ByID(6331702, req).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType7($result);
     });
 }
 
@@ -119,7 +135,7 @@ export function List(req: models$0.ShipmentPageRequest): $CancellablePromise<mod
  */
 export function ListContainers(shipmentID: string): $CancellablePromise<models$0.ShipmentContainer[]> {
     return $Call.ByID(2297243410, shipmentID).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType8($result);
     });
 }
 
@@ -161,8 +177,9 @@ export function UpdateContainer(id: string, $in: models$0.ShipmentContainerInput
 const $$createType0 = models$0.Shipment.createFrom;
 const $$createType1 = models$0.ShipmentContainer.createFrom;
 const $$createType2 = models$0.ShipmentDetail.createFrom;
-const $$createType3 = models$0.WarehouseDwellSummary.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = models$0.CSVImportResult.createFrom;
-const $$createType6 = models$0.ShipmentPage.createFrom;
-const $$createType7 = $Create.Array($$createType1);
+const $$createType3 = models$0.TransitShipmentReport.createFrom;
+const $$createType4 = models$0.WarehouseDwellSummary.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = models$0.CSVImportResult.createFrom;
+const $$createType7 = models$0.ShipmentPage.createFrom;
+const $$createType8 = $Create.Array($$createType1);

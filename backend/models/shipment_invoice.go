@@ -164,6 +164,61 @@ type SaveInvoiceRequest struct {
 	Lines                []InvoiceLineInput `json:"lines"`
 }
 
+// TransitShipmentItem represents one row in the Import Shipment Transit Details tracker.
+type TransitShipmentItem struct {
+	SNo             int      `json:"sNo"`
+	ID              string   `json:"id"`
+	SupplierID      string   `json:"supplierId"`
+	SupplierName    string   `json:"supplierName"`
+	InvoiceNumber   string   `json:"invoiceNumber"`
+	InvoiceDate     string   `json:"invoiceDate"`
+	VesselVoyage    string   `json:"vesselVoyage"`
+	ETD             string   `json:"etd"`
+	ETA             string   `json:"eta"`
+	TransitDays     *int     `json:"transitDays"`
+	Status          string   `json:"status"` // "In Transit", "Arrived", "Delayed", "Pending"
+	Remarks         string   `json:"remarks"`
+	DateOfDelivery  string   `json:"dateOfDelivery,omitempty"`
+	BLAWBNumber     string   `json:"blAwbNumber,omitempty"`
+	ContainerNumber string   `json:"containerNumber,omitempty"`
+	GrossWeightKg   float64  `json:"grossWeightKg,omitempty"`
+	InvoiceValue    float64  `json:"invoiceValue,omitempty"`
+	InvoiceCurrency string   `json:"invoiceCurrency,omitempty"`
+}
+
+// TransitShipmentSummary captures KPI overview metrics based on tracker entries.
+type TransitShipmentSummary struct {
+	TotalShipments        int     `json:"totalShipments"`
+	InTransit             int     `json:"inTransit"`
+	Arrived               int     `json:"arrived"`
+	Delayed               int     `json:"delayed"`
+	Pending               int     `json:"pending"`
+	AveragePlannedTransit float64 `json:"averagePlannedTransit"`
+}
+
+// TransitStatusCount captures status breakdown item.
+type TransitStatusCount struct {
+	Status string  `json:"status"`
+	Count  int     `json:"count"`
+	Pct    float64 `json:"pct"`
+}
+
+// TransitShipmentFilter specifies filtering criteria for transit shipment view.
+type TransitShipmentFilter struct {
+	Search     string `json:"search,omitempty"`
+	SupplierID string `json:"supplierId,omitempty"`
+	Status     string `json:"status,omitempty"` // "all", "in-transit", "arrived", "delayed", "pending"
+	StartDate  string `json:"startDate,omitempty"`
+	EndDate    string `json:"endDate,omitempty"`
+}
+
+// TransitShipmentReport bundles summary, status breakdown, and tracker items.
+type TransitShipmentReport struct {
+	Summary   TransitShipmentSummary `json:"summary"`
+	Breakdown []TransitStatusCount   `json:"breakdown"`
+	Items     []TransitShipmentItem  `json:"items"`
+}
+
 // ParsedPasteLine represents one parsed and Item-Master-matched row from multi-line clipboard paste.
 type ParsedPasteLine struct {
 	Row             int     `json:"row"`

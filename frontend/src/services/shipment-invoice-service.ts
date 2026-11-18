@@ -17,6 +17,11 @@ import type {
   ShipmentInput,
   ShipmentPage,
   ShipmentPageRequest,
+  TransitShipmentFilter,
+  TransitShipmentItem,
+  TransitShipmentReport,
+  TransitShipmentSummary,
+  TransitStatusCount,
   WarehouseDwellSummary,
 } from '../../bindings/github.com/janayuv/import-manager-next/backend/models/models.js';
 
@@ -36,6 +41,11 @@ export type {
   ShipmentInput,
   ShipmentPage,
   ShipmentPageRequest,
+  TransitShipmentFilter,
+  TransitShipmentItem,
+  TransitShipmentReport,
+  TransitShipmentSummary,
+  TransitStatusCount,
   WarehouseDwellSummary,
 };
 
@@ -90,6 +100,12 @@ export const shipmentService = {
   },
   getWarehouseDwellReport(filter = ''): Promise<WarehouseDwellSummary[]> {
     return ShipmentBindings.GetWarehouseDwellReport(filter);
+  },
+  getTransitShipmentReport(filter: TransitShipmentFilter = {}): Promise<TransitShipmentReport> {
+    return ShipmentBindings.GetTransitShipmentReport(filter);
+  },
+  exportTransitShipmentsCsv(filter: TransitShipmentFilter = {}): Promise<string> {
+    return ShipmentBindings.ExportTransitShipmentsCSV(filter);
   },
 };
 

@@ -7633,6 +7633,233 @@ export class SupplierPageRequest {
 }
 
 /**
+ * TransitShipmentFilter specifies filtering criteria for transit shipment view.
+ */
+export class TransitShipmentFilter {
+    "search"?: string;
+    "supplierId"?: string;
+
+    /**
+     * "all", "in-transit", "arrived", "delayed", "pending"
+     */
+    "status"?: string;
+    "startDate"?: string;
+    "endDate"?: string;
+
+    /** Creates a new TransitShipmentFilter instance. */
+    constructor($$source: Partial<TransitShipmentFilter> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransitShipmentFilter instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TransitShipmentFilter {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TransitShipmentFilter($$parsedSource as Partial<TransitShipmentFilter>);
+    }
+}
+
+/**
+ * TransitShipmentItem represents one row in the Import Shipment Transit Details tracker.
+ */
+export class TransitShipmentItem {
+    "sNo": number;
+    "id": string;
+    "supplierId": string;
+    "supplierName": string;
+    "invoiceNumber": string;
+    "invoiceDate": string;
+    "vesselVoyage": string;
+    "etd": string;
+    "eta": string;
+    "transitDays": number | null;
+
+    /**
+     * "In Transit", "Arrived", "Delayed", "Pending"
+     */
+    "status": string;
+    "remarks": string;
+    "dateOfDelivery"?: string;
+    "blAwbNumber"?: string;
+    "containerNumber"?: string;
+    "grossWeightKg"?: number;
+    "invoiceValue"?: number;
+    "invoiceCurrency"?: string;
+
+    /** Creates a new TransitShipmentItem instance. */
+    constructor($$source: Partial<TransitShipmentItem> = {}) {
+        if (!("sNo" in $$source)) {
+            this["sNo"] = 0;
+        }
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("invoiceDate" in $$source)) {
+            this["invoiceDate"] = "";
+        }
+        if (!("vesselVoyage" in $$source)) {
+            this["vesselVoyage"] = "";
+        }
+        if (!("etd" in $$source)) {
+            this["etd"] = "";
+        }
+        if (!("eta" in $$source)) {
+            this["eta"] = "";
+        }
+        if (!("transitDays" in $$source)) {
+            this["transitDays"] = null;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("remarks" in $$source)) {
+            this["remarks"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransitShipmentItem instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TransitShipmentItem {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TransitShipmentItem($$parsedSource as Partial<TransitShipmentItem>);
+    }
+}
+
+/**
+ * TransitShipmentReport bundles summary, status breakdown, and tracker items.
+ */
+export class TransitShipmentReport {
+    "summary": TransitShipmentSummary;
+    "breakdown": TransitStatusCount[];
+    "items": TransitShipmentItem[];
+
+    /** Creates a new TransitShipmentReport instance. */
+    constructor($$source: Partial<TransitShipmentReport> = {}) {
+        if (!("summary" in $$source)) {
+            this["summary"] = (new TransitShipmentSummary());
+        }
+        if (!("breakdown" in $$source)) {
+            this["breakdown"] = [];
+        }
+        if (!("items" in $$source)) {
+            this["items"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransitShipmentReport instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TransitShipmentReport {
+        const $$createField0_0 = $$createType92;
+        const $$createField1_0 = $$createType94;
+        const $$createField2_0 = $$createType96;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("summary" in $$parsedSource) {
+            $$parsedSource["summary"] = $$createField0_0($$parsedSource["summary"]);
+        }
+        if ("breakdown" in $$parsedSource) {
+            $$parsedSource["breakdown"] = $$createField1_0($$parsedSource["breakdown"]);
+        }
+        if ("items" in $$parsedSource) {
+            $$parsedSource["items"] = $$createField2_0($$parsedSource["items"]);
+        }
+        return new TransitShipmentReport($$parsedSource as Partial<TransitShipmentReport>);
+    }
+}
+
+/**
+ * TransitShipmentSummary captures KPI overview metrics based on tracker entries.
+ */
+export class TransitShipmentSummary {
+    "totalShipments": number;
+    "inTransit": number;
+    "arrived": number;
+    "delayed": number;
+    "pending": number;
+    "averagePlannedTransit": number;
+
+    /** Creates a new TransitShipmentSummary instance. */
+    constructor($$source: Partial<TransitShipmentSummary> = {}) {
+        if (!("totalShipments" in $$source)) {
+            this["totalShipments"] = 0;
+        }
+        if (!("inTransit" in $$source)) {
+            this["inTransit"] = 0;
+        }
+        if (!("arrived" in $$source)) {
+            this["arrived"] = 0;
+        }
+        if (!("delayed" in $$source)) {
+            this["delayed"] = 0;
+        }
+        if (!("pending" in $$source)) {
+            this["pending"] = 0;
+        }
+        if (!("averagePlannedTransit" in $$source)) {
+            this["averagePlannedTransit"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransitShipmentSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TransitShipmentSummary {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TransitShipmentSummary($$parsedSource as Partial<TransitShipmentSummary>);
+    }
+}
+
+/**
+ * TransitStatusCount captures status breakdown item.
+ */
+export class TransitStatusCount {
+    "status": string;
+    "count": number;
+    "pct": number;
+
+    /** Creates a new TransitStatusCount instance. */
+    constructor($$source: Partial<TransitStatusCount> = {}) {
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("count" in $$source)) {
+            this["count"] = 0;
+        }
+        if (!("pct" in $$source)) {
+            this["pct"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransitStatusCount instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TransitStatusCount {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TransitStatusCount($$parsedSource as Partial<TransitStatusCount>);
+    }
+}
+
+/**
  * UpdateTableCellRequest updates a single allowlisted cell in the Database Console inline editor.
  */
 export class UpdateTableCellRequest {
@@ -7977,3 +8204,8 @@ const $$createType88 = SupplierHistoryItem.createFrom;
 const $$createType89 = $Create.Array($$createType88);
 const $$createType90 = Supplier.createFrom;
 const $$createType91 = $Create.Array($$createType90);
+const $$createType92 = TransitShipmentSummary.createFrom;
+const $$createType93 = TransitStatusCount.createFrom;
+const $$createType94 = $Create.Array($$createType93);
+const $$createType95 = TransitShipmentItem.createFrom;
+const $$createType96 = $Create.Array($$createType95);

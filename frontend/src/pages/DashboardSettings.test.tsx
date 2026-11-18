@@ -164,4 +164,64 @@ describe('Stage 8: Real-Data Dashboard & Settings', () => {
     fireEvent.click(screen.getByRole('button', { name: /Save Settings/i }));
     await waitFor(() => expect(settingsService.saveProfile).toHaveBeenCalledWith(mockProfile));
   });
+
+  it('renders at most 5 recent activities in Recent ERP Activity table', async () => {
+    vi.mocked(dashboardService.getOverview).mockResolvedValue({
+      financialYear: 'all',
+      startDate: '',
+      endDate: '',
+      availableFys: ['2026-27'],
+      kpis: {
+        totalSuppliers: 1,
+        activeSuppliers: 1,
+        totalShipments: 1,
+        pendingShipments: 0,
+        completedShipments: 1,
+        overdueEtaCount: 0,
+        shipmentsMissingBoe: 0,
+        shipmentsMissingExpense: 0,
+        totalInvoices: 1,
+        pendingBoes: 0,
+        reconciledBoes: 1,
+        totalImportValueInr: 1000,
+        totalCustomsDutyInr: 100,
+        totalBasicExpensesInr: 50,
+        totalGrossExpensesInr: 59,
+        openExceptionCount: 0,
+        slaBreachCount: 0,
+        openIncidentCount: 0,
+        workflowHealthScore: 100,
+      },
+      monthlyTrends: [],
+      supplierBreakdown: [],
+      statusBreakdown: [],
+      recentActivity: [
+        { id: 1, tableName: 'shipments', rowId: 'SH-1', action: 'INSERT', userId: 'admin', createdAt: '2026-11-18 10:01' },
+        { id: 2, tableName: 'shipments', rowId: 'SH-2', action: 'INSERT', userId: 'admin', createdAt: '2026-11-18 10:02' },
+        { id: 3, tableName: 'shipments', rowId: 'SH-3', action: 'INSERT', userId: 'admin', createdAt: '2026-11-18 10:03' },
+        { id: 4, tableName: 'shipments', rowId: 'SH-4', action: 'INSERT', userId: 'admin', createdAt: '2026-11-18 10:04' },
+        { id: 5, tableName: 'shipments', rowId: 'SH-5', action: 'INSERT', userId: 'admin', createdAt: '2026-11-18 10:05' },
+        { id: 6, tableName: 'shipments', rowId: 'SH-6', action: 'INSERT', userId: 'admin', createdAt: '2026-11-18 10:06' },
+        { id: 7, tableName: 'shipments', rowId: 'SH-7', action: 'INSERT', userId: 'admin', createdAt: '2026-11-18 10:07' },
+      ],
+      alerts: [],
+      cacheHit: false,
+      generatedAt: '2026-11-18T10:00:00Z',
+      lastSnapshotDate: '2026-11-18',
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <DashboardPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('Recent ERP Activity')).toBeInTheDocument());
+    expect(screen.getByText('shipments (SH-1)')).toBeInTheDocument();
+    expect(screen.getByText('shipments (SH-5)')).toBeInTheDocument();
+    expect(screen.queryByText('shipments (SH-6)')).not.toBeInTheDocument();
+    expect(screen.queryByText('shipments (SH-7)')).not.toBeInTheDocument();
+  });
 });

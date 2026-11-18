@@ -8,6 +8,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/database/connection"
 	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/database/migrations"
+	"github.com/janayuv/import-manager-next/backend/memory"
 	"github.com/janayuv/import-manager-next/backend/services/updater"
 	winpaths "github.com/janayuv/import-manager-next/backend/windows"
 )
@@ -24,6 +25,7 @@ type BootstrapInfo struct {
 	Paths         winpaths.AppPaths     `json:"paths"`
 	Database      connection.HealthInfo `json:"database"`
 	Integrity     integrity.Report      `json:"integrity"`
+	Memory        memory.Stats          `json:"memory"`
 }
 
 // AppService provides application metadata, runtime paths, and SQLCipher database health bindings.
@@ -58,7 +60,18 @@ func (s *AppService) GetBootstrapInfo() (BootstrapInfo, error) {
 		Paths:         s.rt.Config.Paths,
 		Database:      health,
 		Integrity:     integ,
+		Memory:        s.rt.MemoryMgr.GetStats(),
 	}, nil
+}
+
+// GetMemoryStats returns real-time operating system working set and Go heap allocation metrics.
+func (s *AppService) GetMemoryStats() (memory.Stats, error) {
+	return s.rt.Memory.GetMemoryStats()
+}
+
+// TrimMemory requests immediate process working set release, database cache purge, and runtime GC.
+func (s *AppService) TrimMemory(aggressive bool) (memory.TrimResult, error) {
+	return s.rt.Memory.OptimizeMemory(aggressive)
 }
 
 // CheckDatabaseHealth executes a live SQLCipher cipher/WAL/FK/integrity probe.
