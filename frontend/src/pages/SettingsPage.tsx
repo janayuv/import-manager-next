@@ -51,6 +51,8 @@ const MODULE_LABELS: Record<string, string> = {
   supplier: 'Suppliers',
   itemMaster: 'Item Master',
   expenses: 'Expenses',
+  cbicRates: 'CBIC Rates',
+  reconciledBoe: 'Reconciled BOE',
 };
 
 export function SettingsPage() {
@@ -350,7 +352,9 @@ export function SettingsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-base">Per-Module Table Preferences (7 Modules)</CardTitle>
+            <CardTitle className="text-base">
+              Per-Module Table Preferences ({Object.keys(MODULE_LABELS).length} Modules)
+            </CardTitle>
             <CardDescription>
               Pagination size and formatting defaults per ERP view.
             </CardDescription>

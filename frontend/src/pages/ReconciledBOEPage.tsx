@@ -48,7 +48,7 @@ export function ReconciledBOEPage() {
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
 
-  const { itemsPerPage: pageSizeSetting } = useModuleSettings('boeSummary');
+  const { itemsPerPage: pageSizeSetting } = useModuleSettings('reconciledBoe');
   const pageSize = pageSizeSetting > 0 ? pageSizeSetting : 10;
   const [currentPage, setCurrentPage] = React.useState(1);
 

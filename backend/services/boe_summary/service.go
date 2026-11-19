@@ -195,7 +195,7 @@ func (s *Service) GetByID(calcID string) (models.BOECalculationDetail, error) {
 		CashDuty:               cashDuty,
 		DutyPaid:               challanDuty,
 		DutyDifference:         dutyDiff,
-		IsReconciled:           math.Abs(dutyDiff) < 1.0,
+		IsReconciled:           math.Abs(dutyDiff) <= 1.0,
 		AssessableValue:        d.Result.TotalAssessableValue,
 		ChallanAssessableValue: boeAssess.Float64,
 		AssessableDifference:   boeAssess.Float64 - d.Result.TotalAssessableValue,

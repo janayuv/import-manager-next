@@ -2,10 +2,14 @@ import * as React from 'react';
 import {
   AlertTriangle,
   Calculator,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Copy,
+  Download,
   FileDown,
   FileSpreadsheet,
+  FileUp,
   Info,
   RefreshCw,
   Save,
@@ -13,6 +17,7 @@ import {
   ShieldCheck,
   Sparkles,
   Upload,
+  Wand2,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -101,6 +106,7 @@ export function BOEEntryPage() {
 
   const [overrideOpen, setOverrideOpen] = React.useState(false);
   const [overrideCsv, setOverrideCsv] = React.useState('');
+  const overrideFileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [showOriginBreakdown, setShowOriginBreakdown] = React.useState(false);
   const [icegateOpen, setIcegateOpen] = React.useState(false);
@@ -240,13 +246,53 @@ export function BOEEntryPage() {
     [displayBoes, params?.boeId],
   );
 
+  const targetDuty = React.useMemo(() => {
+    if (!result) return 0;
+    if (result.cashCustomsDutyTotal && result.cashCustomsDutyTotal > 0 && (result.rodtepScripUtilized ?? 0) > 0) {
+      return result.cashCustomsDutyTotal;
+    }
+    return result.customsDutyTotal;
+  }, [result]);
+
+  const dutyPaidDiff = React.useMemo(() => {
+    if (!linkedBoe || !result) return 0;
+    const paid = Math.round(linkedBoe.dutyPaid);
+    const gross = Math.round(result.customsDutyTotal);
+    const cash = Math.round(result.cashCustomsDutyTotal ?? result.customsDutyTotal);
+    const diffGross = paid - gross;
+    const diffCash = paid - cash;
+    if (result.cashCustomsDutyTotal && result.cashCustomsDutyTotal > 0 && (result.rodtepScripUtilized ?? 0) > 0) {
+      return diffCash;
+    }
+    return Math.abs(diffCash) < Math.abs(diffGross) ? diffCash : diffGross;
+  }, [linkedBoe, result]);
+
+  const hasRoundOffVariance = React.useMemo(() => {
+    if (!linkedBoe || !result) return false;
+    const paid = Math.round(linkedBoe.dutyPaid);
+    const gross = Math.round(result.customsDutyTotal);
+    const cash = Math.round(result.cashCustomsDutyTotal ?? result.customsDutyTotal);
+    const isExact = paid === gross || paid === cash;
+    return !isExact && (Math.abs(paid - gross) <= 1 || Math.abs(paid - cash) <= 1);
+  }, [linkedBoe, result]);
+
   const dutyPaidMismatch = React.useMemo(() => {
     if (!linkedBoe || !result) return false;
     const paid = Math.round(linkedBoe.dutyPaid);
     const gross = Math.round(result.customsDutyTotal);
     const cash = Math.round(result.cashCustomsDutyTotal ?? result.customsDutyTotal);
-    return paid !== gross && paid !== cash;
+    return Math.abs(paid - gross) > 1 && Math.abs(paid - cash) > 1;
   }, [linkedBoe, result]);
+
+  const handleAutoAdjustRoundOff = React.useCallback(async () => {
+    if (!params || !linkedBoe || !result) return;
+    const nextAdj = (params.roundOffAdjustment || 0) + dutyPaidDiff;
+    const next = { ...params, roundOffAdjustment: nextAdj };
+    await recompute(next);
+    toast.success(
+      `Adjusted round-off by ${dutyPaidDiff > 0 ? `+₹${dutyPaidDiff}` : `-₹${Math.abs(dutyPaidDiff)}`} to match linked BOE duty paid (INR ${Math.round(linkedBoe.dutyPaid).toLocaleString()})`,
+    );
+  }, [params, linkedBoe, result, dutyPaidDiff, recompute]);
 
   const syncCbicRate = React.useCallback(
     async (targetDate?: string, silent = false) => {
@@ -301,6 +347,58 @@ export function BOEEntryPage() {
     );
   }, [lineItemsWithIndex, itemSearch]);
 
+  const handleCopyOverrideTemplate = () => {
+    const items = params?.lineItems ?? [];
+    if (items.length === 0) {
+      toast.info('No line items available in current shipment');
+      return;
+    }
+    const header = 'partNo\tcalculationMethod\tboeBcdRate\tboeSwsRate\tboeIgstRate';
+    const rows = items.map(
+      (it) =>
+        `${it.partNumber}\t${it.calculationMethod || 'Standard'}\t${it.boeBcdRate ?? it.actualBcdRate ?? 7.5}\t${it.boeSwsRate ?? it.actualSwsRate ?? 10}\t${it.actualIgstRate ?? 18}`,
+    );
+    const tsv = [header, ...rows].join('\n');
+    void navigator.clipboard.writeText(tsv);
+    toast.success(`Copied template with ${items.length} shipment line items to clipboard`);
+  };
+
+  const handleDownloadOverrideTemplate = () => {
+    const items = params?.lineItems ?? [];
+    const header = 'partNo,calculationMethod,boeBcdRate,boeSwsRate,boeIgstRate';
+    const rows =
+      items.length > 0
+        ? items.map(
+            (it) =>
+              `${it.partNumber},${it.calculationMethod || 'Standard'},${it.boeBcdRate ?? it.actualBcdRate ?? 7.5},${it.boeSwsRate ?? it.actualSwsRate ?? 10},${it.actualIgstRate ?? 18}`,
+          )
+        : ['56132711,Standard,15,10,18'];
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `BOE_Rate_Overrides_Template.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Downloaded BOE rate override CSV template');
+  };
+
+  const handleOverrideFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result;
+      if (typeof text === 'string') {
+        setOverrideCsv(text);
+        toast.info(`Loaded ${file.name}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleApplyOverride = async () => {
     if (!params || !overrideCsv.trim()) return;
     try {
@@ -314,7 +412,7 @@ export function BOEEntryPage() {
           `Applied ${res.appliedCount} overrides; skipped ${res.skippedCount} (${res.warnings?.[0]?.message ?? ''})`,
         );
       } else {
-        toast.success(`Applied ${res.appliedCount} rate overrides`);
+        toast.success(`Applied all ${res.appliedCount} rate overrides successfully`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -476,8 +574,8 @@ export function BOEEntryPage() {
 
           {params && (
             <>
-              {/* Core 5-input valuation grid */}
-              <div className="grid gap-4 md:grid-cols-5">
+              {/* Core valuation grid */}
+              <div className="grid gap-4 md:grid-cols-6">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="exRate">Exchange Rate (INR per {params.invoiceCurrency})</Label>
@@ -590,6 +688,29 @@ export function BOEEntryPage() {
                     value={params.interest}
                     onChange={(e) =>
                       void recompute({ ...params, interest: Number.parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="roundOffAdjustment">Round-off (INR)</Label>
+                    {hasRoundOffVariance && (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        Diff: {dutyPaidDiff > 0 ? `+₹${dutyPaidDiff}` : `-₹${Math.abs(dutyPaidDiff)}`}
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    id="roundOffAdjustment"
+                    type="number"
+                    step="1"
+                    placeholder="±1 to match BOE"
+                    value={params.roundOffAdjustment ?? 0}
+                    onChange={(e) =>
+                      void recompute({
+                        ...params,
+                        roundOffAdjustment: Number.parseFloat(e.target.value) || 0,
+                      })
                     }
                   />
                 </div>
@@ -958,11 +1079,41 @@ export function BOEEntryPage() {
             </div>
           )}
 
+          {hasRoundOffVariance && linkedBoe && result && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50/80 px-3 py-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>
+                  <strong>Round-off difference:</strong> Linked BOE duty paid (INR {Math.round(linkedBoe.dutyPaid).toLocaleString()}) differs by {dutyPaidDiff > 0 ? `+₹${dutyPaidDiff}` : `-₹${Math.abs(dutyPaidDiff)}`} from computed Customs Duty (INR {Math.round(targetDuty).toLocaleString()}) due to Customs Act Sec. 154 rounding.
+                </span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs bg-amber-100 hover:bg-amber-200 border-amber-400 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100 dark:border-amber-700 shrink-0 font-medium"
+                onClick={() => void handleAutoAdjustRoundOff()}
+              >
+                <Wand2 className="h-3.5 w-3.5 mr-1" />
+                Auto-Adjust ({dutyPaidDiff > 0 ? `+₹${dutyPaidDiff}` : `-₹${Math.abs(dutyPaidDiff)}`}) to Match Duty Paid
+              </Button>
+            </div>
+          )}
+
           {dutyPaidMismatch && linkedBoe && result && (
             <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               Save blocked: Linked BOE duty paid (INR {Math.round(linkedBoe.dutyPaid).toLocaleString()}) does
               not match computed Customs Duty Total (INR {Math.round(result.customsDutyTotal).toLocaleString()}).
+            </div>
+          )}
+
+          {linkedBoe && result && !dutyPaidMismatch && !hasRoundOffVariance && Math.round(linkedBoe.dutyPaid) === Math.round(targetDuty) && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50/70 px-3 py-1.5 text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span>
+                <strong>100% Reconciled:</strong> Computed Customs Duty matches Linked ICEGATE BOE duty paid (INR {Math.round(linkedBoe.dutyPaid).toLocaleString()}) exactly.
+              </span>
             </div>
           )}
         </CardContent>
@@ -1025,6 +1176,14 @@ export function BOEEntryPage() {
                     maximumFractionDigits: 0,
                   })}
                 </CardTitle>
+                {Boolean(result.roundOffAdjustment) && (
+                  <div className="text-[10px] text-muted-foreground font-mono">
+                    Round-off:{' '}
+                    {(result.roundOffAdjustment || 0) > 0
+                      ? `+₹${result.roundOffAdjustment}`
+                      : `-₹${Math.abs(result.roundOffAdjustment || 0)}`}
+                  </div>
+                )}
               </CardHeader>
             </Card>
           </div>
@@ -1220,28 +1379,93 @@ export function BOEEntryPage() {
       )}
 
       <Dialog open={overrideOpen} onOpenChange={setOverrideOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Import BOE Rate Override CSV</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-primary" />
+              Import BOE Rate Override CSV / Excel Paste
+            </DialogTitle>
             <DialogDescription>
-              Required headers: partNo, calculationMethod, boeBcdRate, boeSwsRate, boeIgstRate. Rows with IGST
-              mismatch are skipped cleanly.
+              Paste tab-separated data copied directly from Excel, or comma-separated CSV. Headers are optional: [partNo, calculationMethod, boeBcdRate, boeSwsRate, boeIgstRate].
             </DialogDescription>
           </DialogHeader>
+
+          <input
+            ref={overrideFileInputRef}
+            type="file"
+            accept=".csv,.tsv,.txt"
+            className="hidden"
+            onChange={handleOverrideFileChange}
+          />
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">
+              Columns: Part Number | Method | BCD % | SWS % | IGST %
+            </span>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={handleCopyOverrideTemplate}
+                title="Copy TSV template pre-filled with this shipment's line items"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Copy Template
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={handleDownloadOverrideTemplate}
+                title="Download CSV template"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Template CSV
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => overrideFileInputRef.current?.click()}
+                title="Upload CSV or TSV file"
+              >
+                <FileUp className="h-3.5 w-3.5" />
+                Upload File
+              </Button>
+            </div>
+          </div>
+
           <Textarea
-            rows={6}
+            rows={8}
             className="font-mono text-xs"
             placeholder={
-              'partNo,calculationMethod,boeBcdRate,boeSwsRate,boeIgstRate\nPN-100,CEPA,2.5,10,18'
+              '56132711\tStandard\t15\t10\t18\n56277372\tStandard\t7.5\t10\t18\n\nOr with headers:\npartNo,calculationMethod,boeBcdRate,boeSwsRate,boeIgstRate\n56132711,Standard,15,10,18'
             }
             value={overrideCsv}
             onChange={(e) => setOverrideCsv(e.target.value)}
           />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOverrideOpen(false)}>
-              Cancel
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={() => setOverrideCsv('')}
+              disabled={!overrideCsv}
+            >
+              Clear
             </Button>
-            <Button onClick={() => void handleApplyOverride()}>Apply Overrides</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setOverrideOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => void handleApplyOverride()}>Apply Overrides</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

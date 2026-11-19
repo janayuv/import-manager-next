@@ -161,6 +161,9 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 	if len(params.LineItems) == 0 {
 		return models.BOECalculationResult{}, errors.New("at least one line item is required for BOE calculation")
 	}
+	if math.Abs(params.RoundOffAdjustment) > 50 {
+		return models.BOECalculationResult{}, fmt.Errorf("round-off adjustment cannot exceed ±50 INR (got %.2f)", params.RoundOffAdjustment)
+	}
 
 	rule := GetIncotermRule(params.Incoterm)
 
@@ -402,6 +405,8 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 	}
 
 	// Header Totals
+	roundOff := roundTo(params.RoundOffAdjustment, 0)
+	res.RoundOffAdjustment = roundOff
 	res.GrossBCDTotal = roundTo(grossBCDSum, 0)
 	res.RoDTEPScripUtilized = roundTo(totalRoDTEPUtilized, 0)
 	res.BCDCashTotal = roundTo(grossBCDSum-totalRoDTEPUtilized, 0)
@@ -409,8 +414,8 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 	res.SWSTotal = roundTo(swsSum, 0)
 	res.IGSTTotal = roundTo(igstSum, 0)
 	res.Interest = roundTo(params.Interest, 0)
-	res.CustomsDutyTotal = roundTo(res.GrossBCDTotal+res.SWSTotal+res.IGSTTotal+res.Interest, 0)
-	res.CashCustomsDutyTotal = roundTo(res.BCDCashTotal+res.SWSTotal+res.IGSTTotal+res.Interest, 0)
+	res.CustomsDutyTotal = math.Max(0, roundTo(res.GrossBCDTotal+res.SWSTotal+res.IGSTTotal+res.Interest+roundOff, 0))
+	res.CashCustomsDutyTotal = math.Max(0, roundTo(res.BCDCashTotal+res.SWSTotal+res.IGSTTotal+res.Interest+roundOff, 0))
 
 	if blob, err := json.Marshal(res); err == nil {
 		res.PayloadBytes = len(blob)

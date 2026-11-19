@@ -479,6 +479,11 @@ export class BOECalcParams {
      * INR
      */
     "interest": number;
+
+    /**
+     * INR (round-off adjustment under Customs Act Sec. 154)
+     */
+    "roundOffAdjustment"?: number;
     "lineItems": BOECalculationItemInput[];
 
     /** Creates a new BOECalcParams instance. */
@@ -542,6 +547,12 @@ export class BOECalcParams {
         }
         if (!("interest" in $$source)) {
             this["interest"] = 0;
+        }
+        if (!("roundOffAdjustment" in $$source)) {
+            this["roundOffAdjustment"] = 0;
+        }
+        if (!("roundOffAdjustment" in $$source)) {
+            this["roundOffAdjustment"] = 0;
         }
         if (!("lineItems" in $$source)) {
             this["lineItems"] = [];
@@ -826,6 +837,7 @@ export class BOECalculationResult {
     "swsTotal": number;
     "igstTotal": number;
     "interest": number;
+    "roundOffAdjustment"?: number;
 
     /**
      * Gross assessed duty liability
@@ -888,6 +900,12 @@ export class BOECalculationResult {
         }
         if (!("interest" in $$source)) {
             this["interest"] = 0;
+        }
+        if (!("roundOffAdjustment" in $$source)) {
+            this["roundOffAdjustment"] = 0;
+        }
+        if (!("roundOffAdjustment" in $$source)) {
+            this["roundOffAdjustment"] = 0;
         }
         if (!("customsDutyTotal" in $$source)) {
             this["customsDutyTotal"] = 0;

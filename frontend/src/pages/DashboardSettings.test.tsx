@@ -224,4 +224,36 @@ describe('Stage 8: Real-Data Dashboard & Settings', () => {
     expect(screen.queryByText('shipments (SH-6)')).not.toBeInTheDocument();
     expect(screen.queryByText('shipments (SH-7)')).not.toBeInTheDocument();
   });
+
+  it('renders Per-Module Table Preferences (9 Modules) including CBIC Rates and Reconciled BOE', async () => {
+    const mockProfile = {
+      schemaVersion: 1,
+      theme: 'default',
+      mode: 'system',
+      lineTotalDecimals: 2,
+      invoiceTotalDecimals: 2,
+      numberFormat: 'en-IN',
+      dateFormat: 'DD/MM/YYYY',
+      textFormat: 'preserve',
+      modules: {
+        shipment: { visibleFields: [], itemsPerPage: 10, decimalPrecision: 2, dateFormat: 'DD/MM/YYYY', fieldCases: { shipmentType: 'uppercase' } },
+        cbicRates: { visibleFields: [], itemsPerPage: 25, decimalPrecision: 2, dateFormat: 'DD/MM/YYYY', fieldCases: {} },
+        reconciledBoe: { visibleFields: [], itemsPerPage: 15, decimalPrecision: 2, dateFormat: 'DD/MM/YYYY', fieldCases: {} },
+      },
+      updatedAt: '2026-11-19T10:00:00Z',
+    };
+    vi.mocked(settingsService.getProfile).mockResolvedValue(mockProfile);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <SettingsPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(/Per-Module Table Preferences \(9 Modules\)/i)).toBeInTheDocument()
+    );
+  });
 });

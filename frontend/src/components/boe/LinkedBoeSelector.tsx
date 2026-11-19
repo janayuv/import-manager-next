@@ -68,18 +68,27 @@ export function LinkedBoeSelector({
     return boes.find((b) => b.id === value) ?? null;
   }, [value, boes]);
 
-  const isDutyMatch = React.useCallback(
+  const getDutyDiff = React.useCallback(
     (b: BOEDetail) => {
-      if (expectedDuty === undefined && cashDuty === undefined) return false;
+      if (expectedDuty === undefined && cashDuty === undefined) return null;
       const paid = Math.round(b.dutyPaid);
-      if (paid < 0) return false;
-      const matchExpected =
-        expectedDuty !== undefined && expectedDuty >= 0 && paid === Math.round(expectedDuty);
-      const matchCash =
-        cashDuty !== undefined && cashDuty >= 0 && paid === Math.round(cashDuty);
-      return matchExpected || matchCash;
+      if (paid < 0) return null;
+      const diffExpected = expectedDuty !== undefined && expectedDuty >= 0 ? paid - Math.round(expectedDuty) : null;
+      const diffCash = cashDuty !== undefined && cashDuty >= 0 ? paid - Math.round(cashDuty) : null;
+      if (diffCash !== null && (diffExpected === null || Math.abs(diffCash) <= Math.abs(diffExpected))) {
+        return diffCash;
+      }
+      return diffExpected;
     },
     [expectedDuty, cashDuty],
+  );
+
+  const isDutyMatch = React.useCallback(
+    (b: BOEDetail) => {
+      const diff = getDutyDiff(b);
+      return diff !== null && Math.abs(diff) <= 1;
+    },
+    [getDutyDiff],
   );
 
   const isRecent = React.useCallback((beDate: string) => {
@@ -158,7 +167,7 @@ export function LinkedBoeSelector({
       .sort((a, b) => (b.beDate || '').localeCompare(a.beDate || ''));
   }, [boes, modalSearch]);
 
-  const selectedMatchesDuty = selectedBoe ? isDutyMatch(selectedBoe) : false;
+  const selectedDiff = selectedBoe ? getDutyDiff(selectedBoe) : null;
 
   return (
     <div className="space-y-1">
@@ -221,9 +230,13 @@ export function LinkedBoeSelector({
                     {Math.round(selectedBoe.dutyPaid).toLocaleString()}
                   </span>
                   {expectedDuty !== undefined && (
-                    selectedMatchesDuty ? (
+                    selectedDiff !== null && selectedDiff === 0 ? (
                       <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-500 border border-green-500/20">
                         <Check className="h-3 w-3" /> Match
+                      </span>
+                    ) : selectedDiff !== null && Math.abs(selectedDiff) === 1 ? (
+                      <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <Check className="h-3 w-3" /> ±₹1 Match
                       </span>
                     ) : (
                       <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-500 border border-amber-500/20">
@@ -447,7 +460,7 @@ export function LinkedBoeSelector({
                           className="bg-green-500/15 text-green-500 border-green-500/30 text-[10px] px-1.5 py-0 h-4 flex items-center gap-0.5"
                         >
                           <Sparkles className="h-2.5 w-2.5" />
-                          Exact Duty Match
+                          {Math.abs(getDutyDiff(b) ?? 0) === 1 ? '±₹1 Round-off Match' : 'Exact Duty Match'}
                         </Badge>
                       )}
                       {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
@@ -606,7 +619,7 @@ export function LinkedBoeSelector({
                               {b.beNumber}
                               {dutyMatch && (
                                 <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30 text-[10px] px-1 py-0">
-                                  Match
+                                  {Math.abs(getDutyDiff(b) ?? 0) === 1 ? '±₹1 Match' : 'Match'}
                                 </Badge>
                               )}
                             </div>

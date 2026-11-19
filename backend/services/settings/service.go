@@ -27,6 +27,8 @@ var managedModules = []string{
 	"supplier",
 	"itemMaster",
 	"expenses",
+	"cbicRates",
+	"reconciledBoe",
 }
 
 // Service manages versioned ERP theme, formatting, invoice precision, and module display profiles.

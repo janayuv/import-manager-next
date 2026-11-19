@@ -46,6 +46,7 @@ export async function exportBOEExcel(
     { metric: 'SWS Total (INR)', value: result.swsTotal },
     { metric: 'IGST Total (INR)', value: result.igstTotal },
     { metric: 'Interest (INR)', value: result.interest },
+    { metric: 'Round-off Adjustment (INR)', value: result.roundOffAdjustment ?? 0 },
     { metric: 'Customs Duty Assessed Liability (INR)', value: result.customsDutyTotal },
     { metric: 'Net Cash Challan Amount Payable (INR)', value: result.cashCustomsDutyTotal ?? result.customsDutyTotal },
   ]);
@@ -149,9 +150,12 @@ export function exportBOEPdf(params: BOECalcParams, result: BOECalculationResult
 
   const finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 120;
   doc.setFontSize(10);
+  const roundOffStr = (result.roundOffAdjustment ?? 0) !== 0
+    ? ` | Round-off ${(result.roundOffAdjustment ?? 0) > 0 ? `+${result.roundOffAdjustment}` : result.roundOffAdjustment}`
+    : '';
   const totalsSummary = (result.rodtepScripUtilized ?? 0) > 0
-    ? `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | Gross BCD ${(result.grossBcdTotal ?? result.bcdTotal).toFixed(0)} | RoDTEP Debited -${result.rodtepScripUtilized.toFixed(0)} | Cash BCD ${(result.bcdCashTotal ?? result.bcdTotal).toFixed(0)} | SWS ${result.swsTotal.toFixed(0)} | IGST ${result.igstTotal.toFixed(0)} | Assessed Duty: ${result.customsDutyTotal.toFixed(0)} | Cash Challan: ${(result.cashCustomsDutyTotal ?? result.customsDutyTotal).toFixed(0)}`
-    : `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | BCD ${result.bcdTotal.toFixed(0)} | SWS ${result.swsTotal.toFixed(0)} | IGST ${result.igstTotal.toFixed(0)} | Interest ${result.interest.toFixed(0)} | Customs Duty Total: ${result.customsDutyTotal.toFixed(0)}`;
+    ? `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | Gross BCD ${(result.grossBcdTotal ?? result.bcdTotal).toFixed(0)} | RoDTEP Debited -${result.rodtepScripUtilized.toFixed(0)} | Cash BCD ${(result.bcdCashTotal ?? result.bcdTotal).toFixed(0)} | SWS ${result.swsTotal.toFixed(0)} | IGST ${result.igstTotal.toFixed(0)}${roundOffStr} | Assessed Duty: ${result.customsDutyTotal.toFixed(0)} | Cash Challan: ${(result.cashCustomsDutyTotal ?? result.customsDutyTotal).toFixed(0)}`
+    : `Totals (INR): Assessable ${result.totalAssessableValue.toFixed(1)} | BCD ${result.bcdTotal.toFixed(0)} | SWS ${result.swsTotal.toFixed(0)} | IGST ${result.igstTotal.toFixed(0)} | Interest ${result.interest.toFixed(0)}${roundOffStr} | Customs Duty Total: ${result.customsDutyTotal.toFixed(0)}`;
   doc.text(
     totalsSummary,
     14,

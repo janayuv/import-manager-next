@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Calculator, ExternalLink, Save, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Calculator, ExternalLink, Save, ShieldAlert, ShieldCheck, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +68,7 @@ export function EditReconciledBoeDialog({
   const [actualInsurance, setActualInsurance] = React.useState(0);
   const [rodtepBalance, setRodtepBalance] = React.useState(0);
   const [interest, setInterest] = React.useState(0);
+  const [roundOffAdjustment, setRoundOffAdjustment] = React.useState(0);
 
   // Live preview result
   const [previewResult, setPreviewResult] = React.useState<BOECalculationResult | null>(null);
@@ -97,6 +98,7 @@ export function EditReconciledBoeDialog({
         setActualInsurance(data.params.actualInsurance || 0);
         setRodtepBalance(data.params.rodtepScripBalance || 0);
         setInterest(data.params.interest || 0);
+        setRoundOffAdjustment(data.params.roundOffAdjustment || 0);
         setPreviewResult(data.result);
       })
       .catch((err) => {
@@ -130,6 +132,7 @@ export function EditReconciledBoeDialog({
       actualInsurance: actualInsurance,
       rodtepScripBalance: rodtepBalance,
       interest: interest,
+      roundOffAdjustment: roundOffAdjustment,
     };
 
     boeEntryService
@@ -151,6 +154,7 @@ export function EditReconciledBoeDialog({
     actualInsurance,
     rodtepBalance,
     interest,
+    roundOffAdjustment,
   ]);
 
   const linkedBoe = React.useMemo(() => {
@@ -161,8 +165,17 @@ export function EditReconciledBoeDialog({
   const dutyPaid = linkedBoe?.dutyPaid ?? (detail?.boeId === selectedBoeId ? detail.dutyPaid : 0);
   const computedDuty = previewResult?.customsDutyTotal ?? detail?.result.customsDutyTotal ?? 0;
   const cashDuty = previewResult?.cashCustomsDutyTotal ?? detail?.result.cashCustomsDutyTotal ?? 0;
-  const isDutyMatched =
+  const isExactMatched =
     Math.round(dutyPaid) === Math.round(computedDuty) || Math.round(dutyPaid) === Math.round(cashDuty);
+  const isDutyMatched =
+    Math.abs(Math.round(dutyPaid) - Math.round(computedDuty)) <= 1 ||
+    Math.abs(Math.round(dutyPaid) - Math.round(cashDuty)) <= 1;
+  const dutyDiff = selectedBoeId !== 'none' ? Math.round(dutyPaid) - Math.round(computedDuty) : 0;
+
+  const handleAutoAdjust = () => {
+    if (selectedBoeId === 'none') return;
+    setRoundOffAdjustment((prev) => prev + dutyDiff);
+  };
 
   const handleSave = async () => {
     if (!detail) return;
@@ -182,6 +195,7 @@ export function EditReconciledBoeDialog({
       actualInsurance: actualInsurance,
       rodtepScripBalance: rodtepBalance,
       interest: interest,
+      roundOffAdjustment: roundOffAdjustment,
       lineItems: detail.params.lineItems,
     };
 
@@ -261,12 +275,30 @@ export function EditReconciledBoeDialog({
                   </span>
                 </div>
               </div>
-              <Badge
-                variant={isDutyMatched && selectedBoeId !== 'none' ? 'success' : 'warning'}
-                className="text-[11px]"
-              >
-                {isDutyMatched && selectedBoeId !== 'none' ? 'Balanced (Matched)' : 'Variance'}
-              </Badge>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {Math.abs(dutyDiff) === 1 && selectedBoeId !== 'none' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-1.5 bg-amber-100 hover:bg-amber-200 border-amber-400 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100 dark:border-amber-700"
+                    onClick={handleAutoAdjust}
+                  >
+                    <Wand2 className="h-3 w-3 mr-1" />
+                    Auto-Adjust ({dutyDiff > 0 ? `+₹${dutyDiff}` : `-₹${Math.abs(dutyDiff)}`})
+                  </Button>
+                )}
+                <Badge
+                  variant={isDutyMatched && selectedBoeId !== 'none' ? 'success' : 'warning'}
+                  className="text-[11px]"
+                >
+                  {isExactMatched && selectedBoeId !== 'none'
+                    ? 'Balanced (Matched)'
+                    : isDutyMatched && selectedBoeId !== 'none'
+                    ? '±₹1 Round-off'
+                    : 'Variance'}
+                </Badge>
+              </div>
             </div>
 
             {/* Form Fields Grid */}
@@ -408,6 +440,21 @@ export function EditReconciledBoeDialog({
                   min="0"
                   value={interest}
                   onChange={(e) => setInterest(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+
+              {/* Round-off Adjustment */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="roundOffAdjustment">Round-off Adjustment (INR)</Label>
+                  <span className="text-[10px] text-muted-foreground">Sec. 154 (±1 to ±10)</span>
+                </div>
+                <Input
+                  id="roundOffAdjustment"
+                  type="number"
+                  step="1"
+                  value={roundOffAdjustment}
+                  onChange={(e) => setRoundOffAdjustment(parseFloat(e.target.value) || 0)}
                 />
               </div>
             </div>

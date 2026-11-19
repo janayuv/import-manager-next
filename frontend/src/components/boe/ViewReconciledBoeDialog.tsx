@@ -200,7 +200,11 @@ export function ViewReconciledBoeDialog({
                     {detail.reconciliation.isReconciled ? (
                       <>
                         <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-emerald-600 dark:text-emerald-400">₹0 (Matched)</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">
+                          {Math.abs(detail.reconciliation.dutyDifference) === 1
+                            ? `±₹${Math.abs(detail.reconciliation.dutyDifference)} (Matched)`
+                            : '₹0 (Matched)'}
+                        </span>
                       </>
                     ) : (
                       <>
@@ -236,7 +240,7 @@ export function ViewReconciledBoeDialog({
                 </div>
                 <div className="text-xs opacity-90">
                   {detail.reconciliation.isReconciled
-                    ? `ICEGATE Challan duty_paid (₹${detail.dutyPaid.toLocaleString()}) matches customs assessed duty liability (₹${detail.result.customsDutyTotal.toLocaleString()}).`
+                    ? `ICEGATE Challan duty_paid (₹${detail.dutyPaid.toLocaleString()}) matches customs assessed duty liability (₹${detail.result.customsDutyTotal.toLocaleString()})${Math.abs(detail.reconciliation.dutyDifference) === 1 ? ' within ±₹1 statutory round-off tolerance' : ''}.`
                     : `Discrepancy of ₹${detail.reconciliation.dutyDifference.toLocaleString()} between challan duty paid (₹${detail.dutyPaid.toLocaleString()}) and assessed calculation (₹${detail.result.customsDutyTotal.toLocaleString()}).`}
                 </div>
               </div>
@@ -454,6 +458,16 @@ export function ViewReconciledBoeDialog({
                   ₹{detail.result.interest?.toLocaleString() ?? 0}
                 </div>
               </div>
+              {Boolean(detail.result.roundOffAdjustment) && (
+                <div>
+                  <span className="text-muted-foreground">Round-off:</span>
+                  <div className="font-mono font-medium text-foreground">
+                    {(detail.result.roundOffAdjustment || 0) > 0
+                      ? `+₹${detail.result.roundOffAdjustment}`
+                      : `-₹${Math.abs(detail.result.roundOffAdjustment || 0)}`}
+                  </div>
+                </div>
+              )}
               <div>
                 <span className="text-muted-foreground">Assessed Liability:</span>
                 <div className="font-mono font-semibold text-primary">

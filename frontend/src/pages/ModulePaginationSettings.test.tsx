@@ -9,10 +9,13 @@ import { ItemMasterPage } from '@/pages/ItemMasterPage';
 import { InvoicesPage } from '@/pages/InvoicesPage';
 import { BOERegistryPage } from '@/pages/BOERegistryPage';
 import { ExpensesPage } from '@/pages/ExpensesPage';
+import { ReconciledBOEPage } from '@/pages/ReconciledBOEPage';
+import { CBICRatesPage } from '@/pages/CBICRatesPage';
 import { supplierService, itemService } from '@/services/master-service';
 import { shipmentService, invoiceService } from '@/services/shipment-invoice-service';
 import { boeService, boeSummaryService } from '@/services/boe-service';
 import { expenseService, type ExpenseInvoice } from '@/services/expense-service';
+import { cbicRatesService, type CBICExchangeRate } from '@/services/cbic-rates-service';
 import { settingsService, type AppSettingsProfile } from '@/services/dashboard-settings-service';
 
 vi.mock('@/services/security-service', () => ({
@@ -127,6 +130,16 @@ vi.mock('@/services/expense-service', () => ({
   formatPaiseINR: (paise: number) => `₹${(paise / 100).toFixed(2)}`,
 }));
 
+vi.mock('@/services/cbic-rates-service', () => ({
+  cbicRatesService: {
+    list: vi.fn(),
+    getEffectiveRate: vi.fn(),
+    create: vi.fn(),
+    createBatch: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
 const mockProfileWith5Rows: AppSettingsProfile = {
   schemaVersion: 1,
   theme: 'default',
@@ -144,6 +157,8 @@ const mockProfileWith5Rows: AppSettingsProfile = {
     boe: { visibleFields: [], itemsPerPage: 5, decimalPrecision: 2, dateFormat: 'DD/MM/YYYY', fieldCases: {} },
     boeSummary: { visibleFields: [], itemsPerPage: 5, decimalPrecision: 2, dateFormat: 'DD/MM/YYYY', fieldCases: {} },
     expenses: { visibleFields: [], itemsPerPage: 5, decimalPrecision: 2, dateFormat: 'DD/MM/YYYY', fieldCases: {} },
+    cbicRates: { visibleFields: [], itemsPerPage: 5, decimalPrecision: 2, dateFormat: 'DD/MM/YYYY', fieldCases: {} },
+    reconciledBoe: { visibleFields: [], itemsPerPage: 5, decimalPrecision: 2, dateFormat: 'DD/MM/YYYY', fieldCases: {} },
   },
   updatedAt: '2026-11-16T10:00:00Z',
 };
@@ -380,6 +395,76 @@ describe('Per-Module Table Pagination Settings (5 rows per page)', () => {
       expect(screen.getByText('EXP-INV-1')).toBeInTheDocument();
       expect(screen.getByText('EXP-INV-5')).toBeInTheDocument();
       expect(screen.queryByText('EXP-INV-6')).not.toBeInTheDocument();
+    });
+  });
+
+  it('ReconciledBOEPage paginates calculations by itemsPerPage = 5 from reconciledBoe settings', async () => {
+    const mockReconciled = Array.from({ length: 8 }, (_, i) => ({
+      id: `calc-${i + 1}`,
+      shipmentId: `sh-${i + 1}`,
+      boeId: `boe-${i + 1}`,
+      beNumber: `BE-REC-${i + 1}`,
+      beDate: '2026-11-01',
+      supplierName: `Supplier ${i + 1}`,
+      invoiceNumber: `INV-REC-${i + 1}`,
+      status: 'Reconciled',
+      customsDutyTotal: 1000,
+      dutyPaid: 1000,
+      assessableTotal: 5000,
+      createdAt: '2026-11-01T00:00:00Z',
+    }));
+
+    vi.mocked(boeSummaryService.list).mockResolvedValue(mockReconciled);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ThemeProvider>
+            <ReconciledBOEPage />
+          </ThemeProvider>
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Page 1 of 2/i)).toBeInTheDocument();
+      expect(screen.getByText('BE-REC-1')).toBeInTheDocument();
+      expect(screen.getByText('BE-REC-5')).toBeInTheDocument();
+      expect(screen.queryByText('BE-REC-6')).not.toBeInTheDocument();
+    });
+  });
+
+  it('CBICRatesPage paginates exchange rates by itemsPerPage = 5 from cbicRates settings', async () => {
+    const mockRates: CBICExchangeRate[] = Array.from({ length: 8 }, (_, i) => ({
+      id: i + 1,
+      currencyCode: `CUR${i + 1}`,
+      exchangeRate: 10 + i,
+      effectiveFrom: '2026-11-01',
+      effectiveTo: null,
+      notificationNumber: `NT-0${i + 1}/2026`,
+      sourceDocument: 'Gazette of India',
+      verificationStatus: 'VERIFIED',
+      createdAt: '2026-11-01 10:00:00',
+      createdBy: 'admin',
+    }));
+
+    vi.mocked(cbicRatesService.list).mockResolvedValue(mockRates);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ThemeProvider>
+            <CBICRatesPage />
+          </ThemeProvider>
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Page 1 of 2/i)).toBeInTheDocument();
+      expect(screen.getByText('CUR1')).toBeInTheDocument();
+      expect(screen.getByText('CUR5')).toBeInTheDocument();
+      expect(screen.queryByText('CUR6')).not.toBeInTheDocument();
     });
   });
 });

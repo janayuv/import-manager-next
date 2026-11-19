@@ -256,38 +256,211 @@ func (s *Service) LoadCalculationContext(calcID string) (models.BOECalculationCo
 	}, nil
 }
 
+var (
+	overridePartAliases = []string{
+		"partNo", "partNumber", "part_number", "part_no", "partno", "part",
+		"item", "itemCode", "item_code", "itemno", "item_no", "partcode",
+		"part_code", "part#", "material", "materialno",
+	}
+	overrideMethodAliases = []string{
+		"calculationMethod", "calculation_method", "calcMethod", "calc_method",
+		"method", "scheme", "dutymethod", "duty_method", "type",
+	}
+	overrideBcdAliases = []string{
+		"boeBcdRate", "boe_bcd_rate", "boeBcd", "boe_bcd", "bcdRate",
+		"bcd_rate", "bcd", "bcd%", "basiccustomsduty", "customsduty", "customsdutyrate",
+	}
+	overrideSwsAliases = []string{
+		"boeSwsRate", "boe_sws_rate", "boeSws", "boe_sws", "swsRate",
+		"sws_rate", "sws", "sws%", "socialwelfare", "socialwelfaresurcharge",
+	}
+	overrideIgstAliases = []string{
+		"boeIgstRate", "boe_igst_rate", "boeIgst", "boe_igst", "igstRate",
+		"igst_rate", "igst", "igst%", "integratedgst", "gst", "gstrate", "gst%",
+	}
+)
+
+func cleanPartNumber(p string) string {
+	var b strings.Builder
+	for _, r := range strings.ToUpper(strings.TrimSpace(p)) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func cleanNumberStr(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimSuffix(s, "%")
+	s = strings.TrimPrefix(s, "₹")
+	s = strings.TrimPrefix(s, "$")
+	return strings.TrimSpace(s)
+}
+
+func isRecognizedOverrideHeader(headers []string) bool {
+	idx := validation.HeaderIndex(headers)
+	for _, a := range overridePartAliases {
+		if _, ok := idx[validation.NormalizeHeaderKey(a)]; ok {
+			return true
+		}
+	}
+	for _, a := range overrideBcdAliases {
+		if _, ok := idx[validation.NormalizeHeaderKey(a)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // ParseOverrideCSV parses rate overrides (`partNo, calculationMethod, boeBcdRate, boeSwsRate, boeIgstRate`),
-// skipping unknown parts or IGST mismatches with warnings.
+// supporting TSV/CSV with or without headers, skipping unknown parts or IGST mismatches with clear warnings.
 func (s *Service) ParseOverrideCSV(csvContent string, currentItems []models.BOECalculationItemInput) (models.BOEOverrideImportResult, error) {
-	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
-		return models.BOEOverrideImportResult{}, err
+	if s.sec != nil {
+		if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
+			return models.BOEOverrideImportResult{}, err
+		}
 	}
 	headers, rows, err := validation.ParseCSV(csvContent, true)
 	if err != nil {
 		return models.BOEOverrideImportResult{}, err
 	}
-	idx := validation.HeaderIndex(headers)
+
 	outItems := append([]models.BOECalculationItemInput(nil), currentItems...)
-	itemIndex := make(map[string]int, len(outItems))
+	itemIndex := make(map[string]int, len(outItems)*2)
+	cleanItemIndex := make(map[string]int, len(outItems)*2)
 	for i, it := range outItems {
-		itemIndex[strings.ToUpper(strings.TrimSpace(it.PartNumber))] = i
+		rawKey := strings.ToUpper(strings.TrimSpace(it.PartNumber))
+		if rawKey != "" {
+			itemIndex[rawKey] = i
+		}
+		cleanKey := cleanPartNumber(it.PartNumber)
+		if cleanKey != "" {
+			cleanItemIndex[cleanKey] = i
+		}
+	}
+
+	hasHeader := isRecognizedOverrideHeader(headers)
+	var allRows [][]string
+	var startRowOffset int
+	var idx map[string]int
+
+	if hasHeader {
+		idx = validation.HeaderIndex(headers)
+		allRows = rows
+		startRowOffset = 2
+	} else {
+		allRows = append([][]string{headers}, rows...)
+		startRowOffset = 1
 	}
 
 	res := models.BOEOverrideImportResult{}
-	for i, row := range rows {
-		rowNum := i + 2
-		partNo := validation.CellByAliases(row, idx, "partNo", "partNumber", "part_number")
-		methodRaw := validation.CellByAliases(row, idx, "calculationMethod", "method")
-		bcdStr := validation.CellByAliases(row, idx, "boeBcdRate", "boeBcd")
-		swsStr := validation.CellByAliases(row, idx, "boeSwsRate", "boeSws")
-		igstStr := validation.CellByAliases(row, idx, "boeIgstRate", "boeIgst")
+	for i, row := range allRows {
+		rowNum := i + startRowOffset
 
+		// Skip completely blank rows
+		if len(row) == 0 {
+			continue
+		}
+		allBlank := true
+		for _, c := range row {
+			if strings.TrimSpace(c) != "" {
+				allBlank = false
+				break
+			}
+		}
+		if allBlank {
+			continue
+		}
+
+		var partNo, methodRaw, bcdStr, swsStr, igstStr string
+
+		if hasHeader {
+			partNo = validation.CellByAliases(row, idx, overridePartAliases...)
+			methodRaw = validation.CellByAliases(row, idx, overrideMethodAliases...)
+			bcdStr = validation.CellByAliases(row, idx, overrideBcdAliases...)
+			swsStr = validation.CellByAliases(row, idx, overrideSwsAliases...)
+			igstStr = validation.CellByAliases(row, idx, overrideIgstAliases...)
+
+			// Positional fallback if some columns weren't matched by header aliases
+			if partNo == "" && len(row) > 0 {
+				partNo = strings.TrimSpace(row[0])
+			}
+			if bcdStr == "" && len(row) >= 3 {
+				bcdStr = strings.TrimSpace(row[2])
+			}
+		} else {
+			// Headerless row: infer columns based on count and cell values
+			partNo = strings.TrimSpace(row[0])
+
+			if len(row) >= 5 {
+				col1Clean := cleanNumberStr(row[1])
+				_, errCol1Num := strconv.ParseFloat(col1Clean, 64)
+				isCol1Method := false
+				switch strings.ToLower(strings.TrimSpace(row[1])) {
+				case "standard", "cepa", "rodtep":
+					isCol1Method = true
+				}
+
+				if errCol1Num == nil && !isCol1Method {
+					// 5 columns: [partNo, bcd, sws, igst, other]
+					methodRaw = "Standard"
+					bcdStr = row[1]
+					swsStr = row[2]
+					igstStr = row[3]
+				} else {
+					// 5 columns: [partNo, method, bcd, sws, igst]
+					methodRaw = row[1]
+					bcdStr = row[2]
+					swsStr = row[3]
+					igstStr = row[4]
+				}
+			} else if len(row) == 4 {
+				col1Clean := cleanNumberStr(row[1])
+				_, errCol1Num := strconv.ParseFloat(col1Clean, 64)
+				if errCol1Num == nil {
+					// 4 columns: [partNo, bcd, sws, igst]
+					methodRaw = "Standard"
+					bcdStr = row[1]
+					swsStr = row[2]
+					igstStr = row[3]
+				} else {
+					// 4 columns: [partNo, method, bcd, sws]
+					methodRaw = row[1]
+					bcdStr = row[2]
+					swsStr = row[3]
+				}
+			} else if len(row) == 3 {
+				// 3 columns: [partNo, bcd, sws]
+				methodRaw = "Standard"
+				bcdStr = row[1]
+				swsStr = row[2]
+			} else if len(row) == 2 {
+				// 2 columns: [partNo, bcd]
+				methodRaw = "Standard"
+				bcdStr = row[1]
+			}
+		}
+
+		if partNo == "" {
+			res.SkippedCount++
+			res.Warnings = append(res.Warnings, models.CSVImportRowError{
+				Row:     rowNum,
+				Message: fmt.Sprintf("row %d has empty part number", rowNum),
+			})
+			continue
+		}
+
+		// Find part in current line items
 		pos, ok := itemIndex[strings.ToUpper(strings.TrimSpace(partNo))]
+		if !ok {
+			pos, ok = cleanItemIndex[cleanPartNumber(partNo)]
+		}
 		if !ok {
 			res.SkippedCount++
 			res.Warnings = append(res.Warnings, models.CSVImportRowError{
 				Row:     rowNum,
-				Message: fmt.Sprintf("unknown partNo %q skipped", partNo),
+				Message: fmt.Sprintf("unknown partNo %q (not found in invoice items)", partNo),
 			})
 			continue
 		}
@@ -295,23 +468,56 @@ func (s *Service) ParseOverrideCSV(csvContent string, currentItems []models.BOEC
 		method, mErr := NormalizeMethod(methodRaw)
 		if mErr != nil {
 			res.SkippedCount++
-			res.Warnings = append(res.Warnings, models.CSVImportRowError{Row: rowNum, Message: mErr.Error()})
-			continue
-		}
-		boeBCD, err1 := strconv.ParseFloat(bcdStr, 64)
-		boeSWS, err2 := strconv.ParseFloat(swsStr, 64)
-		boeIGST, err3 := strconv.ParseFloat(igstStr, 64)
-		if err1 != nil || err2 != nil || err3 != nil || boeBCD < 0 || boeSWS < 0 || boeIGST < 0 {
-			res.SkippedCount++
 			res.Warnings = append(res.Warnings, models.CSVImportRowError{
 				Row:     rowNum,
-				Message: "invalid negative or non-numeric rate",
+				Message: fmt.Sprintf("part %q: %v", partNo, mErr),
 			})
 			continue
 		}
 
-		// IGST cell is read-only / statutory; skip if override IGST diverges from actual IGST.
-		if math.Abs(boeIGST-outItems[pos].ActualIGSTRate) > 0.001 {
+		cleanedBCD := cleanNumberStr(bcdStr)
+		boeBCD, err1 := strconv.ParseFloat(cleanedBCD, 64)
+		if err1 != nil || boeBCD < 0 {
+			res.SkippedCount++
+			res.Warnings = append(res.Warnings, models.CSVImportRowError{
+				Row:     rowNum,
+				Message: fmt.Sprintf("part %q: invalid BCD rate %q", partNo, bcdStr),
+			})
+			continue
+		}
+
+		var boeSWS float64 = 10.0
+		if cleanedSWS := cleanNumberStr(swsStr); cleanedSWS != "" {
+			var err2 error
+			boeSWS, err2 = strconv.ParseFloat(cleanedSWS, 64)
+			if err2 != nil || boeSWS < 0 {
+				res.SkippedCount++
+				res.Warnings = append(res.Warnings, models.CSVImportRowError{
+					Row:     rowNum,
+					Message: fmt.Sprintf("part %q: invalid SWS rate %q", partNo, swsStr),
+				})
+				continue
+			}
+		}
+
+		var boeIGST float64
+		if cleanedIGST := cleanNumberStr(igstStr); cleanedIGST != "" {
+			var err3 error
+			boeIGST, err3 = strconv.ParseFloat(cleanedIGST, 64)
+			if err3 != nil || boeIGST < 0 {
+				res.SkippedCount++
+				res.Warnings = append(res.Warnings, models.CSVImportRowError{
+					Row:     rowNum,
+					Message: fmt.Sprintf("part %q: invalid IGST rate %q", partNo, igstStr),
+				})
+				continue
+			}
+		} else {
+			boeIGST = outItems[pos].ActualIGSTRate
+		}
+
+		// IGST cell is statutory; skip if override IGST diverges from actual IGST
+		if outItems[pos].ActualIGSTRate > 0 && math.Abs(boeIGST-outItems[pos].ActualIGSTRate) > 0.001 {
 			res.SkippedCount++
 			res.Warnings = append(res.Warnings, models.CSVImportRowError{
 				Row:     rowNum,
@@ -323,8 +529,12 @@ func (s *Service) ParseOverrideCSV(csvContent string, currentItems []models.BOEC
 		outItems[pos].CalculationMethod = method
 		outItems[pos].BOEBCDRate = boeBCD
 		outItems[pos].BOESWSRate = boeSWS
+		if outItems[pos].ActualIGSTRate <= 0 && boeIGST > 0 {
+			outItems[pos].ActualIGSTRate = boeIGST
+		}
 		res.AppliedCount++
 	}
+
 	res.Items = outItems
 	return res, nil
 }
@@ -375,7 +585,10 @@ func (s *Service) SaveCalculation(params models.BOECalcParams) (models.BOECalcul
 		paidRound := math.Round(dutyPaid)
 		grossRound := math.Round(result.CustomsDutyTotal)
 		cashRound := math.Round(result.CashCustomsDutyTotal)
-		if paidRound != grossRound && paidRound != cashRound {
+		grossDiff := math.Abs(paidRound - grossRound)
+		cashDiff := math.Abs(paidRound - cashRound)
+		// Allow ±1 rupee statutory round-off tolerance under Section 154 Customs Act
+		if grossDiff > 1 && cashDiff > 1 {
 			return models.BOECalculationSummary{}, fmt.Errorf(
 				"save blocked: linked BOE dutyPaid (%.0f) does not match computed customsDutyTotal (%.0f) or cash challan (%.0f)",
 				paidRound, grossRound, cashRound,
