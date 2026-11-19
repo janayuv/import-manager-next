@@ -12,6 +12,7 @@ import (
 func TestSchedulerRestoreLockAndCleanShutdown(t *testing.T) {
 	t.Setenv("IMPORT_MANAGER_DB_KEY", "sched-test-key-0123456789abcdef012")
 	t.Setenv("IMPORT_MANAGER_KEYRING_FILE", filepath.Join(t.TempDir(), "keyring.json"))
+	t.Setenv("IMPORT_MANAGER_RECOVERY", "1")
 	dir := filepath.Join(t.TempDir(), "appdata")
 
 	rt, err := bootstrap.Initialize([]string{"--recovery-mode"}, dir)
@@ -19,6 +20,8 @@ func TestSchedulerRestoreLockAndCleanShutdown(t *testing.T) {
 		t.Fatalf("bootstrap failed: %v", err)
 	}
 	t.Cleanup(func() { _ = rt.Shutdown() })
+
+	_, _ = rt.DB.DB().Exec(`DELETE FROM workflow_failure_forecast`)
 
 	// Lock RestoreControl -> RunOnce must safely skip without writing forecasts
 	rt.RestoreControl.SetRestoring(true, "unit test restore")
