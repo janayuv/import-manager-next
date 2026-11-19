@@ -18,37 +18,55 @@ type Shipment struct {
 	VesselName      string  `json:"vesselName"`
 	ContainerNumber string  `json:"containerNumber"`
 	GrossWeightKg   float64 `json:"grossWeightKg"`
-	ETD             string  `json:"etd"`
-	ETA             string  `json:"eta"`
-	Status          string  `json:"status"`
-	DateOfDelivery  string  `json:"dateOfDelivery"`
-	IsFrozen        bool    `json:"isFrozen"`
-	CreatedAt       string  `json:"createdAt"`
+	ETD                 string  `json:"etd"`
+	ETA                 string  `json:"eta"`
+	PlannedETD          string  `json:"plannedEtd,omitempty"`
+	ActualETD           string  `json:"actualEtd,omitempty"`
+	PlannedETA          string  `json:"plannedEta,omitempty"`
+	RevisedETA          string  `json:"revisedEta,omitempty"`
+	ActualETA           string  `json:"actualEta,omitempty"`
+	VesselDischargeDate string  `json:"vesselDischargeDate,omitempty"`
+	CustomsOOCDate      string  `json:"customsOocDate,omitempty"`
+	FactoryDeliveryDate string  `json:"factoryDeliveryDate,omitempty"`
+	EmptyReturnDate     string  `json:"emptyReturnDate,omitempty"`
+	Status              string  `json:"status"`
+	DateOfDelivery      string  `json:"dateOfDelivery"`
+	IsFrozen            bool    `json:"isFrozen"`
+	CreatedAt           string  `json:"createdAt"`
 }
 
 // ShipmentInput carries fields for creating or updating a shipment.
 type ShipmentInput struct {
-	ID              string  `json:"id,omitempty"`
-	SupplierID      string  `json:"supplierId"`
-	SupplierName    string  `json:"supplierName,omitempty"`
-	InvoiceNumber   string  `json:"invoiceNumber"`
-	InvoiceDate     string  `json:"invoiceDate"`
-	GoodsCategory   string  `json:"goodsCategory"`
-	InvoiceValue    float64 `json:"invoiceValue"`
-	InvoiceCurrency string  `json:"invoiceCurrency"`
-	Incoterm        string  `json:"incoterm"`
-	ShipmentMode    string  `json:"shipmentMode"`
-	ShipmentType    string  `json:"shipmentType"`
-	BLAWBNumber     string  `json:"blAwbNumber"`
-	BLAWBDate       string  `json:"blAwbDate"`
-	VesselName      string  `json:"vesselName"`
-	ContainerNumber string  `json:"containerNumber"`
-	GrossWeightKg   float64 `json:"grossWeightKg"`
-	ETD             string  `json:"etd"`
-	ETA             string  `json:"eta"`
-	Status          string                   `json:"status"`
-	DateOfDelivery  string                   `json:"dateOfDelivery"`
-	Containers      []ShipmentContainerInput `json:"containers,omitempty"`
+	ID                  string                   `json:"id,omitempty"`
+	SupplierID          string                   `json:"supplierId"`
+	SupplierName        string                   `json:"supplierName,omitempty"`
+	InvoiceNumber       string                   `json:"invoiceNumber"`
+	InvoiceDate         string                   `json:"invoiceDate"`
+	GoodsCategory       string                   `json:"goodsCategory"`
+	InvoiceValue        float64                  `json:"invoiceValue"`
+	InvoiceCurrency     string                   `json:"invoiceCurrency"`
+	Incoterm            string                   `json:"incoterm"`
+	ShipmentMode        string                   `json:"shipmentMode"`
+	ShipmentType        string                   `json:"shipmentType"`
+	BLAWBNumber         string                   `json:"blAwbNumber"`
+	BLAWBDate           string                   `json:"blAwbDate"`
+	VesselName          string                   `json:"vesselName"`
+	ContainerNumber     string                   `json:"containerNumber"`
+	GrossWeightKg       float64                  `json:"grossWeightKg"`
+	ETD                 string                   `json:"etd"`
+	ETA                 string                   `json:"eta"`
+	PlannedETD          string                   `json:"plannedEtd,omitempty"`
+	ActualETD           string                   `json:"actualEtd,omitempty"`
+	PlannedETA          string                   `json:"plannedEta,omitempty"`
+	RevisedETA          string                   `json:"revisedEta,omitempty"`
+	ActualETA           string                   `json:"actualEta,omitempty"`
+	VesselDischargeDate string                   `json:"vesselDischargeDate,omitempty"`
+	CustomsOOCDate      string                   `json:"customsOocDate,omitempty"`
+	FactoryDeliveryDate string                   `json:"factoryDeliveryDate,omitempty"`
+	EmptyReturnDate     string                   `json:"emptyReturnDate,omitempty"`
+	Status              string                   `json:"status"`
+	DateOfDelivery      string                   `json:"dateOfDelivery"`
+	Containers          []ShipmentContainerInput `json:"containers,omitempty"`
 }
 
 // ShipmentPageRequest filters, sorts, and paginates shipments.

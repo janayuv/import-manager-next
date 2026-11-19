@@ -622,6 +622,7 @@ func (s *Service) CreateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 		return models.ExpenseInvoice{}, err
 	}
 	_ = s.audit.RecordTableAudit("expense_invoices", invID, "INSERT", sess.UserID, nil, req, nil)
+	_, _ = s.RecordExpenseAllocation(context.Background(), req.ShipmentID, "CREATE_EXPENSE_INVOICE: "+req.InvoiceNo)
 	return s.GetExpenseInvoice(invID)
 }
 
@@ -707,6 +708,7 @@ func (s *Service) UpdateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 		return models.ExpenseInvoice{}, err
 	}
 	_ = s.audit.RecordTableAudit("expense_invoices", invID, "UPDATE", sess.UserID, nil, req, nil)
+	_, _ = s.RecordExpenseAllocation(context.Background(), req.ShipmentID, "UPDATE_EXPENSE_INVOICE: "+req.InvoiceNo)
 	return s.GetExpenseInvoice(invID)
 }
 
@@ -716,7 +718,8 @@ func (s *Service) DeleteExpenseInvoice(id string) error {
 	if err != nil {
 		return err
 	}
-	return transactions.WithinTx(context.Background(), s.db, func(tx *sql.Tx) error {
+	var deletedShipmentID string
+	err = transactions.WithinTx(context.Background(), s.db, func(tx *sql.Tx) error {
 		var shipmentID string
 		var frozen bool
 		err := tx.QueryRow(`
@@ -734,6 +737,7 @@ func (s *Service) DeleteExpenseInvoice(id string) error {
 		if frozen {
 			return fmt.Errorf("shipment %s is frozen; cannot delete linked expense invoice", shipmentID)
 		}
+		deletedShipmentID = shipmentID
 		now := time.Now().UTC().Format(time.RFC3339)
 		if _, err := tx.Exec(`UPDATE expenses SET deleted_at = ?, deleted_by = ? WHERE expense_invoice_id = ? AND deleted_at IS NULL`, now, sess.Username, id); err != nil {
 			return err
@@ -746,7 +750,11 @@ func (s *Service) DeleteExpenseInvoice(id string) error {
 	if err != nil {
 		return err
 	}
-	return s.audit.RecordTableAudit("expense_invoices", id, "DELETE", sess.UserID, nil, nil, nil)
+	_ = s.audit.RecordTableAudit("expense_invoices", id, "DELETE", sess.UserID, nil, nil, nil)
+	if deletedShipmentID != "" {
+		_, _ = s.RecordExpenseAllocation(context.Background(), deletedShipmentID, "DELETE_EXPENSE_INVOICE: "+id)
+	}
+	return nil
 }
 
 func (s *Service) prepareAndValidateInvoice(req models.ExpenseInvoiceRequest) ([]models.ExpenseLineInput, models.ExpenseInvoiceCalculation, string, string, error) {

@@ -52,6 +52,24 @@ describe('In-App Updates from GitHub', () => {
         viewCount: 3,
         recoveredWrites: 0,
       },
+      memory: {
+        workingSetBytes: 0,
+        peakWorkingSetBytes: 0,
+        privateUsageBytes: 0,
+        heapAlloc: 0,
+        heapSys: 0,
+        heapIdle: 0,
+        heapInuse: 0,
+        heapReleased: 0,
+        stackInuse: 0,
+        numGC: 0,
+        lastGCTime: '',
+        memoryLimitBytes: 0,
+        lastTrimTime: '',
+        lastTrimReclaimed: 0,
+        autoTrimEnabled: false,
+        isIdle: false,
+      },
     });
   });
 

@@ -6,14 +6,21 @@ import (
 	"time"
 
 	"github.com/janayuv/import-manager-next/backend/database/connection"
+	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/services/workflow"
 )
 
-// Scheduler manages periodic background operations (daily exception/incident ticks) cleanly under RestoreControl.
+// BackupRunner abstracts scheduled backup execution and retention pruning.
+type BackupRunner interface {
+	CheckAndRunDueSchedules(ctx context.Context) ([]models.BackupRecord, error)
+}
+
+// Scheduler manages periodic background operations (daily exception/incident ticks & scheduled backups) cleanly under RestoreControl.
 type Scheduler struct {
-	workflowSvc *workflow.Service
-	restoreCtrl *connection.RestoreControl
-	interval    time.Duration
+	workflowSvc  *workflow.Service
+	backupRunner BackupRunner
+	restoreCtrl  *connection.RestoreControl
+	interval     time.Duration
 
 	mu      sync.Mutex
 	cancel  context.CancelFunc
@@ -22,18 +29,19 @@ type Scheduler struct {
 }
 
 // New constructs a Scheduler with a default 5-minute tick interval when interval <= 0.
-func New(workflowSvc *workflow.Service, restoreCtrl *connection.RestoreControl, interval time.Duration) *Scheduler {
+func New(workflowSvc *workflow.Service, backupRunner BackupRunner, restoreCtrl *connection.RestoreControl, interval time.Duration) *Scheduler {
 	if interval <= 0 {
 		interval = 5 * time.Minute
 	}
 	return &Scheduler{
-		workflowSvc: workflowSvc,
-		restoreCtrl: restoreCtrl,
-		interval:    interval,
+		workflowSvc:  workflowSvc,
+		backupRunner: backupRunner,
+		restoreCtrl:  restoreCtrl,
+		interval:     interval,
 	}
 }
 
-// Start launches the scheduler goroutine idempotently.
+// Start launches the scheduler goroutine idempotently and catches up on missed schedules immediately.
 func (s *Scheduler) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -43,6 +51,9 @@ func (s *Scheduler) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	s.running = true
+
+	// Immediate startup catch-up execution (e.g. computer was switched off)
+	go s.RunOnce()
 
 	s.wg.Add(1)
 	go func() {
@@ -68,6 +79,9 @@ func (s *Scheduler) RunOnce() {
 	}
 	if s.workflowSvc != nil {
 		_ = s.workflowSvc.RunDailyOperationsTick("scheduler")
+	}
+	if s.backupRunner != nil {
+		_, _ = s.backupRunner.CheckAndRunDueSchedules(context.Background())
 	}
 }
 

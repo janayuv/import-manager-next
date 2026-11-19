@@ -6,6 +6,79 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * AllocationLedgerFilter defines query criteria for querying historical expense allocations.
+ */
+export class AllocationLedgerFilter {
+    "shipmentId"?: string;
+    "runId"?: string;
+    "partNumber"?: string;
+    "startDate"?: string;
+    "endDate"?: string;
+
+    /** Creates a new AllocationLedgerFilter instance. */
+    constructor($$source: Partial<AllocationLedgerFilter> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AllocationLedgerFilter instance from a string or object.
+     */
+    static createFrom($$source: any = {}): AllocationLedgerFilter {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AllocationLedgerFilter($$parsedSource as Partial<AllocationLedgerFilter>);
+    }
+}
+
+/**
+ * AllocationRunSummary provides high-level metrics for an allocation execution run.
+ */
+export class AllocationRunSummary {
+    "runId": string;
+    "shipmentId": string;
+    "totalAllocatedInr": number;
+    "itemCount": number;
+    "recalculationReason": string;
+    "calculatedAt": string;
+    "calculatedBy": string;
+
+    /** Creates a new AllocationRunSummary instance. */
+    constructor($$source: Partial<AllocationRunSummary> = {}) {
+        if (!("runId" in $$source)) {
+            this["runId"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("totalAllocatedInr" in $$source)) {
+            this["totalAllocatedInr"] = 0;
+        }
+        if (!("itemCount" in $$source)) {
+            this["itemCount"] = 0;
+        }
+        if (!("recalculationReason" in $$source)) {
+            this["recalculationReason"] = "";
+        }
+        if (!("calculatedAt" in $$source)) {
+            this["calculatedAt"] = "";
+        }
+        if (!("calculatedBy" in $$source)) {
+            this["calculatedBy"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AllocationRunSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): AllocationRunSummary {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AllocationRunSummary($$parsedSource as Partial<AllocationRunSummary>);
+    }
+}
+
+/**
  * AppSettingsProfile mirrors all persistent ERP formatting, precision, and appearance settings.
  */
 export class AppSettingsProfile {
@@ -400,6 +473,7 @@ export class BOECalcParams {
     "certificateOfOriginNo"?: string;
     "certificateOfOriginDate"?: string;
     "tradeAgreement"?: string;
+    "cbicNotificationNumber"?: string;
 
     /**
      * INR
@@ -480,10 +554,10 @@ export class BOECalcParams {
      * Creates a new BOECalcParams instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalcParams {
-        const $$createField24_0 = $$createType3;
+        const $$createField25_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lineItems" in $$parsedSource) {
-            $$parsedSource["lineItems"] = $$createField24_0($$parsedSource["lineItems"]);
+            $$parsedSource["lineItems"] = $$createField25_0($$parsedSource["lineItems"]);
         }
         return new BOECalcParams($$parsedSource as Partial<BOECalcParams>);
     }
@@ -1201,6 +1275,55 @@ export class BackgroundJob {
 }
 
 /**
+ * BackupHealthStatus describes backup operational health and safety indicator.
+ */
+export class BackupHealthStatus {
+    /**
+     * HEALTHY | WARNING | CRITICAL
+     */
+    "status": string;
+    "lastBackupTime"?: string;
+    "lastBackupFilename"?: string;
+    "hoursSinceLast": number;
+    "totalBackups": number;
+    "verifiedBackups": number;
+    "failedBackups": number;
+    "message": string;
+
+    /** Creates a new BackupHealthStatus instance. */
+    constructor($$source: Partial<BackupHealthStatus> = {}) {
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("hoursSinceLast" in $$source)) {
+            this["hoursSinceLast"] = 0;
+        }
+        if (!("totalBackups" in $$source)) {
+            this["totalBackups"] = 0;
+        }
+        if (!("verifiedBackups" in $$source)) {
+            this["verifiedBackups"] = 0;
+        }
+        if (!("failedBackups" in $$source)) {
+            this["failedBackups"] = 0;
+        }
+        if (!("message" in $$source)) {
+            this["message"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BackupHealthStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): BackupHealthStatus {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new BackupHealthStatus($$parsedSource as Partial<BackupHealthStatus>);
+    }
+}
+
+/**
  * BackupRecord represents an encrypted backup artifact registered in backups.
  */
 export class BackupRecord {
@@ -1582,6 +1705,101 @@ export class BulkDeleteResult {
 }
 
 /**
+ * CBICExchangeRate mirrors a record in cbic_exchange_rates.
+ */
+export class CBICExchangeRate {
+    "id": number;
+    "currencyCode": string;
+    "exchangeRate": number;
+    "effectiveFrom": string;
+    "effectiveTo"?: string | null;
+    "notificationNumber": string;
+    "sourceDocument"?: string;
+    "verificationStatus": string;
+    "notes"?: string;
+    "createdAt": string;
+    "createdBy": string;
+
+    /** Creates a new CBICExchangeRate instance. */
+    constructor($$source: Partial<CBICExchangeRate> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = 0;
+        }
+        if (!("currencyCode" in $$source)) {
+            this["currencyCode"] = "";
+        }
+        if (!("exchangeRate" in $$source)) {
+            this["exchangeRate"] = 0;
+        }
+        if (!("effectiveFrom" in $$source)) {
+            this["effectiveFrom"] = "";
+        }
+        if (!("notificationNumber" in $$source)) {
+            this["notificationNumber"] = "";
+        }
+        if (!("verificationStatus" in $$source)) {
+            this["verificationStatus"] = "";
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("createdBy" in $$source)) {
+            this["createdBy"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CBICExchangeRate instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CBICExchangeRate {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CBICExchangeRate($$parsedSource as Partial<CBICExchangeRate>);
+    }
+}
+
+/**
+ * CBICExchangeRateInput carries fields for creating or updating a statutory rate entry.
+ */
+export class CBICExchangeRateInput {
+    "currencyCode": string;
+    "exchangeRate": number;
+    "effectiveFrom": string;
+    "effectiveTo"?: string | null;
+    "notificationNumber": string;
+    "sourceDocument"?: string;
+    "verificationStatus"?: string;
+    "notes"?: string;
+
+    /** Creates a new CBICExchangeRateInput instance. */
+    constructor($$source: Partial<CBICExchangeRateInput> = {}) {
+        if (!("currencyCode" in $$source)) {
+            this["currencyCode"] = "";
+        }
+        if (!("exchangeRate" in $$source)) {
+            this["exchangeRate"] = 0;
+        }
+        if (!("effectiveFrom" in $$source)) {
+            this["effectiveFrom"] = "";
+        }
+        if (!("notificationNumber" in $$source)) {
+            this["notificationNumber"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CBICExchangeRateInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CBICExchangeRateInput {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CBICExchangeRateInput($$parsedSource as Partial<CBICExchangeRateInput>);
+    }
+}
+
+/**
  * CSVImportResult summarizes outcomes across supplier, item, shipment, or expense imports.
  */
 export class CSVImportResult {
@@ -1930,6 +2148,8 @@ export class DashboardKPIs {
     "slaBreachCount": number;
     "openIncidentCount": number;
     "workflowHealthScore": number;
+    "backupHealthStatus"?: string;
+    "lastBackupHoursAgo"?: number;
 
     /** Creates a new DashboardKPIs instance. */
     constructor($$source: Partial<DashboardKPIs> = {}) {
@@ -2564,6 +2784,86 @@ export class ExceptionDetectionResult {
     static createFrom($$source: any = {}): ExceptionDetectionResult {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new ExceptionDetectionResult($$parsedSource as Partial<ExceptionDetectionResult>);
+    }
+}
+
+/**
+ * ExpenseAllocationRecord mirrors a row in expense_allocation_ledger.
+ */
+export class ExpenseAllocationRecord {
+    "id": number;
+    "runId": string;
+    "shipmentId": string;
+    "boeId"?: string;
+    "expenseInvoiceId"?: string;
+    "expenseTypeId"?: string;
+    "expenseCategory": string;
+    "itemId"?: string;
+    "partNumber": string;
+    "baseExpenseAmountPaise": number;
+    "allocationMethod": string;
+    "allocationBasisValue": number;
+    "allocationPercentage": number;
+    "allocatedAmountPaise": number;
+    "allocatedAmountInr": number;
+    "recalculationReason": string;
+    "calculatedAt": string;
+    "calculatedBy": string;
+
+    /** Creates a new ExpenseAllocationRecord instance. */
+    constructor($$source: Partial<ExpenseAllocationRecord> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = 0;
+        }
+        if (!("runId" in $$source)) {
+            this["runId"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("expenseCategory" in $$source)) {
+            this["expenseCategory"] = "";
+        }
+        if (!("partNumber" in $$source)) {
+            this["partNumber"] = "";
+        }
+        if (!("baseExpenseAmountPaise" in $$source)) {
+            this["baseExpenseAmountPaise"] = 0;
+        }
+        if (!("allocationMethod" in $$source)) {
+            this["allocationMethod"] = "";
+        }
+        if (!("allocationBasisValue" in $$source)) {
+            this["allocationBasisValue"] = 0;
+        }
+        if (!("allocationPercentage" in $$source)) {
+            this["allocationPercentage"] = 0;
+        }
+        if (!("allocatedAmountPaise" in $$source)) {
+            this["allocatedAmountPaise"] = 0;
+        }
+        if (!("allocatedAmountInr" in $$source)) {
+            this["allocatedAmountInr"] = 0;
+        }
+        if (!("recalculationReason" in $$source)) {
+            this["recalculationReason"] = "";
+        }
+        if (!("calculatedAt" in $$source)) {
+            this["calculatedAt"] = "";
+        }
+        if (!("calculatedBy" in $$source)) {
+            this["calculatedBy"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ExpenseAllocationRecord instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ExpenseAllocationRecord {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ExpenseAllocationRecord($$parsedSource as Partial<ExpenseAllocationRecord>);
     }
 }
 
@@ -6656,6 +6956,15 @@ export class Shipment {
     "grossWeightKg": number;
     "etd": string;
     "eta": string;
+    "plannedEtd"?: string;
+    "actualEtd"?: string;
+    "plannedEta"?: string;
+    "revisedEta"?: string;
+    "actualEta"?: string;
+    "vesselDischargeDate"?: string;
+    "customsOocDate"?: string;
+    "factoryDeliveryDate"?: string;
+    "emptyReturnDate"?: string;
     "status": string;
     "dateOfDelivery": string;
     "isFrozen": boolean;
@@ -6760,8 +7069,24 @@ export class ShipmentContainer {
     "warehouseName": string;
     "gateInDate": string;
     "gateOutDate": string;
+    "portDischargeDate"?: string;
+    "cfsGateInDate"?: string;
+    "cfsGateOutDate"?: string;
+    "factoryGateInDate"?: string;
     "freeDaysAllowed": number;
     "storageRatePerDay": number;
+    "portDemurrageFreeDays": number;
+    "portDemurrageRatePerDay": number;
+    "portDemurrageAmount": number;
+    "cfsGroundRentFreeDays": number;
+    "cfsGroundRentRatePerDay": number;
+    "cfsGroundRentAmount": number;
+    "shippingLineDetentionFreeDays": number;
+    "shippingLineDetentionRatePerDay": number;
+    "shippingLineDetentionAmount": number;
+    "warehouseStorageDays": number;
+    "warehouseStorageRatePerDay": number;
+    "warehouseStorageAmount": number;
 
     /**
      * PENDING, IN_TRANSIT, IN_WAREHOUSE, DELIVERED
@@ -6826,6 +7151,42 @@ export class ShipmentContainer {
         if (!("storageRatePerDay" in $$source)) {
             this["storageRatePerDay"] = 0;
         }
+        if (!("portDemurrageFreeDays" in $$source)) {
+            this["portDemurrageFreeDays"] = 0;
+        }
+        if (!("portDemurrageRatePerDay" in $$source)) {
+            this["portDemurrageRatePerDay"] = 0;
+        }
+        if (!("portDemurrageAmount" in $$source)) {
+            this["portDemurrageAmount"] = 0;
+        }
+        if (!("cfsGroundRentFreeDays" in $$source)) {
+            this["cfsGroundRentFreeDays"] = 0;
+        }
+        if (!("cfsGroundRentRatePerDay" in $$source)) {
+            this["cfsGroundRentRatePerDay"] = 0;
+        }
+        if (!("cfsGroundRentAmount" in $$source)) {
+            this["cfsGroundRentAmount"] = 0;
+        }
+        if (!("shippingLineDetentionFreeDays" in $$source)) {
+            this["shippingLineDetentionFreeDays"] = 0;
+        }
+        if (!("shippingLineDetentionRatePerDay" in $$source)) {
+            this["shippingLineDetentionRatePerDay"] = 0;
+        }
+        if (!("shippingLineDetentionAmount" in $$source)) {
+            this["shippingLineDetentionAmount"] = 0;
+        }
+        if (!("warehouseStorageDays" in $$source)) {
+            this["warehouseStorageDays"] = 0;
+        }
+        if (!("warehouseStorageRatePerDay" in $$source)) {
+            this["warehouseStorageRatePerDay"] = 0;
+        }
+        if (!("warehouseStorageAmount" in $$source)) {
+            this["warehouseStorageAmount"] = 0;
+        }
         if (!("deliveryStatus" in $$source)) {
             this["deliveryStatus"] = "";
         }
@@ -6888,8 +7249,24 @@ export class ShipmentContainerInput {
     "warehouseName": string;
     "gateInDate": string;
     "gateOutDate": string;
+    "portDischargeDate"?: string;
+    "cfsGateInDate"?: string;
+    "cfsGateOutDate"?: string;
+    "factoryGateInDate"?: string;
     "freeDaysAllowed": number;
     "storageRatePerDay": number;
+    "portDemurrageFreeDays": number;
+    "portDemurrageRatePerDay": number;
+    "portDemurrageAmount": number;
+    "cfsGroundRentFreeDays": number;
+    "cfsGroundRentRatePerDay": number;
+    "cfsGroundRentAmount": number;
+    "shippingLineDetentionFreeDays": number;
+    "shippingLineDetentionRatePerDay": number;
+    "shippingLineDetentionAmount": number;
+    "warehouseStorageDays": number;
+    "warehouseStorageRatePerDay": number;
+    "warehouseStorageAmount": number;
     "deliveryStatus": string;
     "dateOfDelivery": string;
     "transporterName": string;
@@ -6929,6 +7306,42 @@ export class ShipmentContainerInput {
         }
         if (!("storageRatePerDay" in $$source)) {
             this["storageRatePerDay"] = 0;
+        }
+        if (!("portDemurrageFreeDays" in $$source)) {
+            this["portDemurrageFreeDays"] = 0;
+        }
+        if (!("portDemurrageRatePerDay" in $$source)) {
+            this["portDemurrageRatePerDay"] = 0;
+        }
+        if (!("portDemurrageAmount" in $$source)) {
+            this["portDemurrageAmount"] = 0;
+        }
+        if (!("cfsGroundRentFreeDays" in $$source)) {
+            this["cfsGroundRentFreeDays"] = 0;
+        }
+        if (!("cfsGroundRentRatePerDay" in $$source)) {
+            this["cfsGroundRentRatePerDay"] = 0;
+        }
+        if (!("cfsGroundRentAmount" in $$source)) {
+            this["cfsGroundRentAmount"] = 0;
+        }
+        if (!("shippingLineDetentionFreeDays" in $$source)) {
+            this["shippingLineDetentionFreeDays"] = 0;
+        }
+        if (!("shippingLineDetentionRatePerDay" in $$source)) {
+            this["shippingLineDetentionRatePerDay"] = 0;
+        }
+        if (!("shippingLineDetentionAmount" in $$source)) {
+            this["shippingLineDetentionAmount"] = 0;
+        }
+        if (!("warehouseStorageDays" in $$source)) {
+            this["warehouseStorageDays"] = 0;
+        }
+        if (!("warehouseStorageRatePerDay" in $$source)) {
+            this["warehouseStorageRatePerDay"] = 0;
+        }
+        if (!("warehouseStorageAmount" in $$source)) {
+            this["warehouseStorageAmount"] = 0;
         }
         if (!("deliveryStatus" in $$source)) {
             this["deliveryStatus"] = "";
@@ -7046,6 +7459,15 @@ export class ShipmentInput {
     "grossWeightKg": number;
     "etd": string;
     "eta": string;
+    "plannedEtd"?: string;
+    "actualEtd"?: string;
+    "plannedEta"?: string;
+    "revisedEta"?: string;
+    "actualEta"?: string;
+    "vesselDischargeDate"?: string;
+    "customsOocDate"?: string;
+    "factoryDeliveryDate"?: string;
+    "emptyReturnDate"?: string;
     "status": string;
     "dateOfDelivery": string;
     "containers"?: ShipmentContainerInput[];
@@ -7114,10 +7536,10 @@ export class ShipmentInput {
      * Creates a new ShipmentInput instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentInput {
-        const $$createField20_0 = $$createType86;
+        const $$createField29_0 = $$createType86;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("containers" in $$parsedSource) {
-            $$parsedSource["containers"] = $$createField20_0($$parsedSource["containers"]);
+            $$parsedSource["containers"] = $$createField29_0($$parsedSource["containers"]);
         }
         return new ShipmentInput($$parsedSource as Partial<ShipmentInput>);
     }

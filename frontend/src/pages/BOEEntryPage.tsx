@@ -7,6 +7,7 @@ import {
   FileDown,
   FileSpreadsheet,
   Info,
+  RefreshCw,
   Save,
   Search,
   ShieldCheck,
@@ -50,6 +51,7 @@ import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
 import { LinkedBoeSelector } from '@/components/boe/LinkedBoeSelector';
 import { IcegateIngestionDialog, type ParsedIcegateBoe } from '@/components/boe/IcegateIngestionDialog';
 import { optionsService, type LookupOption } from '@/services/master-service';
+import { cbicRatesService } from '@/services/cbic-rates-service';
 import {
   boeEntryService,
   boeService,
@@ -246,6 +248,37 @@ export function BOEEntryPage() {
     return paid !== gross && paid !== cash;
   }, [linkedBoe, result]);
 
+  const syncCbicRate = React.useCallback(
+    async (targetDate?: string, silent = false) => {
+      if (!params || !params.invoiceCurrency) return;
+      const curr = params.invoiceCurrency.trim().toUpperCase();
+      const dateToUse = targetDate || linkedBoe?.beDate || new Date().toISOString().slice(0, 10);
+      try {
+        const rate = await cbicRatesService.getEffectiveRate(curr, dateToUse);
+        if (rate && rate.exchangeRate > 0) {
+          const next = {
+            ...params,
+            exchangeRate: rate.exchangeRate,
+            cbicNotificationNumber: rate.notificationNumber,
+          };
+          await recompute(next);
+          if (!silent) {
+            toast.success(
+              `Auto-populated statutory CBIC rate ₹${rate.exchangeRate.toFixed(4)} (${rate.notificationNumber}) for ${curr} on ${dateToUse}`,
+            );
+          }
+        }
+      } catch (err) {
+        if (!silent) {
+          toast.error(
+            `No statutory CBIC rate for ${curr} on ${dateToUse}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    },
+    [params, linkedBoe, recompute],
+  );
+
   React.useEffect(() => {
     setItemSearch('');
   }, [selectedShipmentId, urlCalcId]);
@@ -403,9 +436,29 @@ export function BOEEntryPage() {
 
             <LinkedBoeSelector
               value={params?.boeId || ''}
-              onChange={(v) =>
-                params && void recompute({ ...params, boeId: v })
-              }
+              onChange={async (newBoeId) => {
+                if (!params) return;
+                const next = { ...params, boeId: newBoeId };
+                const chosenBoe = displayBoes.find((b) => b.id === newBoeId);
+                if (chosenBoe?.beDate && params.invoiceCurrency) {
+                  try {
+                    const rate = await cbicRatesService.getEffectiveRate(
+                      params.invoiceCurrency,
+                      chosenBoe.beDate,
+                    );
+                    if (rate && rate.exchangeRate > 0) {
+                      next.exchangeRate = rate.exchangeRate;
+                      next.cbicNotificationNumber = rate.notificationNumber;
+                      toast.success(
+                        `Auto-populated statutory CBIC rate ₹${rate.exchangeRate.toFixed(4)} (${rate.notificationNumber}) for BOE Date ${chosenBoe.beDate}`,
+                      );
+                    }
+                  } catch {
+                    // Retain current rate if not found
+                  }
+                }
+                void recompute(next);
+              }}
               boes={displayBoes}
               expectedDuty={result?.customsDutyTotal}
               cashDuty={result?.cashCustomsDutyTotal}
@@ -426,16 +479,54 @@ export function BOEEntryPage() {
               {/* Core 5-input valuation grid */}
               <div className="grid gap-4 md:grid-cols-5">
                 <div className="space-y-1">
-                  <Label htmlFor="exRate">Exchange Rate (INR per {params.invoiceCurrency})</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="exRate">Exchange Rate (INR per {params.invoiceCurrency})</Label>
+                    <div className="flex items-center gap-1">
+                      {params.cbicNotificationNumber && (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] px-1 py-0 text-primary border-primary/30 font-mono"
+                          title={`Statutory CBIC Notification: ${params.cbicNotificationNumber}`}
+                        >
+                          CBIC Statutory
+                        </Badge>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1 text-[10px] text-muted-foreground hover:text-primary"
+                        onClick={() => void syncCbicRate(linkedBoe?.beDate)}
+                        title={`Sync CBIC statutory exchange rate for ${params.invoiceCurrency} on BOE date (${linkedBoe?.beDate || 'today'})`}
+                      >
+                        <RefreshCw className="h-3 w-3 mr-0.5" />
+                        Sync CBIC
+                      </Button>
+                    </div>
+                  </div>
                   <Input
                     id="exRate"
                     type="number"
-                    step="0.01"
+                    step="0.0001"
+                    min="0.0001"
+                    className="font-mono text-sm"
                     value={params.exchangeRate}
                     onChange={(e) =>
                       void recompute({ ...params, exchangeRate: Number.parseFloat(e.target.value) || 0 })
                     }
                   />
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    {params.cbicNotificationNumber ? (
+                      <span className="truncate" title={params.cbicNotificationNumber}>
+                        Notif: {params.cbicNotificationNumber}
+                      </span>
+                    ) : (
+                      <span>Manual override / Default rate</span>
+                    )}
+                    {linkedBoe?.beDate && (
+                      <span className="font-mono text-primary/80">BOE: {linkedBoe.beDate}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">

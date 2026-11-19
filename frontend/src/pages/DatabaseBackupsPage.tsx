@@ -1055,6 +1055,18 @@ export function DatabaseBackupsPage() {
         </TabsContent>
 
         <TabsContent value="schedules" className="space-y-4">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-xs space-y-2">
+            <div className="flex items-center gap-2 font-semibold text-primary">
+              <ShieldAlert className="h-4 w-4" />
+              <span>v1.7.0 Disaster Recovery Safety Invariants</span>
+            </div>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li><strong>Offline Startup Catch-Up:</strong> If the computer was shut down when a schedule was due, the scheduler automatically detects the missed run and triggers it upon startup.</li>
+              <li><strong>Zero-Data-Loss Pruning Guard:</strong> The retention policy will <em>never</em> prune or delete the sole/latest verified recovery point, even if retention thresholds are exceeded.</li>
+              <li><strong>SHA-256 Validation:</strong> Backups are verified against sidecar checksums and restore readiness before being marked as successful recovery points.</li>
+            </ul>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Automated Backup Schedules</CardTitle>

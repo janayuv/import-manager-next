@@ -29,6 +29,8 @@ type DashboardKPIs struct {
 	SLABreachCount          int     `json:"slaBreachCount"`
 	OpenIncidentCount       int     `json:"openIncidentCount"`
 	WorkflowHealthScore     float64 `json:"workflowHealthScore"`
+	BackupHealthStatus      string  `json:"backupHealthStatus,omitempty"`
+	LastBackupHoursAgo      float64 `json:"lastBackupHoursAgo,omitempty"`
 }
 
 // DashboardMonthlyTrend captures month-by-month shipment volume, assessable import value, customs duty & basic spend.

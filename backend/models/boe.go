@@ -91,6 +91,7 @@ type BOECalcParams struct {
 	CertificateOfOriginNo   string                    `json:"certificateOfOriginNo,omitempty"`
 	CertificateOfOriginDate string                    `json:"certificateOfOriginDate,omitempty"`
 	TradeAgreement          string                    `json:"tradeAgreement,omitempty"`
+	CBICNotificationNumber  string                    `json:"cbicNotificationNumber,omitempty"`
 	Interest                float64                   `json:"interest"` // INR
 	LineItems               []BOECalculationItemInput `json:"lineItems"`
 }

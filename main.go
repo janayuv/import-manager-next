@@ -45,6 +45,7 @@ func main() {
 			application.NewService(rt.BOE),
 			application.NewService(rt.BOEEntry),
 			application.NewService(rt.BOESummary),
+			application.NewService(rt.CBICRates),
 			application.NewService(rt.Expenses),
 			application.NewService(rt.ExpenseReports),
 			application.NewService(rt.Reports),

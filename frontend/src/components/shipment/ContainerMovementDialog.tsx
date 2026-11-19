@@ -92,8 +92,14 @@ export function ContainerMovementDialog({
   const [showAddContainer, setShowAddContainer] = React.useState(false);
   const [newContainerNum, setNewContainerNum] = React.useState('');
   const [newContainerSize, setNewContainerSize] = React.useState('40FT');
-  const [newFreeDays, setNewFreeDays] = React.useState('3');
-  const [newRate, setNewRate] = React.useState('0');
+  const [newSealNumber, setNewSealNumber] = React.useState('');
+  const [newPortDemurrageFreeDays, setNewPortDemurrageFreeDays] = React.useState('3');
+  const [newPortDemurrageRate, setNewPortDemurrageRate] = React.useState('500');
+  const [newCfsGroundRentFreeDays, setNewCfsGroundRentFreeDays] = React.useState('3');
+  const [newCfsGroundRentRate, setNewCfsGroundRentRate] = React.useState('300');
+  const [newDetentionFreeDays, setNewDetentionFreeDays] = React.useState('14');
+  const [newDetentionRate, setNewDetentionRate] = React.useState('1000');
+  const [newWhStorageRate, setNewWhStorageRate] = React.useState('500');
 
   const loadContainers = React.useCallback(async () => {
     if (!shipment?.id) return;
@@ -141,13 +147,34 @@ export function ContainerMovementDialog({
       return;
     }
     try {
+      const portFree = parseInt(newPortDemurrageFreeDays, 10) || 0;
+      const portRate = parseFloat(newPortDemurrageRate) || 0;
+      const cfsFree = parseInt(newCfsGroundRentFreeDays, 10) || 0;
+      const cfsRate = parseFloat(newCfsGroundRentRate) || 0;
+      const detentionFree = parseInt(newDetentionFreeDays, 10) || 14;
+      const detentionRate = parseFloat(newDetentionRate) || 0;
+      const whRate = parseFloat(newWhStorageRate) || 0;
+
       const payload: ShipmentContainerInput = {
         shipmentId: shipment.id,
         containerNumber: num,
         containerSizeType: newContainerSize,
+        sealNumber: newSealNumber.trim(),
         routeType: 'DIRECT',
-        freeDaysAllowed: parseInt(newFreeDays, 10) || 0,
-        storageRatePerDay: parseFloat(newRate) || 0,
+        freeDaysAllowed: portFree,
+        storageRatePerDay: portRate,
+        portDemurrageFreeDays: portFree,
+        portDemurrageRatePerDay: portRate,
+        portDemurrageAmount: 0,
+        cfsGroundRentFreeDays: cfsFree,
+        cfsGroundRentRatePerDay: cfsRate,
+        cfsGroundRentAmount: 0,
+        shippingLineDetentionFreeDays: detentionFree,
+        shippingLineDetentionRatePerDay: detentionRate,
+        shippingLineDetentionAmount: 0,
+        warehouseStorageDays: 0,
+        warehouseStorageRatePerDay: whRate,
+        warehouseStorageAmount: 0,
         deliveryStatus: 'PENDING',
         dateOfDelivery: '',
         warehouseName: '',
@@ -158,11 +185,11 @@ export function ContainerMovementDialog({
         lrNumber: '',
         emptyReturnDate: '',
         remarks: '',
-        sealNumber: '',
       };
       await shipmentService.createContainer(payload);
       toast.success(`Container ${num} added successfully`);
       setNewContainerNum('');
+      setNewSealNumber('');
       setShowAddContainer(false);
       await loadContainers();
       onSuccess?.();
@@ -346,28 +373,108 @@ export function ContainerMovementDialog({
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="newFreeDays" className="text-xs">Free Days</Label>
+                    <Label htmlFor="newSeal" className="text-xs">Seal Number</Label>
                     <Input
-                      id="newFreeDays"
-                      type="number"
-                      min="0"
-                      className="h-8 text-xs"
-                      value={newFreeDays}
-                      onChange={(e) => setNewFreeDays(e.target.value)}
+                      id="newSeal"
+                      placeholder="Optional seal"
+                      className="h-8 text-xs font-mono"
+                      value={newSealNumber}
+                      onChange={(e) => setNewSealNumber(e.target.value)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="newRate" className="text-xs">Daily Rate (₹)</Label>
+                    <Label htmlFor="newWhRate" className="text-xs">WH Storage Rate (₹/d)</Label>
                     <Input
-                      id="newRate"
+                      id="newWhRate"
                       type="number"
                       min="0"
                       className="h-8 text-xs"
-                      value={newRate}
-                      onChange={(e) => setNewRate(e.target.value)}
+                      value={newWhStorageRate}
+                      onChange={(e) => setNewWhStorageRate(e.target.value)}
                     />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1 border-t border-border/50">
+                  <div className="rounded p-2 bg-background border border-border/60 space-y-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Port Demurrage</span>
+                    <div className="flex gap-1.5">
+                      <div className="w-1/2">
+                        <Label className="text-[10px]">Free Days</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="h-7 text-xs"
+                          value={newPortDemurrageFreeDays}
+                          onChange={(e) => setNewPortDemurrageFreeDays(e.target.value)}
+                        />
+                      </div>
+                      <div className="w-1/2">
+                        <Label className="text-[10px]">Rate (₹/d)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="h-7 text-xs"
+                          value={newPortDemurrageRate}
+                          onChange={(e) => setNewPortDemurrageRate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded p-2 bg-background border border-border/60 space-y-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Line Detention</span>
+                    <div className="flex gap-1.5">
+                      <div className="w-1/2">
+                        <Label className="text-[10px]">Free Days</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="h-7 text-xs"
+                          value={newDetentionFreeDays}
+                          onChange={(e) => setNewDetentionFreeDays(e.target.value)}
+                        />
+                      </div>
+                      <div className="w-1/2">
+                        <Label className="text-[10px]">Rate (₹/d)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="h-7 text-xs"
+                          value={newDetentionRate}
+                          onChange={(e) => setNewDetentionRate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded p-2 bg-background border border-border/60 space-y-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground">CFS Ground Rent</span>
+                    <div className="flex gap-1.5">
+                      <div className="w-1/2">
+                        <Label className="text-[10px]">Free Days</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="h-7 text-xs"
+                          value={newCfsGroundRentFreeDays}
+                          onChange={(e) => setNewCfsGroundRentFreeDays(e.target.value)}
+                        />
+                      </div>
+                      <div className="w-1/2">
+                        <Label className="text-[10px]">Rate (₹/d)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="h-7 text-xs"
+                          value={newCfsGroundRentRate}
+                          onChange={(e) => setNewCfsGroundRentRate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddContainer(false)}>
                     Cancel
@@ -388,6 +495,7 @@ export function ContainerMovementDialog({
                   <TableHead>Route / Location</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Warehouse Dwell</TableHead>
+                  <TableHead>Demurrage &amp; Detention</TableHead>
                   <TableHead>Delivery Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -395,13 +503,13 @@ export function ContainerMovementDialog({
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-4 text-xs text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-4 text-xs text-muted-foreground">
                       Loading containers...
                     </TableCell>
                   </TableRow>
                 ) : containers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-4 text-xs text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-4 text-xs text-muted-foreground">
                       No containers recorded yet. Click &quot;Add Container&quot; above.
                     </TableCell>
                   </TableRow>
@@ -478,6 +586,30 @@ export function ContainerMovementDialog({
                           ) : (
                             <span className="text-muted-foreground text-[11px]">—</span>
                           )}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="space-y-0.5 text-[11px]">
+                            <div className="flex justify-between gap-1 text-muted-foreground">
+                              <span>Port:</span>
+                              <span className={c.portDemurrageAmount > 0 ? 'text-destructive font-semibold' : ''}>
+                                ₹{(c.portDemurrageAmount || 0).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between gap-1 text-muted-foreground">
+                              <span>Detention:</span>
+                              <span className={c.shippingLineDetentionAmount > 0 ? 'text-destructive font-semibold' : ''}>
+                                ₹{(c.shippingLineDetentionAmount || 0).toLocaleString()}
+                              </span>
+                            </div>
+                            {(c.cfsGroundRentAmount > 0 || c.warehouseStorageAmount > 0) && (
+                              <div className="flex justify-between gap-1 text-[10px] text-muted-foreground">
+                                <span>CFS/WH:</span>
+                                <span>
+                                  ₹{((c.cfsGroundRentAmount || 0) + (c.warehouseStorageAmount || c.storageCost || 0)).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs">
                           {c.dateOfDelivery ? (

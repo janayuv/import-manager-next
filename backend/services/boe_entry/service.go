@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/janayuv/import-manager-next/backend/database/transactions"
@@ -143,21 +144,57 @@ func (s *Service) LoadShipmentContext(shipmentID string) (models.BOECalculationC
 		insMode = "included"
 		insRate = 0
 	}
+	defaultExchangeRate := 84.15
+	cbicNotif := ""
+	refDate := sh.InvoiceDate
+
+	// Prioritize statutory BOE filing date if a linked BOE detail exists for this shipment
+	var linkedBEDate string
+	if err := s.db.QueryRow(`
+		SELECT b.be_date
+		FROM boe_details b
+		JOIN boe_calculations bc ON bc.boe_id = b.id
+		WHERE bc.shipment_id = ? AND bc.deleted_at IS NULL AND b.be_date != ''
+		ORDER BY b.be_date DESC LIMIT 1`, sh.ID,
+	).Scan(&linkedBEDate); err == nil && strings.TrimSpace(linkedBEDate) != "" {
+		refDate = strings.TrimSpace(linkedBEDate)
+	}
+
+	if refDate == "" {
+		refDate = time.Now().UTC().Format("2006-01-02")
+	}
+	var queriedRate float64
+	var queriedNotif string
+	if err := s.db.QueryRow(`
+		SELECT exchange_rate, notification_number
+		FROM cbic_exchange_rates
+		WHERE currency_code = ?
+		  AND effective_from <= ?
+		  AND (effective_to IS NULL OR effective_to >= ?)
+		  AND verification_status = 'Verified'
+		ORDER BY effective_from DESC, id DESC LIMIT 1`,
+		strings.ToUpper(strings.TrimSpace(sh.InvoiceCurrency)), refDate, refDate,
+	).Scan(&queriedRate, &queriedNotif); err == nil && queriedRate > 0 {
+		defaultExchangeRate = queriedRate
+		cbicNotif = queriedNotif
+	}
+
 	params := models.BOECalcParams{
-		ShipmentID:          sh.ID,
-		SupplierName:        sh.SupplierName,
-		InvoiceNumber:       sh.InvoiceNumber,
-		InvoiceCurrency:     sh.InvoiceCurrency,
-		Incoterm:            sh.Incoterm,
-		Status:              "Awaiting BOE Data",
-		ExchangeRate:        83.5,
-		FreightCost:         0,
-		EXWCost:             0,
-		OriginInlandFreight: 0,
-		ExportHandling:      0,
-		LoadingCharges:      0,
-		PackingCharges:      0,
-		OtherRule10Additions: 0,
+		ShipmentID:             sh.ID,
+		SupplierName:           sh.SupplierName,
+		InvoiceNumber:          sh.InvoiceNumber,
+		InvoiceCurrency:        sh.InvoiceCurrency,
+		Incoterm:               sh.Incoterm,
+		Status:                 "Awaiting BOE Data",
+		ExchangeRate:           defaultExchangeRate,
+		CBICNotificationNumber: cbicNotif,
+		FreightCost:            0,
+		EXWCost:                0,
+		OriginInlandFreight:    0,
+		ExportHandling:         0,
+		LoadingCharges:         0,
+		PackingCharges:         0,
+		OtherRule10Additions:   0,
 		InsuranceMode:       insMode,
 		ActualInsurance:     0,
 		InsuranceRate:       insRate,

@@ -1,7 +1,7 @@
 {
   "name": "import-manager-frontend",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -37,6 +37,7 @@
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.511.0",
     "papaparse": "^5.5.2",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.56.3",

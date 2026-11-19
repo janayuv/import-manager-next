@@ -2,8 +2,11 @@ import * as ExpensesBindings from '../../bindings/github.com/janayuv/import-mana
 import * as ExpenseReportBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/expense_reports/service.js';
 import * as ReportBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/reports/service.js';
 import type {
+  AllocationLedgerFilter,
+  AllocationRunSummary,
   CSVImportResult,
   ExpenseAttachment,
+  ExpenseAllocationRecord,
   ExpenseInvoice,
   ExpenseInvoiceCalculation,
   ExpenseInvoiceRequest,
@@ -29,8 +32,11 @@ import type {
 } from '../../bindings/github.com/janayuv/import-manager-next/backend/models/models.js';
 
 export type {
+  AllocationLedgerFilter,
+  AllocationRunSummary,
   CSVImportResult,
   ExpenseAttachment,
+  ExpenseAllocationRecord,
   ExpenseInvoice,
   ExpenseInvoiceCalculation,
   ExpenseInvoiceRequest,
@@ -133,6 +139,13 @@ export const expenseService = {
   },
   importBulkCsv(shipmentId: string, content: string): Promise<CSVImportResult> {
     return ExpensesBindings.ImportBulkCSV(shipmentId, content);
+  },
+
+  listAllocationRuns(shipmentId: string): Promise<AllocationRunSummary[]> {
+    return ExpensesBindings.ListAllocationRuns(shipmentId).then((r) => r ?? []);
+  },
+  listAllocationHistory(filter: AllocationLedgerFilter = {}): Promise<ExpenseAllocationRecord[]> {
+    return ExpensesBindings.ListAllocationHistory(filter).then((r) => r ?? []);
   },
 };
 
