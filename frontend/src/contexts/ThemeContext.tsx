@@ -154,7 +154,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const getModuleSettings = React.useCallback(
     (moduleKey: string): ModuleDisplaySettings => {
-      return profile?.modules?.[moduleKey] ?? getDefaultModuleSettings(moduleKey);
+      if (profile?.modules?.[moduleKey]) {
+        return profile.modules[moduleKey];
+      }
+      if (moduleKey === 'reconciledBoe' && profile?.modules?.boeSummary) {
+        return profile.modules.boeSummary;
+      }
+      return getDefaultModuleSettings(moduleKey);
     },
     [profile],
   );
@@ -219,7 +225,13 @@ export function useModuleSettings(moduleKey: string) {
 
   const activeProfile = themeCtx?.profile ?? fallbackProfile;
   const settings = React.useMemo(() => {
-    return activeProfile?.modules?.[moduleKey] ?? getDefaultModuleSettings(moduleKey);
+    if (activeProfile?.modules?.[moduleKey]) {
+      return activeProfile.modules[moduleKey];
+    }
+    if (moduleKey === 'reconciledBoe' && activeProfile?.modules?.boeSummary) {
+      return activeProfile.modules.boeSummary;
+    }
+    return getDefaultModuleSettings(moduleKey);
   }, [activeProfile, moduleKey]);
 
   const itemsPerPage = Math.max(5, Math.min(200, settings.itemsPerPage || 10));

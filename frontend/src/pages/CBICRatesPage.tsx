@@ -57,12 +57,17 @@ import {
   type ExtractedCurrencyRate,
 } from '@/lib/cbic-parser';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 
 const TOP_CURRENCIES = ['USD', 'EUR', 'CNY', 'KRW', 'JPY', 'GBP', 'AED', 'SGD'];
 
 export function CBICRatesPage() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('data.write');
+
+  const { itemsPerPage: pageSizeSetting } = useModuleSettings('cbicRates');
+  const pageSize = pageSizeSetting > 0 ? pageSizeSetting : 10;
+  const [currentPage, setCurrentPage] = React.useState(1);
 
   const [rates, setRates] = React.useState<CBICExchangeRate[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -118,6 +123,10 @@ export function CBICRatesPage() {
   React.useEffect(() => {
     void loadRates();
   }, [loadRates]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [currencyFilter, search, pageSize]);
 
   const handleLookup = async () => {
     setLookupLoading(true);
@@ -302,6 +311,13 @@ export function CBICRatesPage() {
         r.effectiveFrom.includes(q),
     );
   }, [rates, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRates.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedRates = React.useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredRates.slice(start, start + pageSize);
+  }, [filteredRates, safePage, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -503,7 +519,7 @@ export function CBICRatesPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredRates.map((r) => (
+              pagedRates.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-mono font-semibold text-xs">
                     <Badge variant="outline" className="font-mono">
@@ -550,6 +566,31 @@ export function CBICRatesPage() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
+        <span>
+          Showing {pagedRates.length} of {filteredRates.length} exchange rates (Page {safePage} of {totalPages})
+        </span>
+        <div className="flex gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={safePage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={safePage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+        </div>
       </div>
 
       {/* PDF Upload & Batch Ingestion Dialog */}

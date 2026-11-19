@@ -1013,4 +1013,167 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
     expect(searchInput).toHaveValue('');
     expect(screen.getByText('RM-101')).toBeInTheDocument();
   });
+
+  it('detects ±1 round-off difference, does not block save, and auto-adjusts to match duty paid value', async () => {
+    vi.mocked(boeSummaryService.list).mockResolvedValue([]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'sh-roundoff',
+          supplierId: 'sup-1',
+          supplierName: 'Test Supplier',
+          invoiceNumber: 'INV-RO-1',
+          invoiceDate: '2026-04-18',
+          goodsCategory: 'Parts',
+          invoiceValue: 1000,
+          invoiceCurrency: 'USD',
+          incoterm: 'CIF',
+          status: 'in-transit',
+          isFrozen: false,
+        } as unknown as Shipment,
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 50,
+      totalPages: 1,
+    });
+
+    vi.mocked(boeService.list).mockResolvedValue([
+      {
+        id: 'boe-ro-1',
+        beNumber: 'BE-RO-99',
+        beDate: '2026-04-18',
+        location: 'INMAA4',
+        totalAssessmentValue: 85000,
+        dutyAmount: 23576,
+        paymentDate: '2026-04-19',
+        dutyPaid: 23576,
+        challanNumber: 'CH-RO-99',
+        refId: '',
+        transactionId: '',
+      },
+    ]);
+
+    vi.mocked(boeEntryService.loadShipmentContext).mockResolvedValue({
+      shipment: {
+        id: 'sh-roundoff',
+        supplierName: 'Test Supplier',
+        invoiceNumber: 'INV-RO-1',
+        invoiceCurrency: 'USD',
+        incoterm: 'CIF',
+        status: 'in-transit',
+      } as unknown as Shipment,
+      params: {
+        shipmentId: 'sh-roundoff',
+        boeId: 'boe-ro-1',
+        supplierName: 'Test Supplier',
+        invoiceNumber: 'INV-RO-1',
+        invoiceCurrency: 'USD',
+        incoterm: 'CIF',
+        exchangeRate: 85.0,
+        freightCost: 0,
+        exwCost: 0,
+        insuranceMode: 'included',
+        insuranceRate: 0,
+        interest: 0,
+        roundOffAdjustment: 0,
+        lineItems: [
+          {
+            itemId: 'item-1',
+            partNumber: 'RO-100',
+            description: 'Round-off Test Part',
+            hsnCode: '8504.40',
+            unit: 'PCS',
+            quantity: 10,
+            unitPrice: 100,
+            actualBcdRate: 7.5,
+            actualSwsRate: 10,
+            actualIgstRate: 18,
+            calculationMethod: 'Standard',
+            boeBcdRate: 7.5,
+            boeSwsRate: 10,
+            boeIgstRate: 18,
+          },
+        ],
+      } as unknown as BOECalcParams,
+      result: {
+        items: [],
+        totalInvoiceValue: 1000,
+        totalValueInr: 85000,
+        totalFreight: 0,
+        totalExw: 0,
+        totalInsurance: 0,
+        totalOriginCharges: 0,
+        totalAssessableValue: 85000,
+        grossBcdTotal: 6375,
+        bcdTotal: 6375,
+        swsTotal: 638,
+        igstTotal: 16562,
+        interest: 0,
+        roundOffAdjustment: 0,
+        customsDutyTotal: 23575,
+        cashCustomsDutyTotal: 23575,
+        hasBlockingBcdOverride: false,
+        cifZeroLocked: true,
+        payloadBytes: 512,
+        payloadWarning: false,
+      } as unknown as BOECalculationResult,
+      hasSaved: false,
+    });
+
+    vi.mocked(boeEntryService.previewCalculation).mockResolvedValue({
+      items: [],
+      totalInvoiceValue: 1000,
+      totalValueInr: 85000,
+      totalFreight: 0,
+      totalExw: 0,
+      totalInsurance: 0,
+      totalOriginCharges: 0,
+      totalAssessableValue: 85000,
+      grossBcdTotal: 6375,
+      bcdTotal: 6375,
+      swsTotal: 638,
+      igstTotal: 16562,
+      interest: 0,
+      roundOffAdjustment: 1,
+      customsDutyTotal: 23576,
+      cashCustomsDutyTotal: 23576,
+      hasBlockingBcdOverride: false,
+      cifZeroLocked: true,
+      payloadBytes: 512,
+      payloadWarning: false,
+    } as unknown as BOECalculationResult);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <BOEEntryPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    // Wait for page to load
+    await waitFor(() => expect(screen.getByText(/Round-off difference:/i)).toBeInTheDocument());
+
+    // Verify it explains the difference and does NOT show the hard save blocker
+    expect(screen.getByText(/differs by \+₹1 from computed Customs Duty/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Save blocked: Linked BOE duty paid/i)).not.toBeInTheDocument();
+
+    // Verify Save button is NOT disabled for ±1 difference
+    expect(screen.getByRole('button', { name: /Save Calculation/i })).not.toBeDisabled();
+
+    // Verify Round-off input exists
+    expect(screen.getByLabelText(/Round-off \(INR\)/i)).toBeInTheDocument();
+
+    // Click Auto-Adjust button
+    const autoAdjustBtn = screen.getByRole('button', { name: /Auto-Adjust \(\+₹1\) to Match Duty Paid/i });
+    fireEvent.click(autoAdjustBtn);
+
+    // Verify previewCalculation was invoked with roundOffAdjustment: 1
+    await waitFor(() => {
+      expect(boeEntryService.previewCalculation).toHaveBeenCalled();
+      const called = vi.mocked(boeEntryService.previewCalculation).mock.calls.at(-1)?.[0];
+      expect(called?.roundOffAdjustment).toBe(1);
+    });
+  });
 });

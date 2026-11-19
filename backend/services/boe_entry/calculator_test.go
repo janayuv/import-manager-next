@@ -175,8 +175,9 @@ func TestBOEEntrySaveBlockersOverridesAndTransitions(t *testing.T) {
 		t.Fatalf("expected save blocker for boeBcdRate > actualBcdRate")
 	}
 
-	// Create BOE with mismatched dutyPaid vs valid calc total
+	// Create BOE with mismatched dutyPaid (> 1 INR difference) vs valid calc total
 	goodParams := ctxData.Params
+	goodParams.ID = "BOEC-TEST-1"
 	goodParams.LineItems = ovRes.Items
 	preview, _ := entrySvc.PreviewCalculation(goodParams)
 	badBOE, _ := boeSvc.Create(models.BOEDetailInput{
@@ -184,8 +185,37 @@ func TestBOEEntrySaveBlockersOverridesAndTransitions(t *testing.T) {
 	})
 	goodParams.BOEID = badBOE.ID
 	if _, err := entrySvc.SaveCalculation(goodParams); err == nil {
-		t.Fatalf("expected save blocker for dutyPaid mismatch")
+		t.Fatalf("expected save blocker for dutyPaid mismatch > 1 INR")
 	}
+
+	// Verify difference of 2 INR is blocked
+	diff2BOE, _ := boeSvc.Create(models.BOEDetailInput{
+		BENumber: "BE-9001B", BEDate: "2026-11-10", Location: "INMAA4", DutyPaid: preview.CustomsDutyTotal + 2,
+	})
+	goodParams.BOEID = diff2BOE.ID
+	if _, err := entrySvc.SaveCalculation(goodParams); err == nil {
+		t.Fatalf("expected save blocker for dutyPaid difference of 2 INR")
+	}
+
+	// Verify difference of 1 INR is allowed under statutory rounding tolerance
+	diff1BOE, _ := boeSvc.Create(models.BOEDetailInput{
+		BENumber: "BE-9001C", BEDate: "2026-11-10", Location: "INMAA4", DutyPaid: preview.CustomsDutyTotal + 1,
+	})
+	goodParams.BOEID = diff1BOE.ID
+	if _, err := entrySvc.SaveCalculation(goodParams); err != nil {
+		t.Fatalf("expected save with 1 INR rounding difference to succeed, got: %v", err)
+	}
+
+	// Verify matching with explicit RoundOffAdjustment: +1
+	goodParams.RoundOffAdjustment = 1.0
+	adjSaved, err := entrySvc.SaveCalculation(goodParams)
+	if err != nil {
+		t.Fatalf("expected save with RoundOffAdjustment=1 to succeed, got: %v", err)
+	}
+	if adjSaved.CustomsDutyTotal != preview.CustomsDutyTotal+1 {
+		t.Fatalf("expected adjusted duty total %.0f, got %.0f", preview.CustomsDutyTotal+1, adjSaved.CustomsDutyTotal)
+	}
+	goodParams.RoundOffAdjustment = 0.0
 
 	// Create matching BOE and save cleanly -> transitions shipment to ready-dly/customs-clearance
 	goodBOE, err := boeSvc.Create(models.BOEDetailInput{
@@ -573,5 +603,78 @@ func TestOpenCoverInsuranceRate0_015(t *testing.T) {
 	}
 	if res.TotalAssessableValue != 800120.0 {
 		t.Fatalf("expected Assessable Value 800120.0, got %.1f", res.TotalAssessableValue)
+	}
+}
+
+func TestCalculateDutiesRoundOffAdjustment(t *testing.T) {
+	line := models.BOECalculationItemInput{
+		PartNumber:        "PART-RO-1",
+		Quantity:          10,
+		UnitPrice:         100,
+		ActualBCDRate:     7.5,
+		ActualSWSRate:     10.0,
+		ActualIGSTRate:    18.0,
+		BOEBCDRate:        7.5,
+		BOESWSRate:        10.0,
+		BOEIGSTRate:       18.0,
+		CalculationMethod: "Standard",
+	}
+
+	// Base calculation without roundoff
+	baseRes, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:     "CIF",
+		ExchangeRate: 85,
+		LineItems:    []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("base calc failed: %v", err)
+	}
+
+	// Test +1 round-off adjustment
+	resPlus1, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:           "CIF",
+		ExchangeRate:       85,
+		RoundOffAdjustment: 1.0,
+		LineItems:          []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("plus 1 calc failed: %v", err)
+	}
+	if resPlus1.RoundOffAdjustment != 1.0 {
+		t.Fatalf("expected RoundOffAdjustment 1.0, got %.1f", resPlus1.RoundOffAdjustment)
+	}
+	if resPlus1.CustomsDutyTotal != baseRes.CustomsDutyTotal+1 {
+		t.Fatalf("expected CustomsDutyTotal %.0f, got %.0f", baseRes.CustomsDutyTotal+1, resPlus1.CustomsDutyTotal)
+	}
+	if resPlus1.CashCustomsDutyTotal != baseRes.CashCustomsDutyTotal+1 {
+		t.Fatalf("expected CashCustomsDutyTotal %.0f, got %.0f", baseRes.CashCustomsDutyTotal+1, resPlus1.CashCustomsDutyTotal)
+	}
+
+	// Test -1 round-off adjustment
+	resMinus1, err := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:           "CIF",
+		ExchangeRate:       85,
+		RoundOffAdjustment: -1.0,
+		LineItems:          []models.BOECalculationItemInput{line},
+	})
+	if err != nil {
+		t.Fatalf("minus 1 calc failed: %v", err)
+	}
+	if resMinus1.RoundOffAdjustment != -1.0 {
+		t.Fatalf("expected RoundOffAdjustment -1.0, got %.1f", resMinus1.RoundOffAdjustment)
+	}
+	if resMinus1.CustomsDutyTotal != baseRes.CustomsDutyTotal-1 {
+		t.Fatalf("expected CustomsDutyTotal %.0f, got %.0f", baseRes.CustomsDutyTotal-1, resMinus1.CustomsDutyTotal)
+	}
+
+	// Test round-off limit validation (> 50 INR)
+	_, errOverLimit := boe_entry.CalculateDuties(models.BOECalcParams{
+		Incoterm:           "CIF",
+		ExchangeRate:       85,
+		RoundOffAdjustment: 55.0,
+		LineItems:          []models.BOECalculationItemInput{line},
+	})
+	if errOverLimit == nil {
+		t.Fatalf("expected error for roundoff adjustment > 50")
 	}
 }

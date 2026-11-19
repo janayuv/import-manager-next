@@ -78,6 +78,17 @@ describe('LinkedBoeSelector', () => {
       />
     );
     expect(screen.getByText('Mismatch')).toBeInTheDocument();
+
+    // With ±1 rupee difference
+    rerender(
+      <LinkedBoeSelector
+        value="boe-3"
+        onChange={onChange}
+        boes={MOCK_BOES}
+        expectedDuty={10656}
+      />
+    );
+    expect(screen.getByText('±₹1 Match')).toBeInTheDocument();
   });
 
   it('unlinks with one click on the trigger unlink button', () => {

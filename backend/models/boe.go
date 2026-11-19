@@ -92,7 +92,8 @@ type BOECalcParams struct {
 	CertificateOfOriginDate string                    `json:"certificateOfOriginDate,omitempty"`
 	TradeAgreement          string                    `json:"tradeAgreement,omitempty"`
 	CBICNotificationNumber  string                    `json:"cbicNotificationNumber,omitempty"`
-	Interest                float64                   `json:"interest"` // INR
+	Interest                float64                   `json:"interest"`           // INR
+	RoundOffAdjustment      float64                   `json:"roundOffAdjustment"` // Round-off adjustment in INR (Customs Act Sec. 154 rounding)
 	LineItems               []BOECalculationItemInput `json:"lineItems"`
 }
 
@@ -147,6 +148,7 @@ type BOECalculationResult struct {
 	SWSTotal               float64             `json:"swsTotal"`
 	IGSTTotal              float64             `json:"igstTotal"`
 	Interest               float64             `json:"interest"`
+	RoundOffAdjustment     float64             `json:"roundOffAdjustment"`
 	CustomsDutyTotal       float64             `json:"customsDutyTotal"`     // Gross assessed duty liability
 	CashCustomsDutyTotal   float64             `json:"cashCustomsDutyTotal"` // Net cash challan amount
 	HasBlockingBCDOverride bool                `json:"hasBlockingBcdOverride"`
