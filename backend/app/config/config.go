@@ -27,7 +27,7 @@ func Load(args []string, dataDirOverride string) (Config, error) {
 		return Config{}, err
 	}
 
-	recovery := slices.Contains(args, "--recovery") || os.Getenv("IMPORT_MANAGER_RECOVERY") == "1"
+	recovery := slices.Contains(args, "--recovery") || slices.Contains(args, "--recovery-mode") || os.Getenv("IMPORT_MANAGER_RECOVERY") == "1"
 
 	return Config{
 		AppName:      AppName,

@@ -25,6 +25,14 @@ func TestLoadConfigRecoveryFlags(t *testing.T) {
 		t.Fatalf("expected RecoveryMode=true with --recovery flag")
 	}
 
+	cfgModeFlag, err := config.Load([]string{"--recovery-mode"}, tmp)
+	if err != nil {
+		t.Fatalf("config.Load(--recovery-mode) failed: %v", err)
+	}
+	if !cfgModeFlag.RecoveryMode {
+		t.Fatalf("expected RecoveryMode=true with --recovery-mode flag")
+	}
+
 	t.Setenv("IMPORT_MANAGER_RECOVERY", "1")
 	cfgEnv, err := config.Load(nil, tmp)
 	if err != nil {
