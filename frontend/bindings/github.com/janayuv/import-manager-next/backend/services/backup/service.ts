@@ -15,6 +15,16 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as models$0 from "../../models/models.js";
 
 /**
+ * CheckAndRunDueSchedules finds all enabled backup schedules that are due or missed,
+ * executing each sequentially with safety verification.
+ */
+export function CheckAndRunDueSchedules(): $CancellablePromise<models$0.BackupRecord[]> {
+    return $Call.ByID(259485032).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
  * ClearBackupPassphrase removes any saved backup passphrase from Credential Manager.
  */
 export function ClearBackupPassphrase(): $CancellablePromise<void> {
@@ -61,11 +71,30 @@ export function DeleteBackupSchedule(id: number): $CancellablePromise<void> {
 }
 
 /**
+ * ExecuteScheduledBackup executes a scheduled backup job with hot snapshotting, encryption,
+ * cryptographic sidecar verification, and atomic retention pruning.
+ */
+export function ExecuteScheduledBackup(scheduleID: number): $CancellablePromise<models$0.BackupRecord> {
+    return $Call.ByID(2659279810, scheduleID).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * ExportIMKey exports the active backup passphrase encrypted in IMKEY1 format wrapped with transportPassphrase.
  */
 export function ExportIMKey(outputPath: string, backupPassphrase: string, transportPassphrase: string): $CancellablePromise<models$0.IMKeyOperationResult> {
     return $Call.ByID(2248541561, outputPath, backupPassphrase, transportPassphrase).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
+    });
+}
+
+/**
+ * GetBackupHealth evaluates overall backup readiness, health indicators, and safety invariants.
+ */
+export function GetBackupHealth(): $CancellablePromise<models$0.BackupHealthStatus> {
+    return $Call.ByID(1384334046).then(($result: any) => {
+        return $$createType3($result);
     });
 }
 
@@ -81,7 +110,7 @@ export function HasSavedBackupPassphrase(): $CancellablePromise<boolean> {
  */
 export function ImportIMKey(filePath: string, transportPassphrase: string): $CancellablePromise<models$0.IMKeyOperationResult> {
     return $Call.ByID(3061136372, filePath, transportPassphrase).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -90,7 +119,7 @@ export function ImportIMKey(filePath: string, transportPassphrase: string): $Can
  */
 export function ListBackupSchedules(): $CancellablePromise<models$0.BackupSchedule[]> {
     return $Call.ByID(2248559810).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType5($result);
     });
 }
 
@@ -99,7 +128,7 @@ export function ListBackupSchedules(): $CancellablePromise<models$0.BackupSchedu
  */
 export function ListBackups(): $CancellablePromise<models$0.BackupRecord[]> {
     return $Call.ByID(162506577).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType1($result);
     });
 }
 
@@ -111,12 +140,20 @@ export function MarkScheduleExecuted(id: number, lastRun: string, nextRun: strin
 }
 
 /**
+ * PruneRetainedBackups deletes older completed backups beyond the retention threshold,
+ * strictly enforcing the invariant that the latest verified recovery point is never deleted.
+ */
+export function PruneRetainedBackups(sched: models$0.BackupSchedule): $CancellablePromise<number> {
+    return $Call.ByID(3586264533, sched);
+}
+
+/**
  * RestoreBackup validates .sha256 sidecar, decrypts IMBK2 or legacy IMBK1, checks integrity & FKs,
  * and performs atomic table replacement under a global restore_control lock (or dry-run simulation).
  */
 export function RestoreBackup(req: models$0.RestoreBackupRequest): $CancellablePromise<models$0.RestoreVerificationSummary> {
     return $Call.ByID(899315846, req).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -132,14 +169,15 @@ export function SaveBackupPassphrase(passphrase: string): $CancellablePromise<vo
  */
 export function SaveBackupSchedule(input: models$0.SaveBackupScheduleInput): $CancellablePromise<models$0.BackupSchedule> {
     return $Call.ByID(330389276, input).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType4($result);
     });
 }
 
 // Private type creation functions
 const $$createType0 = models$0.BackupRecord.createFrom;
-const $$createType1 = models$0.IMKeyOperationResult.createFrom;
-const $$createType2 = models$0.BackupSchedule.createFrom;
-const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $Create.Array($$createType0);
-const $$createType5 = models$0.RestoreVerificationSummary.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = models$0.IMKeyOperationResult.createFrom;
+const $$createType3 = models$0.BackupHealthStatus.createFrom;
+const $$createType4 = models$0.BackupSchedule.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = models$0.RestoreVerificationSummary.createFrom;

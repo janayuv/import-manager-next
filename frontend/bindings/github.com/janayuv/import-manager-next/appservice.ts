@@ -18,6 +18,9 @@ import * as connection$0 from "./backend/database/connection/models.js";
 import * as migrations$0 from "./backend/database/migrations/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as memory$0 from "./backend/memory/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as updater$0 from "./backend/services/updater/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -66,11 +69,20 @@ export function GetBootstrapInfo(): $CancellablePromise<$models.BootstrapInfo> {
 }
 
 /**
+ * GetMemoryStats returns real-time operating system working set and Go heap allocation metrics.
+ */
+export function GetMemoryStats(): $CancellablePromise<memory$0.Stats> {
+    return $Call.ByID(97300464).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
+/**
  * ListSchemaMigrations returns applied migration history with SHA-256 checksums and execution timings.
  */
 export function ListSchemaMigrations(): $CancellablePromise<migrations$0.AppliedRecord[]> {
     return $Call.ByID(2397509292).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
@@ -82,22 +94,19 @@ export function OpenExternalURL(url: string): $CancellablePromise<void> {
 }
 
 /**
- * GetMemoryStats returns real-time operating system working set and Go heap allocation metrics.
- */
-export function GetMemoryStats(): $CancellablePromise<any> {
-    return $Call.ByName("main.AppService.GetMemoryStats");
-}
-
-/**
  * TrimMemory requests immediate process working set release, database cache purge, and runtime GC.
  */
-export function TrimMemory(aggressive: boolean): $CancellablePromise<any> {
-    return $Call.ByName("main.AppService.TrimMemory", aggressive);
+export function TrimMemory(aggressive: boolean): $CancellablePromise<memory$0.TrimResult> {
+    return $Call.ByID(4055428277, aggressive).then(($result: any) => {
+        return $$createType6($result);
+    });
 }
 
 // Private type creation functions
 const $$createType0 = connection$0.HealthInfo.createFrom;
 const $$createType1 = updater$0.UpdateCheckResult.createFrom;
 const $$createType2 = $models.BootstrapInfo.createFrom;
-const $$createType3 = migrations$0.AppliedRecord.createFrom;
-const $$createType4 = $Create.Array($$createType3);
+const $$createType3 = memory$0.Stats.createFrom;
+const $$createType4 = migrations$0.AppliedRecord.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = memory$0.TrimResult.createFrom;

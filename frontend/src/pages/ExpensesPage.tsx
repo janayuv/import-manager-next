@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ChevronsDownUp,
   FileSpreadsheet,
+  History,
   Layers,
   Merge,
   Pencil,
@@ -14,6 +15,7 @@ import {
   RefreshCw,
   Search,
   Settings2,
+  ShieldAlert,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -56,6 +58,7 @@ import { downloadTextFile } from '@/lib/download';
 import {
   expenseService,
   formatPaiseINR,
+  type ExpenseAllocationRecord,
   type ExpenseInvoice,
   type ExpenseInvoiceCalculation,
   type ExpenseLineInput,
@@ -185,6 +188,31 @@ export function ExpensesPage() {
   const [itemizedTypeFilter, setItemizedTypeFilter] = React.useState('all');
   const [itemizedProviderFilter, setItemizedProviderFilter] = React.useState('all');
   const [itemizedShipmentFilter, setItemizedShipmentFilter] = React.useState('all');
+
+  // Allocation Audit Ledger state
+  const [ledgerRecords, setLedgerRecords] = React.useState<ExpenseAllocationRecord[]>([]);
+  const [ledgerLoading, setLedgerLoading] = React.useState(false);
+  const [ledgerShipmentFilter, setLedgerShipmentFilter] = React.useState('');
+
+  const loadLedger = React.useCallback(async () => {
+    setLedgerLoading(true);
+    try {
+      const records = await expenseService.listAllocationHistory({
+        shipmentId: ledgerShipmentFilter || undefined,
+      });
+      setLedgerRecords(records ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, [ledgerShipmentFilter]);
+
+  React.useEffect(() => {
+    if (activeTab === 'ledger') {
+      void loadLedger();
+    }
+  }, [activeTab, loadLedger]);
 
   const loadAll = React.useCallback(async () => {
     setLoading(true);
@@ -1226,7 +1254,7 @@ export function ExpensesPage() {
           </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto h-auto">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full sm:w-auto h-auto">
           <TabsTrigger value="invoices" className="gap-2" onClick={() => setActiveTab('invoices')}>
             <Layers className="h-4 w-4" />
             <span>Expense Invoices ({invoices.length})</span>
@@ -1234,6 +1262,10 @@ export function ExpensesPage() {
           <TabsTrigger value="itemized" className="gap-2" onClick={() => setActiveTab('itemized')}>
             <Receipt className="h-4 w-4" />
             <span>Itemized Expense Details ({allItemizedLines.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="ledger" className="gap-2" onClick={() => setActiveTab('ledger')}>
+            <History className="h-4 w-4" />
+            <span>Allocation Ledger ({ledgerRecords.length})</span>
           </TabsTrigger>
           <TabsTrigger value="providers" onClick={() => setActiveTab('providers')}>Service Providers ({providers.length})</TabsTrigger>
           <TabsTrigger value="types" onClick={() => setActiveTab('types')}>Expense Types ({types.length})</TabsTrigger>
@@ -2033,6 +2065,120 @@ export function ExpensesPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ledger" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="w-56">
+                <Select value={ledgerShipmentFilter} onValueChange={setLedgerShipmentFilter}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="All Shipments" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All Shipments</SelectItem>
+                    {shipments.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.id} ({s.invoiceNumber})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => void loadLedger()} disabled={ledgerLoading}>
+                <RefreshCw className={`h-4 w-4 mr-1 ${ledgerLoading ? 'animate-spin' : ''}`} />
+                Refresh Ledger
+              </Button>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {ledgerRecords.length} immutable allocation records
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-xs space-y-1">
+            <div className="flex items-center gap-2 font-semibold text-primary">
+              <ShieldAlert className="h-4 w-4" />
+              <span>Immutable Statutory Landed Cost Allocation Ledger</span>
+            </div>
+            <p className="text-muted-foreground">
+              Records are appended on every expense invoice creation, modification, and landed cost computation.
+              Every line item allocation is protected by database triggers against tampering or deletion.
+            </p>
+          </div>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Historical Expense Allocations</CardTitle>
+              <CardDescription>
+                Auditable pro-rata distribution of commercial invoice costs, duty, freight, insurance, and CHA expenses across line items.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs">
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Shipment / BOE</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Expense Category</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>Part / Line Item</TableHead>
+                    <TableHead className="text-right">Allocation %</TableHead>
+                    <TableHead className="text-right">Allocated Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ledgerLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
+                        Loading allocation history...
+                      </TableCell>
+                    </TableRow>
+                  ) : ledgerRecords.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
+                        No expense allocation records found. Add an expense invoice to a shipment to generate allocations.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    ledgerRecords.map((rec) => (
+                      <TableRow key={rec.id} className="text-xs">
+                        <TableCell className="font-mono text-[11px] text-muted-foreground">
+                          {rec.calculatedAt}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{rec.shipmentId}</div>
+                          {rec.boeId && (
+                            <div className="text-[10px] text-muted-foreground">BOE: {rec.boeId}</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px] font-mono">
+                            {rec.recalculationReason}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{rec.expenseCategory}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {rec.allocationMethod}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-[11px]">
+                          {rec.partNumber || rec.itemId || '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {rec.allocationPercentage ? `${rec.allocationPercentage.toFixed(2)}%` : '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold text-primary">
+                          ₹{formatPaiseINR(rec.allocatedAmountPaise)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

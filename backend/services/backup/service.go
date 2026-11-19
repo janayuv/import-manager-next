@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/janayuv/import-manager-next/backend/crypto"
@@ -28,6 +30,7 @@ type Service struct {
 	backupsDir  string
 	tempDir     string
 	dbKey       string
+	execMu      sync.Mutex
 }
 
 // NewService constructs a Backup Service instance.
@@ -675,4 +678,254 @@ func (s *Service) DeleteBackupSchedule(id int64) error {
 func (s *Service) MarkScheduleExecuted(id int64, lastRun, nextRun string) error {
 	_, err := s.db.Exec(`UPDATE backup_schedules SET last_run = ?, next_run = ? WHERE id = ?`, lastRun, nextRun, id)
 	return err
+}
+
+// ExecuteScheduledBackup executes a scheduled backup job with hot snapshotting, encryption,
+// cryptographic sidecar verification, and atomic retention pruning.
+func (s *Service) ExecuteScheduledBackup(ctx context.Context, scheduleID int64) (models.BackupRecord, error) {
+	s.execMu.Lock()
+	defer s.execMu.Unlock()
+
+	if s.restoreCtrl != nil {
+		if err := s.restoreCtrl.RequireIdle(); err != nil {
+			return models.BackupRecord{}, err
+		}
+	}
+
+	var sched models.BackupSchedule
+	var enabledInt int
+	var lastRunNull, nextRunNull sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, name, cron_expr, time_zone, destination, retention_count, retention_days, enabled,
+		       last_run, next_run, created_by, created_at, COALESCE(notes, '')
+		FROM backup_schedules WHERE id = ?`, scheduleID).Scan(
+		&sched.ID, &sched.Name, &sched.CronExpr, &sched.TimeZone, &sched.Destination,
+		&sched.RetentionCount, &sched.RetentionDays, &enabledInt,
+		&lastRunNull, &nextRunNull, &sched.CreatedBy, &sched.CreatedAt, &sched.Notes,
+	)
+	if err != nil {
+		return models.BackupRecord{}, fmt.Errorf("scheduled backup %d not found: %w", scheduleID, err)
+	}
+	sched.Enabled = enabledInt == 1
+	if !sched.Enabled {
+		return models.BackupRecord{}, nil
+	}
+
+	passphrase, _ := s.resolvePassphrase("")
+	if passphrase == "" {
+		passphrase = s.dbKey
+	}
+	if passphrase == "" {
+		return models.BackupRecord{}, errors.New("cannot execute scheduled backup: no backup passphrase or database key available")
+	}
+
+	dest := strings.TrimSpace(sched.Destination)
+	if dest == "" {
+		dest = "local"
+	}
+
+	// 1. Create hot snapshot + IMBK2 file + .sha256 sidecar
+	prefix := fmt.Sprintf("sched_%d", sched.ID)
+	rec, err := s.createEncryptedBackupInternal(ctx, "scheduler", passphrase, dest, s.backupsDir, prefix, sched.Notes, true)
+	if err != nil {
+		now := time.Now().UTC().Format(time.RFC3339)
+		_, _ = s.db.ExecContext(ctx, `
+			INSERT INTO backups (filename, path, destination, created_by, notes, status, error_message, created_at)
+			VALUES (?, ?, ?, 'scheduler', ?, 'failed', ?, ?)`,
+			prefix+"_failed.imbk2", "", dest, sched.Notes, err.Error(), now,
+		)
+		return models.BackupRecord{}, fmt.Errorf("scheduled snapshot creation failed: %w", err)
+	}
+
+	// 2. Double verification check: verify sidecar and decrypt header in memory
+	verifyErr := func() error {
+		if _, scErr := crypto.VerifyFileSidecarSHA256(rec.Path); scErr != nil {
+			return fmt.Errorf("sidecar verification failed: %w", scErr)
+		}
+		rawBytes, rErr := os.ReadFile(rec.Path)
+		if rErr != nil {
+			return rErr
+		}
+		plainDB, _, dErr := crypto.DecryptBackup(rawBytes, passphrase)
+		if dErr != nil {
+			return fmt.Errorf("decrypt verification failed: %w", dErr)
+		}
+		if len(plainDB) < 16 || !strings.HasPrefix(string(plainDB[:16]), "SQLite format 3\x00") {
+			return errors.New("decrypted payload header is not a valid SQLite database")
+		}
+		return nil
+	}()
+
+	if verifyErr != nil {
+		_ = os.Remove(rec.Path)
+		_ = os.Remove(rec.Path + ".sha256")
+		_, _ = s.db.ExecContext(ctx, `UPDATE backups SET status = 'failed', error_message = ? WHERE id = ?`, verifyErr.Error(), rec.ID)
+		return models.BackupRecord{}, fmt.Errorf("backup safety verification check failed: %w", verifyErr)
+	}
+
+	// 3. Mark schedule run & compute next execution time
+	now := time.Now().UTC()
+	nowStr := now.Format(time.RFC3339)
+	interval := 24 * time.Hour
+	cronLower := strings.ToLower(sched.CronExpr)
+	if strings.Contains(cronLower, "weekly") || strings.Contains(cronLower, "0 0 * * 0") {
+		interval = 7 * 24 * time.Hour
+	} else if strings.Contains(cronLower, "monthly") || strings.Contains(cronLower, "0 0 1 * *") {
+		interval = 30 * 24 * time.Hour
+	}
+	nextRunStr := now.Add(interval).Format(time.RFC3339)
+	_ = s.MarkScheduleExecuted(sched.ID, nowStr, nextRunStr)
+
+	// 4. Enforce retention policy with safety invariant
+	_, _ = s.PruneRetainedBackups(ctx, sched)
+
+	return rec, nil
+}
+
+// PruneRetainedBackups deletes older completed backups beyond the retention threshold,
+// strictly enforcing the invariant that the latest verified recovery point is never deleted.
+func (s *Service) PruneRetainedBackups(ctx context.Context, sched models.BackupSchedule) (int, error) {
+	// Safety Invariant 1: If 1 or fewer completed backups exist, do NOT delete anything!
+	var totalCompleted int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM backups WHERE status = 'completed'`).Scan(&totalCompleted); err != nil {
+		return 0, err
+	}
+	if totalCompleted <= 1 {
+		return 0, nil
+	}
+
+	// Safety Invariant 2: Find the single latest completed backup ID to protect it permanently from pruning
+	var latestVerifiedID int64
+	if err := s.db.QueryRowContext(ctx, `SELECT id FROM backups WHERE status = 'completed' ORDER BY id DESC LIMIT 1`).Scan(&latestVerifiedID); err != nil {
+		return 0, err
+	}
+
+	keepCount := int(sched.RetentionCount)
+	if keepCount <= 0 {
+		keepCount = 5
+	}
+
+	// Select completed backups beyond the top keepCount, strictly excluding latestVerifiedID
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, path FROM backups
+		WHERE status = 'completed' AND id != ?
+		ORDER BY id DESC
+		LIMIT -1 OFFSET ?`, latestVerifiedID, keepCount)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var toPrune []struct {
+		id   int64
+		path string
+	}
+	for rows.Next() {
+		var item struct {
+			id   int64
+			path string
+		}
+		if err := rows.Scan(&item.id, &item.path); err == nil {
+			toPrune = append(toPrune, item)
+		}
+	}
+
+	prunedCount := 0
+	for _, p := range toPrune {
+		if p.path != "" {
+			_ = os.Remove(p.path)
+			_ = os.Remove(p.path + ".sha256")
+		}
+		if _, delErr := s.db.ExecContext(ctx, `DELETE FROM backups WHERE id = ?`, p.id); delErr == nil {
+			prunedCount++
+		}
+	}
+
+	return prunedCount, nil
+}
+
+// CheckAndRunDueSchedules finds all enabled backup schedules that are due or missed,
+// executing each sequentially with safety verification.
+func (s *Service) CheckAndRunDueSchedules(ctx context.Context) ([]models.BackupRecord, error) {
+	if s.restoreCtrl != nil && s.restoreCtrl.IsRestoring() {
+		return nil, nil
+	}
+
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id FROM backup_schedules
+		WHERE enabled = 1 AND (last_run IS NULL OR next_run IS NULL OR next_run <= ?)
+		ORDER BY id ASC`, nowStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var dueIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err == nil {
+			dueIDs = append(dueIDs, id)
+		}
+	}
+
+	var results []models.BackupRecord
+	for _, id := range dueIDs {
+		rec, runErr := s.ExecuteScheduledBackup(ctx, id)
+		if runErr == nil {
+			results = append(results, rec)
+		}
+	}
+	return results, nil
+}
+
+// GetBackupHealth evaluates overall backup readiness, health indicators, and safety invariants.
+func (s *Service) GetBackupHealth(ctx context.Context) (models.BackupHealthStatus, error) {
+	var total, completed, failed int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*),
+		       COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0),
+		       COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0)
+		FROM backups`).Scan(&total, &completed, &failed)
+	if err != nil {
+		return models.BackupHealthStatus{}, err
+	}
+
+	status := models.BackupHealthStatus{
+		TotalBackups:    total,
+		VerifiedBackups: completed,
+		FailedBackups:   failed,
+	}
+
+	if completed == 0 {
+		status.Status = "CRITICAL"
+		status.Message = "No verified backups exist. Immediate backup is strongly recommended."
+		return status, nil
+	}
+
+	var lastCreated, lastFilename, lastStatus string
+	err = s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(created_at, ''), COALESCE(filename, ''), COALESCE(status, '')
+		FROM backups ORDER BY id DESC LIMIT 1`).Scan(&lastCreated, &lastFilename, &lastStatus)
+	if err == nil {
+		status.LastBackupTime = lastCreated
+		status.LastBackupFilename = lastFilename
+
+		if t, parseErr := time.Parse(time.RFC3339, lastCreated); parseErr == nil {
+			status.HoursSinceLast = math.Round(time.Since(t).Hours()*10) / 10.0
+		}
+	}
+
+	if lastStatus == "failed" {
+		status.Status = "WARNING"
+		status.Message = "The most recent backup attempt failed. Please check system logs and retry."
+	} else if status.HoursSinceLast > 48.0 {
+		status.Status = "WARNING"
+		status.Message = fmt.Sprintf("Last backup was completed %.1f hours ago. Consider running a scheduled or manual backup.", status.HoursSinceLast)
+	} else {
+		status.Status = "HEALTHY"
+		status.Message = fmt.Sprintf("Backup system is healthy. Last backup completed %.1f hours ago.", status.HoursSinceLast)
+	}
+
+	return status, nil
 }

@@ -13,6 +13,9 @@ import * as connection$0 from "./backend/database/connection/models.js";
 import * as integrity$0 from "./backend/database/integrity/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as memory$0 from "./backend/memory/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as windows$0 from "./backend/windows/models.js";
 
 /**
@@ -29,6 +32,7 @@ export class BootstrapInfo {
     "paths": windows$0.AppPaths;
     "database": connection$0.HealthInfo;
     "integrity": integrity$0.Report;
+    "memory": memory$0.Stats;
 
     /** Creates a new BootstrapInfo instance. */
     constructor($$source: Partial<BootstrapInfo> = {}) {
@@ -62,6 +66,9 @@ export class BootstrapInfo {
         if (!("integrity" in $$source)) {
             this["integrity"] = (new integrity$0.Report());
         }
+        if (!("memory" in $$source)) {
+            this["memory"] = (new memory$0.Stats());
+        }
 
         Object.assign(this, $$source);
     }
@@ -73,6 +80,7 @@ export class BootstrapInfo {
         const $$createField7_0 = $$createType0;
         const $$createField8_0 = $$createType1;
         const $$createField9_0 = $$createType2;
+        const $$createField10_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("paths" in $$parsedSource) {
             $$parsedSource["paths"] = $$createField7_0($$parsedSource["paths"]);
@@ -83,6 +91,9 @@ export class BootstrapInfo {
         if ("integrity" in $$parsedSource) {
             $$parsedSource["integrity"] = $$createField9_0($$parsedSource["integrity"]);
         }
+        if ("memory" in $$parsedSource) {
+            $$parsedSource["memory"] = $$createField10_0($$parsedSource["memory"]);
+        }
         return new BootstrapInfo($$parsedSource as Partial<BootstrapInfo>);
     }
 }
@@ -91,3 +102,4 @@ export class BootstrapInfo {
 const $$createType0 = windows$0.AppPaths.createFrom;
 const $$createType1 = connection$0.HealthInfo.createFrom;
 const $$createType2 = integrity$0.Report.createFrom;
+const $$createType3 = memory$0.Stats.createFrom;

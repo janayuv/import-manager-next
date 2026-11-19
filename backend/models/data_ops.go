@@ -79,6 +79,18 @@ type SaveBackupScheduleInput struct {
 	Notes          string `json:"notes"`
 }
 
+// BackupHealthStatus describes backup operational health and safety indicator.
+type BackupHealthStatus struct {
+	Status             string  `json:"status"` // HEALTHY | WARNING | CRITICAL
+	LastBackupTime     string  `json:"lastBackupTime,omitempty"`
+	LastBackupFilename string  `json:"lastBackupFilename,omitempty"`
+	HoursSinceLast     float64 `json:"hoursSinceLast"`
+	TotalBackups       int     `json:"totalBackups"`
+	VerifiedBackups    int     `json:"verifiedBackups"`
+	FailedBackups      int     `json:"failedBackups"`
+	Message            string  `json:"message"`
+}
+
 // IMKeyOperationResult summarizes .imkey key export/import.
 type IMKeyOperationResult struct {
 	FilePath         string `json:"filePath"`

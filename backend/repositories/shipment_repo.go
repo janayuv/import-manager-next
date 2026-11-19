@@ -92,6 +92,10 @@ func (r *ShipmentRepository) List(req models.ShipmentPageRequest) (models.Shipme
 		       COALESCE(s.bl_awb_number,''), COALESCE(s.bl_awb_date,''),
 		       COALESCE(s.vessel_name,''), COALESCE(s.container_number,''),
 		       COALESCE(s.gross_weight_kg,0), COALESCE(s.etd,''), COALESCE(s.eta,''),
+		       COALESCE(s.planned_etd,''), COALESCE(s.actual_etd,''),
+		       COALESCE(s.planned_eta,''), COALESCE(s.revised_eta,''), COALESCE(s.actual_eta,''),
+		       COALESCE(s.vessel_discharge_date,''), COALESCE(s.customs_ooc_date,''),
+		       COALESCE(s.factory_delivery_date,''), COALESCE(s.empty_return_date,''),
 		       COALESCE(s.status,'docs-rcvd'), COALESCE(s.date_of_delivery,''),
 		       s.is_frozen, COALESCE(s.created_at,'')
 		FROM shipments s
@@ -132,6 +136,10 @@ func (r *ShipmentRepository) GetByID(id string) (models.Shipment, error) {
 		       COALESCE(s.bl_awb_number,''), COALESCE(s.bl_awb_date,''),
 		       COALESCE(s.vessel_name,''), COALESCE(s.container_number,''),
 		       COALESCE(s.gross_weight_kg,0), COALESCE(s.etd,''), COALESCE(s.eta,''),
+		       COALESCE(s.planned_etd,''), COALESCE(s.actual_etd,''),
+		       COALESCE(s.planned_eta,''), COALESCE(s.revised_eta,''), COALESCE(s.actual_eta,''),
+		       COALESCE(s.vessel_discharge_date,''), COALESCE(s.customs_ooc_date,''),
+		       COALESCE(s.factory_delivery_date,''), COALESCE(s.empty_return_date,''),
 		       COALESCE(s.status,'docs-rcvd'), COALESCE(s.date_of_delivery,''),
 		       s.is_frozen, COALESCE(s.created_at,'')
 		FROM shipments s
@@ -178,17 +186,55 @@ func (r *ShipmentRepository) Create(in models.ShipmentInput) (models.Shipment, e
 		}
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
+
+	plannedETD := in.PlannedETD
+	if plannedETD == "" {
+		plannedETD = in.ETD
+	}
+	actualETD := in.ActualETD
+	plannedETA := in.PlannedETA
+	if plannedETA == "" {
+		plannedETA = in.ETA
+	}
+	revisedETA := in.RevisedETA
+	actualETA := in.ActualETA
+	vesselDischarge := in.VesselDischargeDate
+	customsOOC := in.CustomsOOCDate
+	factoryDelivery := in.FactoryDeliveryDate
+	if factoryDelivery == "" {
+		factoryDelivery = in.DateOfDelivery
+	}
+	emptyReturn := in.EmptyReturnDate
+
+	legacyETD := in.ETD
+	if legacyETD == "" {
+		legacyETD = plannedETD
+	}
+	legacyETA := in.ETA
+	if legacyETA == "" {
+		legacyETA = plannedETA
+	}
+	legacyDelivery := in.DateOfDelivery
+	if legacyDelivery == "" {
+		legacyDelivery = factoryDelivery
+	}
+
 	_, err := r.db.Exec(`
 		INSERT INTO shipments (
 			id, supplier_id, invoice_number, invoice_date, goods_category,
 			invoice_value, invoice_currency, incoterm, shipment_mode, shipment_type,
 			bl_awb_number, bl_awb_date, vessel_name, container_number, gross_weight_kg,
-			etd, eta, status, date_of_delivery, is_frozen, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+			etd, eta, planned_etd, actual_etd, planned_eta, revised_eta, actual_eta,
+			vessel_discharge_date, customs_ooc_date, factory_delivery_date, empty_return_date,
+			status, date_of_delivery, is_frozen, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
 		id, in.SupplierID, in.InvoiceNumber, in.InvoiceDate, in.GoodsCategory,
 		in.InvoiceValue, in.InvoiceCurrency, in.Incoterm, nullIfEmpty(in.ShipmentMode), nullIfEmpty(in.ShipmentType),
 		nullIfEmpty(in.BLAWBNumber), nullIfEmpty(in.BLAWBDate), nullIfEmpty(in.VesselName), nullIfEmpty(in.ContainerNumber), in.GrossWeightKg,
-		nullIfEmpty(in.ETD), nullIfEmpty(in.ETA), in.Status, nullIfEmpty(in.DateOfDelivery), now,
+		nullIfEmpty(legacyETD), nullIfEmpty(legacyETA), nullIfEmpty(plannedETD), nullIfEmpty(actualETD),
+		nullIfEmpty(plannedETA), nullIfEmpty(revisedETA), nullIfEmpty(actualETA),
+		nullIfEmpty(vesselDischarge), nullIfEmpty(customsOOC), nullIfEmpty(factoryDelivery), nullIfEmpty(emptyReturn),
+		in.Status, nullIfEmpty(legacyDelivery), now,
 	)
 	if err != nil {
 		return models.Shipment{}, fmt.Errorf("insert shipment %s: %w", id, err)
@@ -219,6 +265,38 @@ func (r *ShipmentRepository) Create(in models.ShipmentInput) (models.Shipment, e
 
 // Update updates a non-deleted, non-frozen shipment row.
 func (r *ShipmentRepository) Update(id string, in models.ShipmentInput) (models.Shipment, error) {
+	plannedETD := in.PlannedETD
+	if plannedETD == "" {
+		plannedETD = in.ETD
+	}
+	actualETD := in.ActualETD
+	plannedETA := in.PlannedETA
+	if plannedETA == "" {
+		plannedETA = in.ETA
+	}
+	revisedETA := in.RevisedETA
+	actualETA := in.ActualETA
+	vesselDischarge := in.VesselDischargeDate
+	customsOOC := in.CustomsOOCDate
+	factoryDelivery := in.FactoryDeliveryDate
+	if factoryDelivery == "" {
+		factoryDelivery = in.DateOfDelivery
+	}
+	emptyReturn := in.EmptyReturnDate
+
+	legacyETD := in.ETD
+	if legacyETD == "" {
+		legacyETD = plannedETD
+	}
+	legacyETA := in.ETA
+	if legacyETA == "" {
+		legacyETA = plannedETA
+	}
+	legacyDelivery := in.DateOfDelivery
+	if legacyDelivery == "" {
+		legacyDelivery = factoryDelivery
+	}
+
 	res, err := r.db.Exec(`
 		UPDATE shipments SET
 			supplier_id = ?,
@@ -237,13 +315,26 @@ func (r *ShipmentRepository) Update(id string, in models.ShipmentInput) (models.
 			gross_weight_kg = ?,
 			etd = ?,
 			eta = ?,
+			planned_etd = ?,
+			actual_etd = ?,
+			planned_eta = ?,
+			revised_eta = ?,
+			actual_eta = ?,
+			vessel_discharge_date = ?,
+			customs_ooc_date = ?,
+			factory_delivery_date = ?,
+			empty_return_date = ?,
 			status = ?,
 			date_of_delivery = ?
 		WHERE id = ? AND deleted_at IS NULL`,
 		in.SupplierID, in.InvoiceNumber, in.InvoiceDate, in.GoodsCategory,
 		in.InvoiceValue, in.InvoiceCurrency, in.Incoterm, nullIfEmpty(in.ShipmentMode), nullIfEmpty(in.ShipmentType),
 		nullIfEmpty(in.BLAWBNumber), nullIfEmpty(in.BLAWBDate), nullIfEmpty(in.VesselName), nullIfEmpty(in.ContainerNumber), in.GrossWeightKg,
-		nullIfEmpty(in.ETD), nullIfEmpty(in.ETA), in.Status, nullIfEmpty(in.DateOfDelivery),
+		nullIfEmpty(legacyETD), nullIfEmpty(legacyETA),
+		nullIfEmpty(plannedETD), nullIfEmpty(actualETD),
+		nullIfEmpty(plannedETA), nullIfEmpty(revisedETA), nullIfEmpty(actualETA),
+		nullIfEmpty(vesselDischarge), nullIfEmpty(customsOOC), nullIfEmpty(factoryDelivery), nullIfEmpty(emptyReturn),
+		in.Status, nullIfEmpty(legacyDelivery),
 		strings.TrimSpace(id),
 	)
 	if err != nil {
@@ -393,6 +484,11 @@ func scanShipmentRow(row rowScanner, sh *models.Shipment) error {
 		&sh.GoodsCategory, &sh.InvoiceValue, &sh.InvoiceCurrency, &sh.Incoterm,
 		&sh.ShipmentMode, &sh.ShipmentType, &sh.BLAWBNumber, &sh.BLAWBDate,
 		&sh.VesselName, &sh.ContainerNumber, &sh.GrossWeightKg,
-		&sh.ETD, &sh.ETA, &sh.Status, &sh.DateOfDelivery, &sh.IsFrozen, &sh.CreatedAt,
+		&sh.ETD, &sh.ETA,
+		&sh.PlannedETD, &sh.ActualETD,
+		&sh.PlannedETA, &sh.RevisedETA, &sh.ActualETA,
+		&sh.VesselDischargeDate, &sh.CustomsOOCDate,
+		&sh.FactoryDeliveryDate, &sh.EmptyReturnDate,
+		&sh.Status, &sh.DateOfDelivery, &sh.IsFrozen, &sh.CreatedAt,
 	)
 }

@@ -18,6 +18,7 @@ const ItemMasterPage = lazy(() => import('@/pages/ItemMasterPage').then((m) => (
 const BOERegistryPage = lazy(() => import('@/pages/BOERegistryPage').then((m) => ({ default: m.BOERegistryPage })));
 const BOEEntryPage = lazy(() => import('@/pages/BOEEntryPage').then((m) => ({ default: m.BOEEntryPage })));
 const ReconciledBOEPage = lazy(() => import('@/pages/ReconciledBOEPage').then((m) => ({ default: m.ReconciledBOEPage })));
+const CBICRatesPage = lazy(() => import('@/pages/CBICRatesPage').then((m) => ({ default: m.CBICRatesPage })));
 const ExpensesPage = lazy(() => import('@/pages/ExpensesPage').then((m) => ({ default: m.ExpensesPage })));
 const ExpenseReportsPage = lazy(() => import('@/pages/ExpenseReportsPage').then((m) => ({ default: m.ExpenseReportsPage })));
 const LandedCostReportPage = lazy(() => import('@/pages/LandedCostReportPage').then((m) => ({ default: m.LandedCostReportPage })));
@@ -103,6 +104,14 @@ function AuthenticatedRoutes() {
             element={
               <RequirePermission permission="data.read">
                 <ReconciledBOEPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="cbic-rates"
+            element={
+              <RequirePermission permission="data.read">
+                <CBICRatesPage />
               </RequirePermission>
             }
           />

@@ -95,6 +95,15 @@ const shipmentSchema = z.object({
   eta: z.string(),
   status: z.string().min(1),
   dateOfDelivery: z.string(),
+  plannedEtd: z.string().optional(),
+  actualEtd: z.string().optional(),
+  plannedEta: z.string().optional(),
+  revisedEta: z.string().optional(),
+  actualEta: z.string().optional(),
+  vesselDischargeDate: z.string().optional(),
+  customsOocDate: z.string().optional(),
+  factoryDeliveryDate: z.string().optional(),
+  emptyReturnDate: z.string().optional(),
 });
 
 type ShipmentFormValues = z.infer<typeof shipmentSchema>;
@@ -118,6 +127,15 @@ const EMPTY_SHIPMENT: ShipmentFormValues = {
   eta: '',
   status: 'docs-rcvd',
   dateOfDelivery: '',
+  plannedEtd: '',
+  actualEtd: '',
+  plannedEta: '',
+  revisedEta: '',
+  actualEta: '',
+  vesselDischargeDate: '',
+  customsOocDate: '',
+  factoryDeliveryDate: '',
+  emptyReturnDate: '',
 };
 
 const DEFAULT_STATUSES = [
@@ -353,13 +371,33 @@ export function ShipmentsPage() {
       eta: sh.eta,
       status: sh.status,
       dateOfDelivery: sh.dateOfDelivery,
+      plannedEtd: sh.plannedEtd || sh.etd,
+      actualEtd: sh.actualEtd || '',
+      plannedEta: sh.plannedEta || sh.eta,
+      revisedEta: sh.revisedEta || '',
+      actualEta: sh.actualEta || '',
+      vesselDischargeDate: sh.vesselDischargeDate || '',
+      customsOocDate: sh.customsOocDate || '',
+      factoryDeliveryDate: sh.factoryDeliveryDate || sh.dateOfDelivery,
+      emptyReturnDate: sh.emptyReturnDate || '',
     });
     setFormOpen(true);
     scrollToForm();
   };
 
   const onSubmit = async (values: ShipmentFormValues) => {
-    const payload: ShipmentInput = { ...values };
+    const payload: ShipmentInput = {
+      ...values,
+      plannedEtd: values.plannedEtd || values.etd,
+      actualEtd: values.actualEtd || '',
+      plannedEta: values.plannedEta || values.eta,
+      revisedEta: values.revisedEta || '',
+      actualEta: values.actualEta || '',
+      vesselDischargeDate: values.vesselDischargeDate || '',
+      customsOocDate: values.customsOocDate || '',
+      factoryDeliveryDate: values.factoryDeliveryDate || values.dateOfDelivery,
+      emptyReturnDate: values.emptyReturnDate || '',
+    };
     if (payload.dateOfDelivery?.trim() && payload.status !== 'cancelled' && payload.status !== 'closed') {
       payload.status = 'delivered';
     } else if (payload.status === 'delivered' && !payload.dateOfDelivery?.trim()) {
@@ -960,6 +998,42 @@ export function ShipmentsPage() {
                   />
                 </div>
 
+                <div className="col-span-full border-t border-border/60 pt-3">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Logistics Lifecycle Milestones &amp; Delay Tracking
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="actualEtd" className="text-xs">Actual Departure (ATD)</Label>
+                      <Input id="actualEtd" type="date" className="h-8 text-xs" {...form.register('actualEtd')} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="revisedEta" className="text-xs">Revised ETA</Label>
+                      <Input id="revisedEta" type="date" className="h-8 text-xs" {...form.register('revisedEta')} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="actualEta" className="text-xs">Actual Arrival (ATA)</Label>
+                      <Input id="actualEta" type="date" className="h-8 text-xs" {...form.register('actualEta')} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="vesselDischargeDate" className="text-xs">Vessel Discharge Date</Label>
+                      <Input id="vesselDischargeDate" type="date" className="h-8 text-xs" {...form.register('vesselDischargeDate')} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="customsOocDate" className="text-xs">Customs OOC Date</Label>
+                      <Input id="customsOocDate" type="date" className="h-8 text-xs" {...form.register('customsOocDate')} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="factoryDeliveryDate" className="text-xs">Factory Delivery Date</Label>
+                      <Input id="factoryDeliveryDate" type="date" className="h-8 text-xs" {...form.register('factoryDeliveryDate')} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="emptyReturnDate" className="text-xs">Empty Return Date</Label>
+                      <Input id="emptyReturnDate" type="date" className="h-8 text-xs" {...form.register('emptyReturnDate')} />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="col-span-full flex justify-end gap-2 border-t border-border pt-4">
                   <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                     Cancel
@@ -1145,6 +1219,50 @@ export function ShipmentsPage() {
                     </Button>
                   </div>
                 )}
+              </div>
+
+              {/* Logistics Lifecycle Milestones & Delay Tracking */}
+              <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                    Logistics Lifecycle Milestones &amp; Delay Tracking
+                  </h4>
+                  {detail.shipment.revisedEta && detail.shipment.plannedEta && detail.shipment.revisedEta > detail.shipment.plannedEta && (
+                    <Badge variant="warning" className="text-[10px]">
+                      ETA Slipped ({detail.shipment.plannedEta} → {detail.shipment.revisedEta})
+                    </Badge>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Planned ETD / ATD</span>
+                    <span className="font-medium">
+                      {detail.shipment.plannedEtd || detail.shipment.etd || '—'}
+                      {detail.shipment.actualEtd ? ` • ATD: ${detail.shipment.actualEtd}` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Planned ETA / ATA</span>
+                    <span className="font-medium">
+                      {detail.shipment.plannedEta || detail.shipment.eta || '—'}
+                      {detail.shipment.actualEta ? ` • ATA: ${detail.shipment.actualEta}` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Discharge &amp; Customs OOC</span>
+                    <span className="font-medium">
+                      {detail.shipment.vesselDischargeDate ? `Disch: ${detail.shipment.vesselDischargeDate}` : '—'}
+                      {detail.shipment.customsOocDate ? ` • OOC: ${detail.shipment.customsOocDate}` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Factory Delivery &amp; Empty Return</span>
+                    <span className="font-medium">
+                      {detail.shipment.factoryDeliveryDate || detail.shipment.dateOfDelivery || '—'}
+                      {detail.shipment.emptyReturnDate ? ` • Return: ${detail.shipment.emptyReturnDate}` : ''}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div>

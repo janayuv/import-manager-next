@@ -19,6 +19,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/boe"
 	"github.com/janayuv/import-manager-next/backend/services/boe_entry"
 	"github.com/janayuv/import-manager-next/backend/services/boe_summary"
+	"github.com/janayuv/import-manager-next/backend/services/cbic_rates"
 	"github.com/janayuv/import-manager-next/backend/services/dashboard"
 	"github.com/janayuv/import-manager-next/backend/services/database_management"
 	"github.com/janayuv/import-manager-next/backend/services/expense_reports"
@@ -59,6 +60,7 @@ type Runtime struct {
 	BOE                *boe.Service
 	BOEEntry           *boe_entry.Service
 	BOESummary         *boe_summary.Service
+	CBICRates          *cbic_rates.Service
 	Expenses           *expenses.Service
 	ExpenseReports     *expense_reports.Service
 	Reports            *reports.Service
@@ -165,8 +167,9 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 	gdriveSvc := google_drive.NewService(dbMgr.DB(), securitySvc, auditSvc, keyStore, cfg.Paths.BackupsDir)
 	recycleSvc := recycle_bin.NewService(dbMgr.DB(), securitySvc, auditSvc, restoreCtrl)
 	dbAdminSvc := database_management.NewService(dbMgr.DB(), dbMgr, securitySvc, auditSvc, restoreCtrl, backupSvc, cfg.Paths.DatabasePath, dbKey, cfg.Paths.TempDir)
+	cbicRatesSvc := cbic_rates.NewService(dbMgr.DB(), securitySvc, auditSvc)
 	workflowSvc := workflow.NewService(dbMgr.DB(), securitySvc, auditSvc, restoreCtrl, cfg.Paths.ExportsDir, cfg.Paths.LogsDir, cfg.AppVersion)
-	sched := scheduler.New(workflowSvc, restoreCtrl, 5*time.Minute)
+	sched := scheduler.New(workflowSvc, backupSvc, restoreCtrl, 5*time.Minute)
 	if !cfg.RecoveryMode {
 		sched.Start()
 	}
@@ -212,6 +215,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		BOE:                boeSvc,
 		BOEEntry:           boeEntrySvc,
 		BOESummary:         boeSummarySvc,
+		CBICRates:          cbicRatesSvc,
 		Expenses:           expSvc,
 		ExpenseReports:     expRepSvc,
 		Reports:            repSvc,

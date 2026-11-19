@@ -1,6 +1,7 @@
 package backup_test
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/pbkdf2"
 
@@ -317,5 +319,94 @@ func TestBackupRestoreCrossMachinePortable(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("Machine B did not find restored supplier %s", sup.ID)
+	}
+}
+
+func TestBackupSchedulerSafetyAndHealthIndicators(t *testing.T) {
+	rt := setupBackupEnv(t)
+	ctx := context.Background()
+
+	// 1. Initial health before any backups
+	health0, err := rt.Backup.GetBackupHealth(ctx)
+	if err != nil {
+		t.Fatalf("GetBackupHealth failed: %v", err)
+	}
+	if health0.Status != "CRITICAL" {
+		t.Fatalf("expected CRITICAL health when 0 backups exist, got %s", health0.Status)
+	}
+
+	// 2. Create schedule with retention count 2
+	sched, err := rt.Backup.SaveBackupSchedule(models.SaveBackupScheduleInput{
+		Name:           "Hourly Automated Vault",
+		CronExpr:       "0 * * * *",
+		Destination:    "local",
+		RetentionCount: 2,
+		RetentionDays:  7,
+		Enabled:        true,
+	})
+	if err != nil {
+		t.Fatalf("SaveBackupSchedule failed: %v", err)
+	}
+
+	// 3. Execute scheduled backup 1
+	rec1, err := rt.Backup.ExecuteScheduledBackup(ctx, sched.ID)
+	if err != nil {
+		t.Fatalf("ExecuteScheduledBackup 1 failed: %v", err)
+	}
+	if rec1.Status != "completed" || !rec1.SidecarExists {
+		t.Fatalf("unexpected rec1: %+v", rec1)
+	}
+
+	// 4. Verify health becomes HEALTHY
+	health1, err := rt.Backup.GetBackupHealth(ctx)
+	if err != nil || health1.Status != "HEALTHY" || health1.VerifiedBackups < 1 {
+		t.Fatalf("expected HEALTHY health, got %+v (err=%v)", health1, err)
+	}
+
+	// 5. Invariant check: Pruning when only 1 completed backup exists must NOT delete anything
+	pruned, err := rt.Backup.PruneRetainedBackups(ctx, sched)
+	if err != nil || pruned != 0 {
+		t.Fatalf("expected 0 pruned when 1 backup exists, got %d (err=%v)", pruned, err)
+	}
+
+	// 6. Create additional backups to test retention pruning
+	time.Sleep(10 * time.Millisecond)
+	rec2, err := rt.Backup.ExecuteScheduledBackup(ctx, sched.ID)
+	if err != nil || rec2.Status != "completed" {
+		t.Fatalf("ExecuteScheduledBackup 2 failed: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	rec3, err := rt.Backup.ExecuteScheduledBackup(ctx, sched.ID)
+	if err != nil {
+		t.Fatalf("ExecuteScheduledBackup 3 failed: %v", err)
+	}
+
+	// 7. Verify latest verified backup (rec3) still exists on disk and in database
+	bks, err := rt.Backup.ListBackups()
+	if err != nil {
+		t.Fatalf("ListBackups failed: %v", err)
+	}
+	foundRec3 := false
+	for _, b := range bks {
+		if b.ID == rec3.ID {
+			foundRec3 = true
+		}
+	}
+	if !foundRec3 {
+		t.Fatalf("latest verified backup %d was deleted by retention pruning! Must never delete latest recovery point.", rec3.ID)
+	}
+	if _, err := os.Stat(rec3.Path); err != nil {
+		t.Fatalf("latest verified backup file missing from disk: %v", err)
+	}
+
+	// 8. Test missed schedule catch-up on startup
+	pastTime := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
+	_ = rt.Backup.MarkScheduleExecuted(sched.ID, pastTime, pastTime)
+	dueBackups, err := rt.Backup.CheckAndRunDueSchedules(ctx)
+	if err != nil {
+		t.Fatalf("CheckAndRunDueSchedules failed: %v", err)
+	}
+	if len(dueBackups) == 0 {
+		t.Fatalf("expected dueBackups to catch up on schedule in the past, got 0")
 	}
 }

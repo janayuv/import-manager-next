@@ -355,6 +355,35 @@ func (s *Service) computeLive(fy, startDate, endDate string) (models.DashboardOv
 	}
 	kpis.WorkflowHealthScore = math.Round(rawHealth*10) / 10
 
+	// Backup health indicator calculation
+	var lastStatus, lastCreatedAt string
+	var totalBackups, verifiedBackups int
+	_ = s.db.QueryRow(`
+		SELECT COUNT(*),
+		       COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0)
+		FROM backups`).Scan(&totalBackups, &verifiedBackups)
+
+	_ = s.db.QueryRow(`
+		SELECT COALESCE(status, ''), COALESCE(created_at, '')
+		FROM backups ORDER BY id DESC LIMIT 1`).Scan(&lastStatus, &lastCreatedAt)
+
+	if verifiedBackups == 0 {
+		kpis.BackupHealthStatus = "CRITICAL"
+	} else if lastStatus == "failed" {
+		kpis.BackupHealthStatus = "WARNING"
+	} else {
+		if t, err := time.Parse(time.RFC3339, lastCreatedAt); err == nil {
+			kpis.LastBackupHoursAgo = math.Round(time.Since(t).Hours()*10) / 10.0
+			if kpis.LastBackupHoursAgo > 48.0 {
+				kpis.BackupHealthStatus = "WARNING"
+			} else {
+				kpis.BackupHealthStatus = "HEALTHY"
+			}
+		} else {
+			kpis.BackupHealthStatus = "HEALTHY"
+		}
+	}
+
 	trends := make([]models.DashboardMonthlyTrend, 0, len(monthMap))
 	for _, m := range monthMap {
 		trends = append(trends, *m)
@@ -544,6 +573,17 @@ func buildAlerts(kpis models.DashboardKPIs) []models.DashboardAlertItem {
 		alerts = append(alerts, models.DashboardAlertItem{
 			Kind: "SLA_BREACH", Severity: "critical",
 			Title: "Workflow exceptions past SLA deadline", Count: kpis.SLABreachCount, NavigationTarget: "/admin/operations-center",
+		})
+	}
+	if kpis.BackupHealthStatus == "CRITICAL" {
+		alerts = append(alerts, models.DashboardAlertItem{
+			Kind: "BACKUP_CRITICAL", Severity: "critical",
+			Title: "Database backup required (no verified backups found)", Count: 1, NavigationTarget: "/data-ops",
+		})
+	} else if kpis.BackupHealthStatus == "WARNING" {
+		alerts = append(alerts, models.DashboardAlertItem{
+			Kind: "BACKUP_WARNING", Severity: "warning",
+			Title: "Database backup needs attention (>48h or last attempt failed)", Count: 1, NavigationTarget: "/data-ops",
 		})
 	}
 	return alerts

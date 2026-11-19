@@ -43,11 +43,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   dashboardService,
   type DashboardOverview,
 } from '@/services/dashboard-settings-service';
+import {
+  backupService,
+  type BackupHealthStatus,
+} from '@/services/data-ops-service';
 
 export function DashboardPage() {
   const { hasPermission } = useAuth();
@@ -56,6 +61,7 @@ export function DashboardPage() {
 
   const [financialYear, setFinancialYear] = React.useState('all');
   const [overview, setOverview] = React.useState<DashboardOverview | null>(null);
+  const [backupHealth, setBackupHealth] = React.useState<BackupHealthStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -64,13 +70,17 @@ export function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await dashboardService.getOverview({
-          financialYear,
-          startDate: '',
-          endDate: '',
-          forceRefresh,
-        });
+        const [data, bh] = await Promise.all([
+          dashboardService.getOverview({
+            financialYear,
+            startDate: '',
+            endDate: '',
+            forceRefresh,
+          }),
+          backupService.getBackupHealth().catch(() => null),
+        ]);
         setOverview(data);
+        if (bh) setBackupHealth(bh);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -166,6 +176,60 @@ export function DashboardPage() {
             <span>Window: {overview.financialYear === 'all' ? 'All Dates' : `FY ${overview.financialYear} (${overview.startDate} to ${overview.endDate})`}</span>
             {overview.lastSnapshotDate && <span>Last Snapshot: {overview.lastSnapshotDate}</span>}
           </div>
+
+          {/* Backup Reliability & Disaster Recovery Safety Status */}
+          {backupHealth && (
+            <div
+              className={cn(
+                'flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-xs shadow-xs transition-colors',
+                backupHealth.status === 'HEALTHY'
+                  ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-900 dark:text-emerald-200'
+                  : backupHealth.status === 'WARNING'
+                  ? 'border-amber-500/40 bg-amber-500/5 text-amber-900 dark:text-amber-200'
+                  : 'border-destructive/50 bg-destructive/5 text-destructive dark:text-red-300',
+              )}
+            >
+              <div className="flex items-center gap-2.5">
+                <DatabaseBackup
+                  className={cn(
+                    'h-5 w-5 shrink-0',
+                    backupHealth.status === 'HEALTHY'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : backupHealth.status === 'WARNING'
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-destructive',
+                  )}
+                />
+                <div>
+                  <div className="flex items-center gap-2 font-medium">
+                    <Badge
+                      variant={
+                        backupHealth.status === 'HEALTHY'
+                          ? 'success'
+                          : backupHealth.status === 'WARNING'
+                          ? 'warning'
+                          : 'destructive'
+                      }
+                      className="text-[10px] uppercase font-semibold"
+                    >
+                      {backupHealth.status} BACKUPS
+                    </Badge>
+                    <span>{backupHealth.message}</span>
+                  </div>
+                  <div className="mt-0.5 text-[11px] opacity-80">
+                    Latest verified point: {backupHealth.lastBackupTime || 'None recorded'} • Verified points: {backupHealth.verifiedBackups} / {backupHealth.totalBackups} • Protected from deletion
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="h-7 text-xs bg-background/80" asChild>
+                  <Link to="/database">
+                    Backups Console
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* 8 Primary KPI Cards */}
           <div className="grid gap-4 md:grid-cols-4">

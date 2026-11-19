@@ -3,6 +3,7 @@ import * as DriveBindings from '../../bindings/github.com/janayuv/import-manager
 import * as RecycleBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/recycle_bin/service.js';
 import * as DBAdminBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/database_management/service.js';
 import type {
+  BackupHealthStatus,
   BackupRecord,
   BackupSchedule,
   BrowseTableRequest,
@@ -31,6 +32,7 @@ import type {
 } from '../../bindings/github.com/janayuv/import-manager-next/backend/models/models.js';
 
 export type {
+  BackupHealthStatus,
   BackupRecord,
   BackupSchedule,
   BrowseTableRequest,
@@ -97,6 +99,9 @@ export const backupService = {
   },
   deleteSchedule(id: number): Promise<void> {
     return BackupBindings.DeleteBackupSchedule(id);
+  },
+  getBackupHealth(): Promise<BackupHealthStatus> {
+    return BackupBindings.GetBackupHealth();
   },
 };
 

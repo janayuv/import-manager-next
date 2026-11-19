@@ -22,7 +22,7 @@ func TestSchedulerRestoreLockAndCleanShutdown(t *testing.T) {
 
 	// Lock RestoreControl -> RunOnce must safely skip without writing forecasts
 	rt.RestoreControl.SetRestoring(true, "unit test restore")
-	sched := scheduler.New(rt.Workflow, rt.RestoreControl, 50*time.Millisecond)
+	sched := scheduler.New(rt.Workflow, rt.Backup, rt.RestoreControl, 50*time.Millisecond)
 	sched.RunOnce()
 
 	var countLocked int

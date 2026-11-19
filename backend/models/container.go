@@ -11,8 +11,24 @@ type ShipmentContainer struct {
 	WarehouseName     string  `json:"warehouseName"`
 	GateInDate        string  `json:"gateInDate"`
 	GateOutDate       string  `json:"gateOutDate"`
+	PortDischargeDate string  `json:"portDischargeDate,omitempty"`
+	CFSGateInDate     string  `json:"cfsGateInDate,omitempty"`
+	CFSGateOutDate    string  `json:"cfsGateOutDate,omitempty"`
+	FactoryGateInDate string  `json:"factoryGateInDate,omitempty"`
 	FreeDaysAllowed   int     `json:"freeDaysAllowed"`
 	StorageRatePerDay float64 `json:"storageRatePerDay"`
+	PortDemurrageFreeDays int     `json:"portDemurrageFreeDays"`
+	PortDemurrageRatePerDay float64 `json:"portDemurrageRatePerDay"`
+	PortDemurrageAmount float64 `json:"portDemurrageAmount"`
+	CFSGroundRentFreeDays int     `json:"cfsGroundRentFreeDays"`
+	CFSGroundRentRatePerDay float64 `json:"cfsGroundRentRatePerDay"`
+	CFSGroundRentAmount float64 `json:"cfsGroundRentAmount"`
+	ShippingLineDetentionFreeDays int     `json:"shippingLineDetentionFreeDays"`
+	ShippingLineDetentionRatePerDay float64 `json:"shippingLineDetentionRatePerDay"`
+	ShippingLineDetentionAmount float64 `json:"shippingLineDetentionAmount"`
+	WarehouseStorageDays int     `json:"warehouseStorageDays"`
+	WarehouseStorageRatePerDay float64 `json:"warehouseStorageRatePerDay"`
+	WarehouseStorageAmount float64 `json:"warehouseStorageAmount"`
 	DeliveryStatus    string  `json:"deliveryStatus"`    // PENDING, IN_TRANSIT, IN_WAREHOUSE, DELIVERED
 	DateOfDelivery    string  `json:"dateOfDelivery"`
 	TransporterName   string  `json:"transporterName"`
@@ -38,8 +54,24 @@ type ShipmentContainerInput struct {
 	WarehouseName     string  `json:"warehouseName"`
 	GateInDate        string  `json:"gateInDate"`
 	GateOutDate       string  `json:"gateOutDate"`
+	PortDischargeDate string  `json:"portDischargeDate,omitempty"`
+	CFSGateInDate     string  `json:"cfsGateInDate,omitempty"`
+	CFSGateOutDate    string  `json:"cfsGateOutDate,omitempty"`
+	FactoryGateInDate string  `json:"factoryGateInDate,omitempty"`
 	FreeDaysAllowed   int     `json:"freeDaysAllowed"`
 	StorageRatePerDay float64 `json:"storageRatePerDay"`
+	PortDemurrageFreeDays int     `json:"portDemurrageFreeDays"`
+	PortDemurrageRatePerDay float64 `json:"portDemurrageRatePerDay"`
+	PortDemurrageAmount float64 `json:"portDemurrageAmount"`
+	CFSGroundRentFreeDays int     `json:"cfsGroundRentFreeDays"`
+	CFSGroundRentRatePerDay float64 `json:"cfsGroundRentRatePerDay"`
+	CFSGroundRentAmount float64 `json:"cfsGroundRentAmount"`
+	ShippingLineDetentionFreeDays int     `json:"shippingLineDetentionFreeDays"`
+	ShippingLineDetentionRatePerDay float64 `json:"shippingLineDetentionRatePerDay"`
+	ShippingLineDetentionAmount float64 `json:"shippingLineDetentionAmount"`
+	WarehouseStorageDays int     `json:"warehouseStorageDays"`
+	WarehouseStorageRatePerDay float64 `json:"warehouseStorageRatePerDay"`
+	WarehouseStorageAmount float64 `json:"warehouseStorageAmount"`
 	DeliveryStatus    string  `json:"deliveryStatus"`
 	DateOfDelivery    string  `json:"dateOfDelivery"`
 	TransporterName   string  `json:"transporterName"`

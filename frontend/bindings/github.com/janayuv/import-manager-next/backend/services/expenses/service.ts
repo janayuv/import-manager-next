@@ -83,9 +83,27 @@ export function ImportBulkCSV(shipmentID: string, content: string): $Cancellable
     });
 }
 
+/**
+ * ListAllocationHistory returns allocation records matching the filter criteria.
+ */
+export function ListAllocationHistory(filter: models$0.AllocationLedgerFilter): $CancellablePromise<models$0.ExpenseAllocationRecord[]> {
+    return $Call.ByID(875098951, filter).then(($result: any) => {
+        return $$createType5($result);
+    });
+}
+
+/**
+ * ListAllocationRuns lists historical calculation runs for a shipment.
+ */
+export function ListAllocationRuns(shipmentID: string): $CancellablePromise<models$0.AllocationRunSummary[]> {
+    return $Call.ByID(2412182723, shipmentID).then(($result: any) => {
+        return $$createType7($result);
+    });
+}
+
 export function ListAttachments(expenseID: string): $CancellablePromise<models$0.ExpenseAttachment[]> {
     return $Call.ByID(1036720111, expenseID).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType9($result);
     });
 }
 
@@ -94,19 +112,19 @@ export function ListAttachments(expenseID: string): $CancellablePromise<models$0
  */
 export function ListExpenseInvoices(shipmentID: string, search: string): $CancellablePromise<models$0.ExpenseInvoice[]> {
     return $Call.ByID(1183794221, shipmentID, search).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType10($result);
     });
 }
 
 export function ListExpenseTypes(activeOnly: boolean): $CancellablePromise<models$0.ExpenseType[]> {
     return $Call.ByID(1952789366, activeOnly).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType11($result);
     });
 }
 
 export function ListServiceProviders(search: string): $CancellablePromise<models$0.ServiceProvider[]> {
     return $Call.ByID(3271429608, search).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType12($result);
     });
 }
 
@@ -115,7 +133,7 @@ export function ListServiceProviders(search: string): $CancellablePromise<models
  */
 export function MergeDuplicateLinesAction(lines: models$0.ExpenseLineInput[]): $CancellablePromise<models$0.ExpenseLineInput[]> {
     return $Call.ByID(3141137979, lines).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType14($result);
     });
 }
 
@@ -124,8 +142,16 @@ export function MergeDuplicateLinesAction(lines: models$0.ExpenseLineInput[]): $
  */
 export function PreviewCalculation(lines: models$0.ExpenseLineInput[]): $CancellablePromise<models$0.ExpenseInvoiceCalculation> {
     return $Call.ByID(1078626566, lines).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType15($result);
     });
+}
+
+/**
+ * RecordExpenseAllocation computes statutory landed cost expense allocation across line items
+ * and inserts an immutable audit run into expense_allocation_ledger.
+ */
+export function RecordExpenseAllocation(shipmentID: string, reason: string): $CancellablePromise<string> {
+    return $Call.ByID(3171470752, shipmentID, reason);
 }
 
 /**
@@ -151,7 +177,7 @@ export function UpdateServiceProvider(id: string, $in: models$0.ServiceProviderI
 
 export function UploadAttachment(expenseID: string, fileName: string, fileType: string, base64Data: string): $CancellablePromise<models$0.ExpenseAttachment> {
     return $Call.ByID(3791724115, expenseID, fileName, fileType, base64Data).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType8($result);
     });
 }
 
@@ -160,11 +186,15 @@ const $$createType0 = models$0.ExpenseInvoice.createFrom;
 const $$createType1 = models$0.ExpenseType.createFrom;
 const $$createType2 = models$0.ServiceProvider.createFrom;
 const $$createType3 = models$0.CSVImportResult.createFrom;
-const $$createType4 = models$0.ExpenseAttachment.createFrom;
+const $$createType4 = models$0.ExpenseAllocationRecord.createFrom;
 const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $Create.Array($$createType0);
-const $$createType7 = $Create.Array($$createType1);
-const $$createType8 = $Create.Array($$createType2);
-const $$createType9 = models$0.ExpenseLineInput.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = models$0.ExpenseInvoiceCalculation.createFrom;
+const $$createType6 = models$0.AllocationRunSummary.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = models$0.ExpenseAttachment.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = $Create.Array($$createType0);
+const $$createType11 = $Create.Array($$createType1);
+const $$createType12 = $Create.Array($$createType2);
+const $$createType13 = models$0.ExpenseLineInput.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = models$0.ExpenseInvoiceCalculation.createFrom;
