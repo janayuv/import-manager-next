@@ -1,6 +1,8 @@
-import ExcelJS from 'exceljs';
 import type { TransitShipmentReport, TransitShipmentItem } from '@/services/shipment-invoice-service';
 import { downloadTextFile } from '@/lib/download';
+
+type ExcelJSWorkbook = import('exceljs').Workbook;
+type ExcelJSBorders = import('exceljs').Borders;
 
 // Professional styling palette
 const COLORS = {
@@ -24,23 +26,15 @@ const COLORS = {
   STATUS_PENDING_FG: 'FF475569', // #475569
 };
 
-const BORDER_THIN: Partial<ExcelJS.Borders> = {
+const BORDER_THIN: Partial<ExcelJSBorders> = {
   top: { style: 'thin', color: { argb: COLORS.BORDER_LIGHT } },
   bottom: { style: 'thin', color: { argb: COLORS.BORDER_LIGHT } },
   left: { style: 'thin', color: { argb: COLORS.BORDER_LIGHT } },
   right: { style: 'thin', color: { argb: COLORS.BORDER_LIGHT } },
 };
 
-export function formatTransitDateDisplay(dStr?: string): string {
-  if (!dStr) return '';
-  const d = new Date(dStr);
-  if (isNaN(d.getTime())) return dStr;
-  const day = String(d.getDate()).padStart(2, '0');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const mon = months[d.getMonth()];
-  const yr = d.getFullYear();
-  return `${day}-${mon}-${yr}`;
-}
+import { formatTransitDateDisplay } from './format';
+export { formatTransitDateDisplay };
 
 export function parseDateToExcel(dStr?: string): Date | string {
   if (!dStr) return '';
@@ -56,7 +50,8 @@ export function parseDateToExcel(dStr?: string): Date | string {
 export async function buildTransitShipmentWorkbook(
   report: TransitShipmentReport,
   options?: { capacity?: number },
-): Promise<ExcelJS.Workbook> {
+): Promise<ExcelJSWorkbook> {
+  const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Import Manager';
   wb.created = new Date();

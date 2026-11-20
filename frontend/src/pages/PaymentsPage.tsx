@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDebounce } from '@/hooks/useDebounce';
 import { exportPaymentAnnexureExcel, exportPaymentAnnexurePdf } from '@/lib/payment-annexure-export';
 import { supplierService, type Supplier } from '@/services/master-service';
 import {
@@ -64,6 +65,7 @@ export function PaymentsPage() {
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [supplierFilter, setSupplierFilter] = React.useState('all');
   const [typeFilter, setTypeFilter] = React.useState('all');
   const page = 1;
@@ -111,7 +113,7 @@ export function PaymentsPage() {
     setLoading(true);
     try {
       const res = await paymentPOService.listPayments({
-        search: search.trim(),
+        search: debouncedSearch.trim(),
         supplierId: supplierFilter === 'all' ? '' : supplierFilter,
         paymentType: typeFilter === 'all' ? '' : typeFilter,
         page,
@@ -124,7 +126,7 @@ export function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, supplierFilter, typeFilter, page]);
+  }, [debouncedSearch, supplierFilter, typeFilter, page]);
 
   React.useEffect(() => {
     loadPayments();
@@ -889,10 +891,10 @@ export function PaymentsPage() {
                   </DialogDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => exportPaymentAnnexureExcel(currentAnnexure)}>
+                  <Button size="sm" variant="outline" onClick={() => void exportPaymentAnnexureExcel(currentAnnexure)}>
                     <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-emerald-600" /> Excel
                   </Button>
-                  <Button size="sm" onClick={() => exportPaymentAnnexurePdf(currentAnnexure)}>
+                  <Button size="sm" onClick={() => void exportPaymentAnnexurePdf(currentAnnexure)}>
                     <Download className="mr-1.5 h-3.5 w-3.5" /> PDF
                   </Button>
                 </div>

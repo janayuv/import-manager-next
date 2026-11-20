@@ -7,8 +7,6 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RequirePermission } from '@/pages/ModuleStagePage';
-
-// Lazy-loaded routes for minimal initial heap, dynamic module disposal, and fast cold boot
 const SuppliersPage = lazy(() => import('@/pages/SuppliersPage').then((m) => ({ default: m.SuppliersPage })));
 const ShipmentsPage = lazy(() => import('@/pages/ShipmentsPage').then((m) => ({ default: m.ShipmentsPage })));
 const TransitShipmentsPage = lazy(() => import('@/pages/TransitShipmentsPage').then((m) => ({ default: m.TransitShipmentsPage })));

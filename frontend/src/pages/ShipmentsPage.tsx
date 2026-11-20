@@ -63,6 +63,7 @@ import { ContainerMovementDialog } from '@/components/shipment/ContainerMovement
 import { WarehouseDwellMonitor } from '@/components/shipment/WarehouseDwellMonitor';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModuleSettings } from '@/contexts/ThemeContext';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   optionsService,
   supplierService,
@@ -219,6 +220,7 @@ export function ShipmentsPage() {
     setPage(1);
   }, [pageSize]);
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [statusFilter, setStatusFilter] = React.useState('all');
   const [loading, setLoading] = React.useState(true);
 
@@ -306,7 +308,7 @@ export function ShipmentsPage() {
     setLoading(true);
     try {
       const res = await shipmentService.list({
-        search,
+        search: debouncedSearch,
         supplierId: '',
         status: statusFilter === 'all' ? '' : statusFilter,
         frozenOnly: false,
@@ -322,7 +324,7 @@ export function ShipmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, page, pageSize]);
+  }, [debouncedSearch, statusFilter, page, pageSize]);
 
   React.useEffect(() => {
     void loadShipments();

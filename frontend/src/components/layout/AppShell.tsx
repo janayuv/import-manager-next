@@ -187,7 +187,7 @@ export function AppShell() {
     const handleVisibility = () => {
       if (document.hidden) {
         timer = window.setTimeout(() => {
-          void trimMemory(false);
+          void trimMemory(true);
         }, 1200);
       } else if (timer) {
         window.clearTimeout(timer);

@@ -119,7 +119,7 @@ export function LandedCostReportPage() {
                 <FileSpreadsheet className="h-4 w-4 mr-1.5" />
                 Export 15-Col CSV
               </Button>
-              <Button variant="outline" onClick={() => exportLandedCostPdf(report)}>
+              <Button variant="outline" onClick={() => void exportLandedCostPdf(report)}>
                 <FileDown className="h-4 w-4 mr-1.5" />
                 Print Summary PDF
               </Button>

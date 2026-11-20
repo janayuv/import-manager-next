@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../constants/app_colors.dart';
@@ -17,11 +18,34 @@ class _LdcReportScreenState extends State<LdcReportScreen> {
   LandedCostSummary? _summary;
   bool _loading = true;
   String _search = '';
+  late final TextEditingController _searchController;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _loadReport();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    if ((_search.isEmpty && val.isNotEmpty) || (_search.isNotEmpty && val.isEmpty)) {
+      setState(() => _search = val);
+    } else {
+      _search = val;
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _loadReport();
+    });
   }
 
   Future<void> _loadReport() async {
@@ -139,10 +163,8 @@ class _LdcReportScreenState extends State<LdcReportScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: TextField(
-                onChanged: (val) {
-                  setState(() => _search = val);
-                  _loadReport();
-                },
+                controller: _searchController,
+                onChanged: _onSearchChanged,
                 decoration: InputDecoration(
                   hintText: 'Filter by Part No, Invoice No, Description...',
                   prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF94A3B8)),
@@ -150,6 +172,8 @@ class _LdcReportScreenState extends State<LdcReportScreen> {
                       ? IconButton(
                           icon: const Icon(Icons.clear, size: 18),
                           onPressed: () {
+                            _debounceTimer?.cancel();
+                            _searchController.clear();
                             setState(() => _search = '');
                             _loadReport();
                           },

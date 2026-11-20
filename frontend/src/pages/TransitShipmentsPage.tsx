@@ -52,8 +52,9 @@ import {
   exportTransitShipmentExcel,
   exportTransitShipmentTabularCSV,
   exportTransitShipmentTemplateCSV,
-  formatTransitDateDisplay,
 } from '@/lib/transit-shipment-export';
+import { formatTransitDateDisplay } from '@/lib/format';
+import { useDebounce } from '@/hooks/useDebounce';
 import { supplierService, type Supplier } from '@/services/master-service';
 import {
   shipmentService,
@@ -113,6 +114,7 @@ export function TransitShipmentsPage() {
 
   // Filters
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [supplierId, setSupplierId] = React.useState('all');
   const [statusFilter, setStatusFilter] = React.useState('all');
   const [startDate, setStartDate] = React.useState('');
@@ -174,7 +176,7 @@ export function TransitShipmentsPage() {
     setLoading(true);
     try {
       const filter: TransitShipmentFilter = {
-        search: search.trim(),
+        search: debouncedSearch.trim(),
         supplierId: supplierId === 'all' ? '' : supplierId,
         status: statusFilter === 'all' ? '' : statusFilter,
         startDate: startDate || undefined,
@@ -194,7 +196,7 @@ export function TransitShipmentsPage() {
 
       // Client-side fallback using shipmentService.list
       const pageRes = await shipmentService.list({
-        search: search.trim(),
+        search: debouncedSearch.trim(),
         supplierId: supplierId === 'all' ? '' : supplierId,
         status: '',
         frozenOnly: false,
@@ -346,7 +348,7 @@ export function TransitShipmentsPage() {
       // If backend method works, try it; otherwise use frontend generator
       try {
         const csv = await shipmentService.exportTransitShipmentsCsv({
-          search: search.trim(),
+          search: debouncedSearch.trim(),
           supplierId: supplierId === 'all' ? '' : supplierId,
           status: statusFilter === 'all' ? '' : statusFilter,
           startDate: startDate || undefined,

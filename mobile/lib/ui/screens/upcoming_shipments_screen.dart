@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../database/db_helper.dart';
@@ -17,6 +18,8 @@ class _UpcomingShipmentsScreenState extends State<UpcomingShipmentsScreen> {
   bool _loading = true;
   String _searchQuery = '';
   String _selectedStatus = 'all';
+  late final TextEditingController _searchController;
+  Timer? _debounceTimer;
 
   final List<Map<String, String>> _statusFilters = [
     {'label': 'All Active', 'value': 'all'},
@@ -29,7 +32,28 @@ class _UpcomingShipmentsScreenState extends State<UpcomingShipmentsScreen> {
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _loadShipments();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    if ((_searchQuery.isEmpty && val.isNotEmpty) || (_searchQuery.isNotEmpty && val.isEmpty)) {
+      setState(() => _searchQuery = val);
+    } else {
+      _searchQuery = val;
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _loadShipments();
+    });
   }
 
   Future<void> _loadShipments() async {
@@ -102,10 +126,8 @@ class _UpcomingShipmentsScreenState extends State<UpcomingShipmentsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TextField(
-                onChanged: (val) {
-                  setState(() => _searchQuery = val);
-                  _loadShipments();
-                },
+                controller: _searchController,
+                onChanged: _onSearchChanged,
                 decoration: InputDecoration(
                   hintText: 'Search by Invoice, Supplier, Vessel...',
                   prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF94A3B8)),
@@ -113,6 +135,8 @@ class _UpcomingShipmentsScreenState extends State<UpcomingShipmentsScreen> {
                       ? IconButton(
                           icon: const Icon(Icons.clear, size: 18),
                           onPressed: () {
+                            _debounceTimer?.cancel();
+                            _searchController.clear();
                             setState(() => _searchQuery = '');
                             _loadShipments();
                           },

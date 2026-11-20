@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModuleSettings } from '@/contexts/ThemeContext';
+import { useDebounce } from '@/hooks/useDebounce';
 import { cn } from '@/lib/utils';
 import { itemService, type Item } from '@/services/master-service';
 import {
@@ -49,6 +50,7 @@ export function InvoicesPage() {
   const [invoices, setInvoices] = React.useState<InvoiceSummary[]>([]);
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [detail, setDetail] = React.useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
@@ -79,7 +81,7 @@ export function InvoicesPage() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [pageSize, search]);
+  }, [pageSize, debouncedSearch]);
 
   const totalPages = Math.max(1, Math.ceil(invoices.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -91,14 +93,14 @@ export function InvoicesPage() {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await invoiceService.list(search, '');
+      const rows = await invoiceService.list(debouncedSearch, '');
       setInvoices(rows);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [debouncedSearch]);
 
   React.useEffect(() => {
     void load();

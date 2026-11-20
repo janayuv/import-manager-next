@@ -40,6 +40,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDebounce } from '@/hooks/useDebounce';
 import { itemService, supplierService, type Item, type Supplier } from '@/services/master-service';
 import {
   paymentPOService,
@@ -58,6 +59,7 @@ export function PurchaseOrdersPage() {
   const [itemsCatalog, setItemsCatalog] = React.useState<Item[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [statusFilter, setStatusFilter] = React.useState('all');
   const [supplierFilter, setSupplierFilter] = React.useState('all');
   const page = 1;
@@ -103,7 +105,7 @@ export function PurchaseOrdersPage() {
     setLoading(true);
     try {
       const res = await paymentPOService.listPurchaseOrders({
-        search: search.trim(),
+        search: debouncedSearch.trim(),
         supplierId: supplierFilter === 'all' ? '' : supplierFilter,
         status: statusFilter === 'all' ? '' : statusFilter,
         page,
@@ -116,7 +118,7 @@ export function PurchaseOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, supplierFilter, statusFilter, page]);
+  }, [debouncedSearch, supplierFilter, statusFilter, page]);
 
   React.useEffect(() => {
     loadData();

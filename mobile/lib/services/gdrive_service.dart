@@ -8,8 +8,6 @@ import '../models/sync_status.dart';
 class GDriveService {
   static const String _tokenPrefKey = 'gdrive_access_token';
   static const String _refreshTokenPrefKey = 'gdrive_refresh_token';
-  static const String _clientIdPrefKey = 'gdrive_client_id';
-  static const String _clientSecretPrefKey = 'gdrive_client_secret';
 
   // Integration defaults from environment if passed at build time via --dart-define
   static const String defaultClientId =
