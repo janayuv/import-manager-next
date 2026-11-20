@@ -65,6 +65,7 @@ import {
   type PartPeriodAnalysisRequest,
 } from '@/services/expense-service';
 import { supplierService, type Supplier } from '@/services/master-service';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import { formatINR, formatCurr } from '@/lib/format';
 
 export { formatINR, formatCurr };
@@ -152,6 +153,51 @@ export function PartPeriodAnalysisPage() {
   const [data, setData] = React.useState<PartPeriodAnalysisResult | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState('shipments');
+
+  const { itemsPerPage: pageSize } = useModuleSettings('partPeriodAnalysis');
+  const [shipmentsPage, setShipmentsPage] = React.useState(1);
+  const [boePage, setBoePage] = React.useState(1);
+  const [expensesPage, setExpensesPage] = React.useState(1);
+  const [trendsPage, setTrendsPage] = React.useState(1);
+
+  React.useEffect(() => {
+    setShipmentsPage(1);
+    setBoePage(1);
+    setExpensesPage(1);
+    setTrendsPage(1);
+  }, [pageSize, partNumber, startDate, endDate, supplierId]);
+
+  const totalShipmentsPages = Math.max(1, Math.ceil((data?.shipments?.length ?? 0) / pageSize));
+  const currentShipmentsPage = Math.min(shipmentsPage, totalShipmentsPages);
+  const pagedShipments = React.useMemo(() => {
+    const arr = data?.shipments ?? [];
+    const start = (currentShipmentsPage - 1) * pageSize;
+    return arr.slice(start, start + pageSize);
+  }, [data?.shipments, currentShipmentsPage, pageSize]);
+
+  const totalBoePages = Math.max(1, Math.ceil((data?.boeLines?.length ?? 0) / pageSize));
+  const currentBoePage = Math.min(boePage, totalBoePages);
+  const pagedBoeLines = React.useMemo(() => {
+    const arr = data?.boeLines ?? [];
+    const start = (currentBoePage - 1) * pageSize;
+    return arr.slice(start, start + pageSize);
+  }, [data?.boeLines, currentBoePage, pageSize]);
+
+  const totalExpensesPages = Math.max(1, Math.ceil((data?.expenses?.length ?? 0) / pageSize));
+  const currentExpensesPage = Math.min(expensesPage, totalExpensesPages);
+  const pagedExpenses = React.useMemo(() => {
+    const arr = data?.expenses ?? [];
+    const start = (currentExpensesPage - 1) * pageSize;
+    return arr.slice(start, start + pageSize);
+  }, [data?.expenses, currentExpensesPage, pageSize]);
+
+  const totalTrendsPages = Math.max(1, Math.ceil((data?.trends?.length ?? 0) / pageSize));
+  const currentTrendsPage = Math.min(trendsPage, totalTrendsPages);
+  const pagedTrends = React.useMemo(() => {
+    const arr = data?.trends ?? [];
+    const start = (currentTrendsPage - 1) * pageSize;
+    return arr.slice(start, start + pageSize);
+  }, [data?.trends, currentTrendsPage, pageSize]);
 
   // Load suppliers and popular parts on mount
   React.useEffect(() => {
@@ -831,7 +877,7 @@ export function PartPeriodAnalysisPage() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          data.shipments.map((sh, idx) => (
+                          pagedShipments.map((sh, idx) => (
                             <TableRow key={`${sh.shipmentId}-${sh.invoiceNumber}-${idx}`}>
                               <TableCell className="font-mono text-xs font-semibold text-primary">
                                 {sh.shipmentId}
@@ -871,6 +917,30 @@ export function PartPeriodAnalysisPage() {
                         )}
                       </TableBody>
                     </Table>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-muted-foreground px-4 py-3">
+                    <span>
+                      Page {currentShipmentsPage} of {totalShipmentsPages}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentShipmentsPage <= 1}
+                        onClick={() => setShipmentsPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentShipmentsPage >= totalShipmentsPages}
+                        onClick={() => setShipmentsPage((p) => Math.min(totalShipmentsPages, p + 1))}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -918,7 +988,7 @@ export function PartPeriodAnalysisPage() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          data.boeLines.map((b, idx) => (
+                          pagedBoeLines.map((b, idx) => (
                             <TableRow key={`${b.boeCalcId}-${idx}`}>
                               <TableCell className="text-xs">
                                 <div className="font-mono font-semibold text-primary">{b.shipmentId}</div>
@@ -962,6 +1032,30 @@ export function PartPeriodAnalysisPage() {
                         )}
                       </TableBody>
                     </Table>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-muted-foreground px-4 py-3">
+                    <span>
+                      Page {currentBoePage} of {totalBoePages}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentBoePage <= 1}
+                        onClick={() => setBoePage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentBoePage >= totalBoePages}
+                        onClick={() => setBoePage((p) => Math.min(totalBoePages, p + 1))}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1007,7 +1101,7 @@ export function PartPeriodAnalysisPage() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          data.expenses.map((ex, idx) => (
+                          pagedExpenses.map((ex, idx) => (
                             <TableRow key={`${ex.expenseId}-${idx}`}>
                               <TableCell className="font-mono text-xs font-semibold text-primary">
                                 {ex.shipmentId}
@@ -1042,6 +1136,30 @@ export function PartPeriodAnalysisPage() {
                         )}
                       </TableBody>
                     </Table>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-muted-foreground px-4 py-3">
+                    <span>
+                      Page {currentExpensesPage} of {totalExpensesPages}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentExpensesPage <= 1}
+                        onClick={() => setExpensesPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentExpensesPage >= totalExpensesPages}
+                        onClick={() => setExpensesPage((p) => Math.min(totalExpensesPages, p + 1))}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1114,7 +1232,7 @@ export function PartPeriodAnalysisPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {data.trends.map((tr, idx) => (
+                        {pagedTrends.map((tr, idx) => (
                           <TableRow key={`${tr.shipmentId}-${idx}`}>
                             <TableCell className="text-xs font-medium">{tr.date || '—'}</TableCell>
                             <TableCell className="font-mono text-xs font-semibold text-primary">
@@ -1143,6 +1261,30 @@ export function PartPeriodAnalysisPage() {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-muted-foreground px-4 py-3">
+                    <span>
+                      Page {currentTrendsPage} of {totalTrendsPages}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentTrendsPage <= 1}
+                        onClick={() => setTrendsPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentTrendsPage >= totalTrendsPages}
+                        onClick={() => setTrendsPage((p) => Math.min(totalTrendsPages, p + 1))}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

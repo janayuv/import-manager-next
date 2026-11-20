@@ -225,7 +225,7 @@ describe('Stage 8: Real-Data Dashboard & Settings', () => {
     expect(screen.queryByText('shipments (SH-7)')).not.toBeInTheDocument();
   });
 
-  it('renders Per-Module Table Preferences (9 Modules) including CBIC Rates and Reconciled BOE', async () => {
+  it('renders Per-Module Table Preferences (14 Modules) including CBIC Rates and Reconciled BOE', async () => {
     const mockProfile = {
       schemaVersion: 1,
       theme: 'default',
@@ -253,7 +253,7 @@ describe('Stage 8: Real-Data Dashboard & Settings', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText(/Per-Module Table Preferences \(9 Modules\)/i)).toBeInTheDocument()
+      expect(screen.getByText(/Per-Module Table Preferences \(14 Modules\)/i)).toBeInTheDocument()
     );
   });
 });

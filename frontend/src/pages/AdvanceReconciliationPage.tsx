@@ -51,13 +51,19 @@ import {
   type MaterialTrackingSummary,
 } from '@/services/payment-po-service';
 import { invoiceService, type InvoiceSummary } from '@/services/shipment-invoice-service';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 
 export function AdvanceReconciliationPage() {
+  const { itemsPerPage: pageSize } = useModuleSettings('advanceRecon');
   const [activeTab, setActiveTab] = React.useState<'reconciliation' | 'material_tracking'>('reconciliation');
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [supplierFilter, setSupplierFilter] = React.useState('all');
   const [search, setSearch] = React.useState('');
   const [loading, setLoading] = React.useState(true);
+
+  // Pagination states
+  const [reconPage, setReconPage] = React.useState(1);
+  const [materialPage, setMaterialPage] = React.useState(1);
 
   // Tab 1: Advance Reconciliation Data
   const [reconciliations, setReconciliations] = React.useState<AdvanceReconciliationSummary[]>([]);
@@ -88,6 +94,28 @@ export function AdvanceReconciliationPage() {
   const [receiptDate, setReceiptDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [receiptRemarks, setReceiptRemarks] = React.useState('');
   const [receiptSubmitting, setReceiptSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    setReconPage(1);
+  }, [pageSize, supplierFilter]);
+
+  React.useEffect(() => {
+    setMaterialPage(1);
+  }, [pageSize, supplierFilter, search]);
+
+  const totalReconPages = Math.max(1, Math.ceil(reconciliations.length / pageSize));
+  const currentReconPage = Math.min(reconPage, totalReconPages);
+  const pagedReconciliations = React.useMemo(() => {
+    const start = (currentReconPage - 1) * pageSize;
+    return reconciliations.slice(start, start + pageSize);
+  }, [reconciliations, currentReconPage, pageSize]);
+
+  const totalMaterialPages = Math.max(1, Math.ceil(materialItems.length / pageSize));
+  const currentMaterialPage = Math.min(materialPage, totalMaterialPages);
+  const pagedMaterialItems = React.useMemo(() => {
+    const start = (currentMaterialPage - 1) * pageSize;
+    return materialItems.slice(start, start + pageSize);
+  }, [materialItems, currentMaterialPage, pageSize]);
 
   const loadData = React.useCallback(async () => {
     setLoading(true);
@@ -318,7 +346,7 @@ export function AdvanceReconciliationPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    reconciliations.map((rec) => {
+                    pagedReconciliations.map((rec) => {
                       const isExpanded = !!expandedPOs[rec.poId];
                       return (
                         <React.Fragment key={rec.poId}>
@@ -436,6 +464,30 @@ export function AdvanceReconciliationPage() {
                   )}
                 </TableBody>
               </Table>
+
+              <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+                <span>
+                  Page {currentReconPage} of {totalReconPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentReconPage <= 1}
+                    onClick={() => setReconPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentReconPage >= totalReconPages}
+                    onClick={() => setReconPage((p) => Math.min(totalReconPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -545,7 +597,7 @@ export function AdvanceReconciliationPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    materialItems.map((item) => {
+                    pagedMaterialItems.map((item) => {
                       const pctReceived = Math.min(100, Math.round((item.receivedQuantity / (item.orderedQuantity || 1)) * 100));
                       return (
                         <TableRow key={item.poLineItemId} className="hover:bg-muted/40 text-xs">
@@ -618,6 +670,30 @@ export function AdvanceReconciliationPage() {
                   )}
                 </TableBody>
               </Table>
+
+              <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+                <span>
+                  Page {currentMaterialPage} of {totalMaterialPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentMaterialPage <= 1}
+                    onClick={() => setMaterialPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentMaterialPage >= totalMaterialPages}
+                    onClick={() => setMaterialPage((p) => Math.min(totalMaterialPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

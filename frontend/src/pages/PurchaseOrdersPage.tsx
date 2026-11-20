@@ -40,6 +40,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import { useDebounce } from '@/hooks/useDebounce';
 import { itemService, supplierService, type Item, type Supplier } from '@/services/master-service';
 import {
@@ -62,9 +63,13 @@ export function PurchaseOrdersPage() {
   const debouncedSearch = useDebounce(search, 250);
   const [statusFilter, setStatusFilter] = React.useState('all');
   const [supplierFilter, setSupplierFilter] = React.useState('all');
-  const page = 1;
+  const { itemsPerPage: pageSize } = useModuleSettings('purchaseOrders');
+  const [page, setPage] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
-  const pageSize = 15;
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [pageSize, debouncedSearch, supplierFilter, statusFilter]);
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
@@ -118,7 +123,7 @@ export function PurchaseOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, supplierFilter, statusFilter, page]);
+  }, [debouncedSearch, supplierFilter, statusFilter, page, pageSize]);
 
   React.useEffect(() => {
     loadData();
@@ -480,6 +485,30 @@ export function PurchaseOrdersPage() {
               )}
             </TableBody>
           </Table>
+
+          <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+            <span>
+              Page {page} of {Math.max(1, Math.ceil(totalCount / pageSize))}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= Math.max(1, Math.ceil(totalCount / pageSize))}
+                onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(totalCount / pageSize)), p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -9,7 +9,11 @@ func TestDefaultProfileIncludesCBICRatesAndReconciledBOE(t *testing.T) {
 
 	expectedModules := []string{
 		"shipment",
+		"transitTracker",
 		"invoice",
+		"purchaseOrders",
+		"payments",
+		"advanceRecon",
 		"boe",
 		"boeSummary",
 		"supplier",
@@ -17,6 +21,8 @@ func TestDefaultProfileIncludesCBICRatesAndReconciledBOE(t *testing.T) {
 		"expenses",
 		"cbicRates",
 		"reconciledBoe",
+		"landedCost",
+		"partPeriodAnalysis",
 	}
 
 	for _, modKey := range expectedModules {
@@ -37,13 +43,18 @@ func TestEnforceInvariantsPopulatesMissingCBICRatesAndReconciledBOE(t *testing.T
 	p := DefaultProfile()
 	delete(p.Modules, "cbicRates")
 	delete(p.Modules, "reconciledBoe")
+	delete(p.Modules, "transitTracker")
+	delete(p.Modules, "purchaseOrders")
+	delete(p.Modules, "payments")
+	delete(p.Modules, "advanceRecon")
+	delete(p.Modules, "landedCost")
+	delete(p.Modules, "partPeriodAnalysis")
 
 	enforceInvariants(&p)
 
-	if _, ok := p.Modules["cbicRates"]; !ok {
-		t.Error("enforceInvariants failed to populate missing cbicRates")
-	}
-	if _, ok := p.Modules["reconciledBoe"]; !ok {
-		t.Error("enforceInvariants failed to populate missing reconciledBoe")
+	for _, key := range []string{"cbicRates", "reconciledBoe", "transitTracker", "purchaseOrders", "payments", "advanceRecon", "landedCost", "partPeriodAnalysis"} {
+		if _, ok := p.Modules[key]; !ok {
+			t.Errorf("enforceInvariants failed to populate missing %s", key)
+		}
 	}
 }

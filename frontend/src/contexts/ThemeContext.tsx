@@ -160,6 +160,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (moduleKey === 'reconciledBoe' && profile?.modules?.boeSummary) {
         return profile.modules.boeSummary;
       }
+      if (moduleKey === 'boeSummary' && profile?.modules?.boe) {
+        return profile.modules.boe;
+      }
+      if (moduleKey === 'boe' && profile?.modules?.boeSummary) {
+        return profile.modules.boeSummary;
+      }
       return getDefaultModuleSettings(moduleKey);
     },
     [profile],
@@ -229,6 +235,12 @@ export function useModuleSettings(moduleKey: string) {
       return activeProfile.modules[moduleKey];
     }
     if (moduleKey === 'reconciledBoe' && activeProfile?.modules?.boeSummary) {
+      return activeProfile.modules.boeSummary;
+    }
+    if (moduleKey === 'boeSummary' && activeProfile?.modules?.boe) {
+      return activeProfile.modules.boe;
+    }
+    if (moduleKey === 'boe' && activeProfile?.modules?.boeSummary) {
       return activeProfile.modules.boeSummary;
     }
     return getDefaultModuleSettings(moduleKey);

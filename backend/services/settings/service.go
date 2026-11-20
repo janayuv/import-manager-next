@@ -21,14 +21,20 @@ const (
 
 var managedModules = []string{
 	"shipment",
+	"transitTracker",
 	"invoice",
+	"purchaseOrders",
+	"payments",
+	"advanceRecon",
 	"boe",
 	"boeSummary",
+	"reconciledBoe",
 	"supplier",
 	"itemMaster",
 	"expenses",
 	"cbicRates",
-	"reconciledBoe",
+	"landedCost",
+	"partPeriodAnalysis",
 }
 
 // Service manages versioned ERP theme, formatting, invoice precision, and module display profiles.

@@ -45,14 +45,19 @@ import {
 
 const MODULE_LABELS: Record<string, string> = {
   shipment: 'Shipments',
+  transitTracker: 'Transit Tracker',
   invoice: 'Invoices',
+  purchaseOrders: 'Purchase Orders',
+  payments: 'Payments & Annexures',
+  advanceRecon: 'Advance & Material Tracker',
   boe: 'BOE Registry',
-  boeSummary: 'BOE Summary',
+  reconciledBoe: 'Reconciled BOE',
   supplier: 'Suppliers',
   itemMaster: 'Item Master',
   expenses: 'Expenses',
   cbicRates: 'CBIC Rates',
-  reconciledBoe: 'Reconciled BOE',
+  landedCost: 'Landed Cost Report',
+  partPeriodAnalysis: 'Part Period Analysis',
 };
 
 export function SettingsPage() {
@@ -159,6 +164,9 @@ export function SettingsPage() {
           itemsPerPage: Math.min(200, Math.max(5, m.itemsPerPage || 10)),
         };
       }
+      if (sanitizedModules.boe) {
+        sanitizedModules.boeSummary = { ...sanitizedModules.boe };
+      }
       const toSave = { ...profile, modules: sanitizedModules };
       const saved = await settingsService.saveProfile(toSave);
       setProfile(saved);
@@ -174,7 +182,12 @@ export function SettingsPage() {
 
   const handleResetModule = async () => {
     try {
-      const next = await settingsService.resetModuleDefaults(selectedModule);
+      let next = await settingsService.resetModuleDefaults(selectedModule);
+      if (selectedModule === 'boe') {
+        try {
+          next = await settingsService.resetModuleDefaults('boeSummary');
+        } catch {}
+      }
       setProfile(next);
       themeCtx?.syncTheme(next);
       toast.success(`Reset ${MODULE_LABELS[selectedModule] ?? selectedModule} defaults`);
