@@ -14,6 +14,9 @@ const ShipmentsPage = lazy(() => import('@/pages/ShipmentsPage').then((m) => ({ 
 const TransitShipmentsPage = lazy(() => import('@/pages/TransitShipmentsPage').then((m) => ({ default: m.TransitShipmentsPage })));
 const InvoicesPage = lazy(() => import('@/pages/InvoicesPage').then((m) => ({ default: m.InvoicesPage })));
 const InvoiceWizardPage = lazy(() => import('@/pages/InvoiceWizardPage').then((m) => ({ default: m.InvoiceWizardPage })));
+const PurchaseOrdersPage = lazy(() => import('@/pages/PurchaseOrdersPage').then((m) => ({ default: m.PurchaseOrdersPage })));
+const PaymentsPage = lazy(() => import('@/pages/PaymentsPage').then((m) => ({ default: m.PaymentsPage })));
+const AdvanceReconciliationPage = lazy(() => import('@/pages/AdvanceReconciliationPage').then((m) => ({ default: m.AdvanceReconciliationPage })));
 const ItemMasterPage = lazy(() => import('@/pages/ItemMasterPage').then((m) => ({ default: m.ItemMasterPage })));
 const BOERegistryPage = lazy(() => import('@/pages/BOERegistryPage').then((m) => ({ default: m.BOERegistryPage })));
 const BOEEntryPage = lazy(() => import('@/pages/BOEEntryPage').then((m) => ({ default: m.BOEEntryPage })));
@@ -82,6 +85,30 @@ function AuthenticatedRoutes() {
           />
           <Route path="invoices" element={<InvoicesPage />} />
           <Route path="invoice-wizard" element={<InvoiceWizardPage />} />
+          <Route
+            path="purchase-orders"
+            element={
+              <RequirePermission permission="data.read">
+                <PurchaseOrdersPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="payments"
+            element={
+              <RequirePermission permission="data.read">
+                <PaymentsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="advance-reconciliation"
+            element={
+              <RequirePermission permission="data.read">
+                <AdvanceReconciliationPage />
+              </RequirePermission>
+            }
+          />
           <Route path="items" element={<ItemMasterPage />} />
           <Route
             path="boe"

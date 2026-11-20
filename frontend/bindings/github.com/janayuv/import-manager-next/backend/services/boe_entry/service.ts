@@ -35,7 +35,7 @@ export function LoadShipmentContext(shipmentID: string): $CancellablePromise<mod
 
 /**
  * ParseOverrideCSV parses rate overrides (`partNo, calculationMethod, boeBcdRate, boeSwsRate, boeIgstRate`),
- * skipping unknown parts or IGST mismatches with warnings.
+ * supporting TSV/CSV with or without headers, skipping unknown parts or IGST mismatches with clear warnings.
  */
 export function ParseOverrideCSV(csvContent: string, currentItems: models$0.BOECalculationItemInput[]): $CancellablePromise<models$0.BOEOverrideImportResult> {
     return $Call.ByID(1842632576, csvContent, currentItems).then(($result: any) => {

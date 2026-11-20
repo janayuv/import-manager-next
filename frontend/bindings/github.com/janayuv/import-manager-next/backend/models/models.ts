@@ -6,6 +6,110 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * AdvanceReconciliationSummary captures matching metrics between PO advance payments and commercial invoices.
+ */
+export class AdvanceReconciliationSummary {
+    "poId": string;
+    "poNumber": string;
+    "poDate": string;
+    "supplierId": string;
+    "supplierName": string;
+    "currency": string;
+    "poTotalAmount": number;
+    "advanceRequired": number;
+    "advancePaidAmount": number;
+    "advanceBalance": number;
+    "totalInvoicedAmount": number;
+    "advanceAdjustedAmount": number;
+    "unadjustedAdvance": number;
+
+    /**
+     * AdvancePaid - Invoiced
+     */
+    "varianceAmount": number;
+
+    /**
+     * "MATCHED", "UNDER_INVOICED", "OVER_INVOICED", "AWAITING_INVOICE"
+     */
+    "varianceType": string;
+
+    /**
+     * "FULLY_RECONCILED", "PARTIALLY_RECONCILED", "DISCREPANCY", "PENDING_INVOICE"
+     */
+    "reconciliationStatus": string;
+    "invoices": ReconciledInvoiceItem[];
+
+    /** Creates a new AdvanceReconciliationSummary instance. */
+    constructor($$source: Partial<AdvanceReconciliationSummary> = {}) {
+        if (!("poId" in $$source)) {
+            this["poId"] = "";
+        }
+        if (!("poNumber" in $$source)) {
+            this["poNumber"] = "";
+        }
+        if (!("poDate" in $$source)) {
+            this["poDate"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("poTotalAmount" in $$source)) {
+            this["poTotalAmount"] = 0;
+        }
+        if (!("advanceRequired" in $$source)) {
+            this["advanceRequired"] = 0;
+        }
+        if (!("advancePaidAmount" in $$source)) {
+            this["advancePaidAmount"] = 0;
+        }
+        if (!("advanceBalance" in $$source)) {
+            this["advanceBalance"] = 0;
+        }
+        if (!("totalInvoicedAmount" in $$source)) {
+            this["totalInvoicedAmount"] = 0;
+        }
+        if (!("advanceAdjustedAmount" in $$source)) {
+            this["advanceAdjustedAmount"] = 0;
+        }
+        if (!("unadjustedAdvance" in $$source)) {
+            this["unadjustedAdvance"] = 0;
+        }
+        if (!("varianceAmount" in $$source)) {
+            this["varianceAmount"] = 0;
+        }
+        if (!("varianceType" in $$source)) {
+            this["varianceType"] = "";
+        }
+        if (!("reconciliationStatus" in $$source)) {
+            this["reconciliationStatus"] = "";
+        }
+        if (!("invoices" in $$source)) {
+            this["invoices"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AdvanceReconciliationSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): AdvanceReconciliationSummary {
+        const $$createField16_0 = $$createType1;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("invoices" in $$parsedSource) {
+            $$parsedSource["invoices"] = $$createField16_0($$parsedSource["invoices"]);
+        }
+        return new AdvanceReconciliationSummary($$parsedSource as Partial<AdvanceReconciliationSummary>);
+    }
+}
+
+/**
  * AllocationLedgerFilter defines query criteria for querying historical expense allocations.
  */
 export class AllocationLedgerFilter {
@@ -161,7 +265,7 @@ export class AppSettingsProfile {
      * Creates a new AppSettingsProfile instance from a string or object.
      */
     static createFrom($$source: any = {}): AppSettingsProfile {
-        const $$createField8_0 = $$createType1;
+        const $$createField8_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("modules" in $$parsedSource) {
             $$parsedSource["modules"] = $$createField8_0($$parsedSource["modules"]);
@@ -481,9 +585,9 @@ export class BOECalcParams {
     "interest": number;
 
     /**
-     * INR (round-off adjustment under Customs Act Sec. 154)
+     * Round-off adjustment in INR (Customs Act Sec. 154 rounding)
      */
-    "roundOffAdjustment"?: number;
+    "roundOffAdjustment": number;
     "lineItems": BOECalculationItemInput[];
 
     /** Creates a new BOECalcParams instance. */
@@ -551,9 +655,6 @@ export class BOECalcParams {
         if (!("roundOffAdjustment" in $$source)) {
             this["roundOffAdjustment"] = 0;
         }
-        if (!("roundOffAdjustment" in $$source)) {
-            this["roundOffAdjustment"] = 0;
-        }
         if (!("lineItems" in $$source)) {
             this["lineItems"] = [];
         }
@@ -565,10 +666,10 @@ export class BOECalcParams {
      * Creates a new BOECalcParams instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalcParams {
-        const $$createField25_0 = $$createType3;
+        const $$createField26_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lineItems" in $$parsedSource) {
-            $$parsedSource["lineItems"] = $$createField25_0($$parsedSource["lineItems"]);
+            $$parsedSource["lineItems"] = $$createField26_0($$parsedSource["lineItems"]);
         }
         return new BOECalcParams($$parsedSource as Partial<BOECalcParams>);
     }
@@ -605,9 +706,9 @@ export class BOECalculationContext {
      * Creates a new BOECalculationContext instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalculationContext {
-        const $$createField0_0 = $$createType4;
-        const $$createField1_0 = $$createType5;
-        const $$createField2_0 = $$createType6;
+        const $$createField0_0 = $$createType6;
+        const $$createField1_0 = $$createType7;
+        const $$createField2_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("shipment" in $$parsedSource) {
             $$parsedSource["shipment"] = $$createField0_0($$parsedSource["shipment"]);
@@ -713,10 +814,10 @@ export class BOECalculationDetail {
      * Creates a new BOECalculationDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalculationDetail {
-        const $$createField15_0 = $$createType5;
-        const $$createField16_0 = $$createType6;
-        const $$createField17_0 = $$createType8;
-        const $$createField18_0 = $$createType9;
+        const $$createField15_0 = $$createType7;
+        const $$createField16_0 = $$createType8;
+        const $$createField17_0 = $$createType10;
+        const $$createField18_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("params" in $$parsedSource) {
             $$parsedSource["params"] = $$createField15_0($$parsedSource["params"]);
@@ -837,7 +938,7 @@ export class BOECalculationResult {
     "swsTotal": number;
     "igstTotal": number;
     "interest": number;
-    "roundOffAdjustment"?: number;
+    "roundOffAdjustment": number;
 
     /**
      * Gross assessed duty liability
@@ -904,9 +1005,6 @@ export class BOECalculationResult {
         if (!("roundOffAdjustment" in $$source)) {
             this["roundOffAdjustment"] = 0;
         }
-        if (!("roundOffAdjustment" in $$source)) {
-            this["roundOffAdjustment"] = 0;
-        }
         if (!("customsDutyTotal" in $$source)) {
             this["customsDutyTotal"] = 0;
         }
@@ -936,14 +1034,14 @@ export class BOECalculationResult {
      * Creates a new BOECalculationResult instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalculationResult {
-        const $$createField0_0 = $$createType11;
-        const $$createField19_0 = $$createType12;
+        const $$createField0_0 = $$createType13;
+        const $$createField20_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
         }
         if ("incotermRule" in $$parsedSource) {
-            $$parsedSource["incotermRule"] = $$createField19_0($$parsedSource["incotermRule"]);
+            $$parsedSource["incotermRule"] = $$createField20_0($$parsedSource["incotermRule"]);
         }
         return new BOECalculationResult($$parsedSource as Partial<BOECalculationResult>);
     }
@@ -1172,8 +1270,8 @@ export class BOEOverrideImportResult {
      * Creates a new BOEOverrideImportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): BOEOverrideImportResult {
-        const $$createField0_0 = $$createType3;
-        const $$createField3_0 = $$createType14;
+        const $$createField0_0 = $$createType5;
+        const $$createField3_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -1560,8 +1658,8 @@ export class BrowseTableResponse {
      * Creates a new BrowseTableResponse instance from a string or object.
      */
     static createFrom($$source: any = {}): BrowseTableResponse {
-        const $$createField3_0 = $$createType15;
-        const $$createField7_0 = $$createType17;
+        const $$createField3_0 = $$createType17;
+        const $$createField7_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("columns" in $$parsedSource) {
             $$parsedSource["columns"] = $$createField3_0($$parsedSource["columns"]);
@@ -1658,7 +1756,7 @@ export class BulkDeleteRequest {
      * Creates a new BulkDeleteRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): BulkDeleteRequest {
-        const $$createField1_0 = $$createType15;
+        const $$createField1_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recordIds" in $$parsedSource) {
             $$parsedSource["recordIds"] = $$createField1_0($$parsedSource["recordIds"]);
@@ -1713,7 +1811,7 @@ export class BulkDeleteResult {
      * Creates a new BulkDeleteResult instance from a string or object.
      */
     static createFrom($$source: any = {}): BulkDeleteResult {
-        const $$createField6_0 = $$createType19;
+        const $$createField6_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("dependencies" in $$parsedSource) {
             $$parsedSource["dependencies"] = $$createField6_0($$parsedSource["dependencies"]);
@@ -1852,8 +1950,8 @@ export class CSVImportResult {
      * Creates a new CSVImportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): CSVImportResult {
-        const $$createField3_0 = $$createType14;
-        const $$createField4_0 = $$createType14;
+        const $$createField3_0 = $$createType16;
+        const $$createField4_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("errors" in $$parsedSource) {
             $$parsedSource["errors"] = $$createField3_0($$parsedSource["errors"]);
@@ -1978,7 +2076,7 @@ export class ContainerMovementAction {
      * Creates a new ContainerMovementAction instance from a string or object.
      */
     static createFrom($$source: any = {}): ContainerMovementAction {
-        const $$createField1_0 = $$createType15;
+        const $$createField1_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("containerIds" in $$parsedSource) {
             $$parsedSource["containerIds"] = $$createField1_0($$parsedSource["containerIds"]);
@@ -2351,13 +2449,13 @@ export class DashboardOverview {
      * Creates a new DashboardOverview instance from a string or object.
      */
     static createFrom($$source: any = {}): DashboardOverview {
-        const $$createField3_0 = $$createType15;
-        const $$createField4_0 = $$createType20;
-        const $$createField5_0 = $$createType22;
-        const $$createField6_0 = $$createType24;
-        const $$createField7_0 = $$createType26;
-        const $$createField8_0 = $$createType28;
-        const $$createField9_0 = $$createType30;
+        const $$createField3_0 = $$createType17;
+        const $$createField4_0 = $$createType22;
+        const $$createField5_0 = $$createType24;
+        const $$createField6_0 = $$createType26;
+        const $$createField7_0 = $$createType28;
+        const $$createField8_0 = $$createType30;
+        const $$createField9_0 = $$createType32;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("availableFys" in $$parsedSource) {
             $$parsedSource["availableFys"] = $$createField3_0($$parsedSource["availableFys"]);
@@ -2515,8 +2613,8 @@ export class DatabaseOverviewStats {
      * Creates a new DatabaseOverviewStats instance from a string or object.
      */
     static createFrom($$source: any = {}): DatabaseOverviewStats {
-        const $$createField10_0 = $$createType31;
-        const $$createField11_0 = $$createType31;
+        const $$createField10_0 = $$createType33;
+        const $$createField11_0 = $$createType33;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tableCounts" in $$parsedSource) {
             $$parsedSource["tableCounts"] = $$createField10_0($$parsedSource["tableCounts"]);
@@ -2595,7 +2693,7 @@ export class DiagnosticsExportResult {
      * Creates a new DiagnosticsExportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): DiagnosticsExportResult {
-        const $$createField3_0 = $$createType15;
+        const $$createField3_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("includedSections" in $$parsedSource) {
             $$parsedSource["includedSections"] = $$createField3_0($$parsedSource["includedSections"]);
@@ -3036,7 +3134,7 @@ export class ExpenseInvoice {
      * Creates a new ExpenseInvoice instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoice {
-        const $$createField21_0 = $$createType33;
+        const $$createField21_0 = $$createType35;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField21_0($$parsedSource["lines"]);
@@ -3108,7 +3206,7 @@ export class ExpenseInvoiceCalculation {
      * Creates a new ExpenseInvoiceCalculation instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoiceCalculation {
-        const $$createField0_0 = $$createType35;
+        const $$createField0_0 = $$createType37;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField0_0($$parsedSource["lines"]);
@@ -3177,7 +3275,7 @@ export class ExpenseInvoiceRequest {
      * Creates a new ExpenseInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoiceRequest {
-        const $$createField11_0 = $$createType37;
+        const $$createField11_0 = $$createType39;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField11_0($$parsedSource["lines"]);
@@ -3700,8 +3798,8 @@ export class ExpenseReportResult {
      * Creates a new ExpenseReportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseReportResult {
-        const $$createField1_0 = $$createType39;
-        const $$createField2_0 = $$createType41;
+        const $$createField1_0 = $$createType41;
+        const $$createField2_0 = $$createType43;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("detailedRows" in $$parsedSource) {
             $$parsedSource["detailedRows"] = $$createField1_0($$parsedSource["detailedRows"]);
@@ -4119,8 +4217,8 @@ export class InvoiceDetail {
      * Creates a new InvoiceDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): InvoiceDetail {
-        const $$createField0_0 = $$createType42;
-        const $$createField1_0 = $$createType44;
+        const $$createField0_0 = $$createType44;
+        const $$createField1_0 = $$createType46;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("invoice" in $$parsedSource) {
             $$parsedSource["invoice"] = $$createField0_0($$parsedSource["invoice"]);
@@ -4253,6 +4351,88 @@ export class InvoiceLineItem {
     static createFrom($$source: any = {}): InvoiceLineItem {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new InvoiceLineItem($$parsedSource as Partial<InvoiceLineItem>);
+    }
+}
+
+/**
+ * InvoicePaymentCandidate represents an outstanding commercial invoice available for batch or individual payment.
+ */
+export class InvoicePaymentCandidate {
+    "invoiceId": string;
+    "shipmentId": string;
+    "supplierId": string;
+    "supplierName": string;
+    "invoiceNumber": string;
+    "invoiceDate": string;
+    "currency": string;
+    "grossAmount": number;
+    "alreadyPaid": number;
+    "advanceAdjusted": number;
+    "pendingBalance": number;
+    "paymentTerm": string;
+    "dueDate": string;
+    "daysOverdue": number;
+    "isOverdue": boolean;
+    "linkedPoNumber"?: string;
+    "availablePoAdvance"?: number;
+
+    /** Creates a new InvoicePaymentCandidate instance. */
+    constructor($$source: Partial<InvoicePaymentCandidate> = {}) {
+        if (!("invoiceId" in $$source)) {
+            this["invoiceId"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("invoiceDate" in $$source)) {
+            this["invoiceDate"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("grossAmount" in $$source)) {
+            this["grossAmount"] = 0;
+        }
+        if (!("alreadyPaid" in $$source)) {
+            this["alreadyPaid"] = 0;
+        }
+        if (!("advanceAdjusted" in $$source)) {
+            this["advanceAdjusted"] = 0;
+        }
+        if (!("pendingBalance" in $$source)) {
+            this["pendingBalance"] = 0;
+        }
+        if (!("paymentTerm" in $$source)) {
+            this["paymentTerm"] = "";
+        }
+        if (!("dueDate" in $$source)) {
+            this["dueDate"] = "";
+        }
+        if (!("daysOverdue" in $$source)) {
+            this["daysOverdue"] = 0;
+        }
+        if (!("isOverdue" in $$source)) {
+            this["isOverdue"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new InvoicePaymentCandidate instance from a string or object.
+     */
+    static createFrom($$source: any = {}): InvoicePaymentCandidate {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new InvoicePaymentCandidate($$parsedSource as Partial<InvoicePaymentCandidate>);
     }
 }
 
@@ -4562,7 +4742,7 @@ export class ItemPage {
      * Creates a new ItemPage instance from a string or object.
      */
     static createFrom($$source: any = {}): ItemPage {
-        const $$createField0_0 = $$createType46;
+        const $$createField0_0 = $$createType48;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -4743,8 +4923,8 @@ export class LandedCostReport {
      * Creates a new LandedCostReport instance from a string or object.
      */
     static createFrom($$source: any = {}): LandedCostReport {
-        const $$createField0_0 = $$createType48;
-        const $$createField1_0 = $$createType49;
+        const $$createField0_0 = $$createType50;
+        const $$createField1_0 = $$createType51;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rows" in $$parsedSource) {
             $$parsedSource["rows"] = $$createField0_0($$parsedSource["rows"]);
@@ -5005,9 +5185,9 @@ export class LegacyInspectResult {
      * Creates a new LegacyInspectResult instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyInspectResult {
-        const $$createField6_0 = $$createType51;
-        const $$createField7_0 = $$createType52;
-        const $$createField8_0 = $$createType15;
+        const $$createField6_0 = $$createType53;
+        const $$createField7_0 = $$createType54;
+        const $$createField8_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tables" in $$parsedSource) {
             $$parsedSource["tables"] = $$createField6_0($$parsedSource["tables"]);
@@ -5083,10 +5263,10 @@ export class LegacyMigrationReport {
      * Creates a new LegacyMigrationReport instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyMigrationReport {
-        const $$createField6_0 = $$createType31;
-        const $$createField8_0 = $$createType52;
-        const $$createField9_0 = $$createType52;
-        const $$createField11_0 = $$createType15;
+        const $$createField6_0 = $$createType33;
+        const $$createField8_0 = $$createType54;
+        const $$createField9_0 = $$createType54;
+        const $$createField11_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rowsCopiedByTable" in $$parsedSource) {
             $$parsedSource["rowsCopiedByTable"] = $$createField6_0($$parsedSource["rowsCopiedByTable"]);
@@ -5169,8 +5349,8 @@ export class LegacyTableInspect {
      * Creates a new LegacyTableInspect instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyTableInspect {
-        const $$createField4_0 = $$createType15;
-        const $$createField5_0 = $$createType15;
+        const $$createField4_0 = $$createType17;
+        const $$createField5_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("matchedCols" in $$parsedSource) {
             $$parsedSource["matchedCols"] = $$createField4_0($$parsedSource["matchedCols"]);
@@ -5211,6 +5391,206 @@ export class LookupOption {
 }
 
 /**
+ * MaterialReceiptInput submits an inward delivery against a PO line item.
+ */
+export class MaterialReceiptInput {
+    "poLineItemId": string;
+    "invoiceLineItemId"?: string;
+    "shipmentId"?: string;
+    "receiptDate": string;
+    "quantityReceived": number;
+    "remarks"?: string;
+
+    /** Creates a new MaterialReceiptInput instance. */
+    constructor($$source: Partial<MaterialReceiptInput> = {}) {
+        if (!("poLineItemId" in $$source)) {
+            this["poLineItemId"] = "";
+        }
+        if (!("receiptDate" in $$source)) {
+            this["receiptDate"] = "";
+        }
+        if (!("quantityReceived" in $$source)) {
+            this["quantityReceived"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MaterialReceiptInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): MaterialReceiptInput {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MaterialReceiptInput($$parsedSource as Partial<MaterialReceiptInput>);
+    }
+}
+
+/**
+ * MaterialTrackingItem tracks line-item ordered, advance-paid, and physical/invoiced receipts.
+ */
+export class MaterialTrackingItem {
+    "poLineItemId": string;
+    "poId": string;
+    "poNumber": string;
+    "poDate": string;
+    "supplierId": string;
+    "supplierName": string;
+    "currency": string;
+    "partNumber": string;
+    "itemDescription": string;
+    "unit": string;
+    "unitPrice": number;
+    "orderedQuantity": number;
+    "orderedAmount": number;
+    "advancePaidPercentage": number;
+    "advancePaidQuantity": number;
+    "receivedQuantity": number;
+    "pendingQuantity": number;
+
+    /**
+     * Paid for in advance but not yet received
+     */
+    "advancePaidPendingQuantity": number;
+
+    /**
+     * Currency value of advance-paid unreceived material
+     */
+    "advanceLockedCapital": number;
+
+    /**
+     * "AWAITING_SHIPMENT", "PARTIALLY_RECEIVED", "FULLY_RECEIVED", "OVER_SUPPLIED"
+     */
+    "fulfillmentStatus": string;
+    "expectedDeliveryDate"?: string;
+    "daysDelayed": number;
+    "isDelayed": boolean;
+
+    /** Creates a new MaterialTrackingItem instance. */
+    constructor($$source: Partial<MaterialTrackingItem> = {}) {
+        if (!("poLineItemId" in $$source)) {
+            this["poLineItemId"] = "";
+        }
+        if (!("poId" in $$source)) {
+            this["poId"] = "";
+        }
+        if (!("poNumber" in $$source)) {
+            this["poNumber"] = "";
+        }
+        if (!("poDate" in $$source)) {
+            this["poDate"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("partNumber" in $$source)) {
+            this["partNumber"] = "";
+        }
+        if (!("itemDescription" in $$source)) {
+            this["itemDescription"] = "";
+        }
+        if (!("unit" in $$source)) {
+            this["unit"] = "";
+        }
+        if (!("unitPrice" in $$source)) {
+            this["unitPrice"] = 0;
+        }
+        if (!("orderedQuantity" in $$source)) {
+            this["orderedQuantity"] = 0;
+        }
+        if (!("orderedAmount" in $$source)) {
+            this["orderedAmount"] = 0;
+        }
+        if (!("advancePaidPercentage" in $$source)) {
+            this["advancePaidPercentage"] = 0;
+        }
+        if (!("advancePaidQuantity" in $$source)) {
+            this["advancePaidQuantity"] = 0;
+        }
+        if (!("receivedQuantity" in $$source)) {
+            this["receivedQuantity"] = 0;
+        }
+        if (!("pendingQuantity" in $$source)) {
+            this["pendingQuantity"] = 0;
+        }
+        if (!("advancePaidPendingQuantity" in $$source)) {
+            this["advancePaidPendingQuantity"] = 0;
+        }
+        if (!("advanceLockedCapital" in $$source)) {
+            this["advanceLockedCapital"] = 0;
+        }
+        if (!("fulfillmentStatus" in $$source)) {
+            this["fulfillmentStatus"] = "";
+        }
+        if (!("daysDelayed" in $$source)) {
+            this["daysDelayed"] = 0;
+        }
+        if (!("isDelayed" in $$source)) {
+            this["isDelayed"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MaterialTrackingItem instance from a string or object.
+     */
+    static createFrom($$source: any = {}): MaterialTrackingItem {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MaterialTrackingItem($$parsedSource as Partial<MaterialTrackingItem>);
+    }
+}
+
+/**
+ * MaterialTrackingSummary aggregates KPI metrics for advance-paid material tracking.
+ */
+export class MaterialTrackingSummary {
+    "totalPoTracked": number;
+    "totalItemsTracked": number;
+    "totalAdvanceCapitalLocked": number;
+    "totalPendingQuantity": number;
+    "totalAdvancePendingQuantity": number;
+    "delayedItemsCount": number;
+
+    /** Creates a new MaterialTrackingSummary instance. */
+    constructor($$source: Partial<MaterialTrackingSummary> = {}) {
+        if (!("totalPoTracked" in $$source)) {
+            this["totalPoTracked"] = 0;
+        }
+        if (!("totalItemsTracked" in $$source)) {
+            this["totalItemsTracked"] = 0;
+        }
+        if (!("totalAdvanceCapitalLocked" in $$source)) {
+            this["totalAdvanceCapitalLocked"] = 0;
+        }
+        if (!("totalPendingQuantity" in $$source)) {
+            this["totalPendingQuantity"] = 0;
+        }
+        if (!("totalAdvancePendingQuantity" in $$source)) {
+            this["totalAdvancePendingQuantity"] = 0;
+        }
+        if (!("delayedItemsCount" in $$source)) {
+            this["delayedItemsCount"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MaterialTrackingSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): MaterialTrackingSummary {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MaterialTrackingSummary($$parsedSource as Partial<MaterialTrackingSummary>);
+    }
+}
+
+/**
  * MissingParentGroup groups missing or soft-deleted parent IDs blocking restore.
  */
 export class MissingParentGroup {
@@ -5233,7 +5613,7 @@ export class MissingParentGroup {
      * Creates a new MissingParentGroup instance from a string or object.
      */
     static createFrom($$source: any = {}): MissingParentGroup {
-        const $$createField1_0 = $$createType15;
+        const $$createField1_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("parentIds" in $$parsedSource) {
             $$parsedSource["parentIds"] = $$createField1_0($$parsedSource["parentIds"]);
@@ -5277,8 +5657,8 @@ export class ModuleDisplaySettings {
      * Creates a new ModuleDisplaySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): ModuleDisplaySettings {
-        const $$createField0_0 = $$createType15;
-        const $$createField4_0 = $$createType53;
+        const $$createField0_0 = $$createType17;
+        const $$createField4_0 = $$createType55;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("visibleFields" in $$parsedSource) {
             $$parsedSource["visibleFields"] = $$createField0_0($$parsedSource["visibleFields"]);
@@ -5349,9 +5729,9 @@ export class OperationsOverview {
      * Creates a new OperationsOverview instance from a string or object.
      */
     static createFrom($$source: any = {}): OperationsOverview {
-        const $$createField8_0 = $$createType55;
-        const $$createField9_0 = $$createType57;
-        const $$createField10_0 = $$createType59;
+        const $$createField8_0 = $$createType57;
+        const $$createField9_0 = $$createType59;
+        const $$createField10_0 = $$createType61;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("jobs" in $$parsedSource) {
             $$parsedSource["jobs"] = $$createField8_0($$parsedSource["jobs"]);
@@ -5363,6 +5743,234 @@ export class OperationsOverview {
             $$parsedSource["incidents"] = $$createField10_0($$parsedSource["incidents"]);
         }
         return new OperationsOverview($$parsedSource as Partial<OperationsOverview>);
+    }
+}
+
+/**
+ * POLineItem mirrors a row in po_line_items with tracking metrics.
+ */
+export class POLineItem {
+    "id": string;
+    "poId": string;
+    "itemId"?: string;
+    "partNumber": string;
+    "itemDescription": string;
+    "quantity": number;
+    "unit": string;
+    "unitPrice": number;
+    "lineTotal": number;
+    "hsnCode"?: string;
+    "receivedQuantity": number;
+    "pendingQuantity": number;
+    "advanceCoveredQuantity": number;
+    "advancePendingQuantity": number;
+
+    /**
+     * "AWAITING_SHIPMENT", "PARTIALLY_RECEIVED", "FULLY_RECEIVED", "OVER_SUPPLIED"
+     */
+    "fulfillmentStatus": string;
+
+    /** Creates a new POLineItem instance. */
+    constructor($$source: Partial<POLineItem> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("poId" in $$source)) {
+            this["poId"] = "";
+        }
+        if (!("partNumber" in $$source)) {
+            this["partNumber"] = "";
+        }
+        if (!("itemDescription" in $$source)) {
+            this["itemDescription"] = "";
+        }
+        if (!("quantity" in $$source)) {
+            this["quantity"] = 0;
+        }
+        if (!("unit" in $$source)) {
+            this["unit"] = "";
+        }
+        if (!("unitPrice" in $$source)) {
+            this["unitPrice"] = 0;
+        }
+        if (!("lineTotal" in $$source)) {
+            this["lineTotal"] = 0;
+        }
+        if (!("receivedQuantity" in $$source)) {
+            this["receivedQuantity"] = 0;
+        }
+        if (!("pendingQuantity" in $$source)) {
+            this["pendingQuantity"] = 0;
+        }
+        if (!("advanceCoveredQuantity" in $$source)) {
+            this["advanceCoveredQuantity"] = 0;
+        }
+        if (!("advancePendingQuantity" in $$source)) {
+            this["advancePendingQuantity"] = 0;
+        }
+        if (!("fulfillmentStatus" in $$source)) {
+            this["fulfillmentStatus"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new POLineItem instance from a string or object.
+     */
+    static createFrom($$source: any = {}): POLineItem {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new POLineItem($$parsedSource as Partial<POLineItem>);
+    }
+}
+
+/**
+ * POLineItemInput carries line item data for creating or editing a PO.
+ */
+export class POLineItemInput {
+    "itemId"?: string;
+    "partNumber": string;
+    "itemDescription": string;
+    "quantity": number;
+    "unit": string;
+    "unitPrice": number;
+    "hsnCode"?: string;
+
+    /** Creates a new POLineItemInput instance. */
+    constructor($$source: Partial<POLineItemInput> = {}) {
+        if (!("partNumber" in $$source)) {
+            this["partNumber"] = "";
+        }
+        if (!("itemDescription" in $$source)) {
+            this["itemDescription"] = "";
+        }
+        if (!("quantity" in $$source)) {
+            this["quantity"] = 0;
+        }
+        if (!("unit" in $$source)) {
+            this["unit"] = "";
+        }
+        if (!("unitPrice" in $$source)) {
+            this["unitPrice"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new POLineItemInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): POLineItemInput {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new POLineItemInput($$parsedSource as Partial<POLineItemInput>);
+    }
+}
+
+/**
+ * POMilestoneInput carries staged milestone data for a PO.
+ */
+export class POMilestoneInput {
+    "sequence": number;
+    "milestoneName": string;
+    "stageType": string;
+    "percentage": number;
+    "dueDate"?: string;
+    "notes"?: string;
+
+    /** Creates a new POMilestoneInput instance. */
+    constructor($$source: Partial<POMilestoneInput> = {}) {
+        if (!("sequence" in $$source)) {
+            this["sequence"] = 0;
+        }
+        if (!("milestoneName" in $$source)) {
+            this["milestoneName"] = "";
+        }
+        if (!("stageType" in $$source)) {
+            this["stageType"] = "";
+        }
+        if (!("percentage" in $$source)) {
+            this["percentage"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new POMilestoneInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): POMilestoneInput {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new POMilestoneInput($$parsedSource as Partial<POMilestoneInput>);
+    }
+}
+
+/**
+ * POPaymentMilestone represents a staged milestone payment (e.g. 40% Advance, 40% on BL, 20% on Delivery).
+ */
+export class POPaymentMilestone {
+    "id": string;
+    "poId": string;
+    "sequence": number;
+    "milestoneName": string;
+
+    /**
+     * "ADVANCE", "ON_DISPATCH", "ON_DELIVERY", "CUSTOM"
+     */
+    "stageType": string;
+    "percentage": number;
+    "amount": number;
+    "paidAmount": number;
+    "balanceAmount": number;
+    "dueDate"?: string;
+
+    /**
+     * "PENDING", "PARTIALLY_PAID", "PAID"
+     */
+    "status": string;
+    "notes"?: string;
+
+    /** Creates a new POPaymentMilestone instance. */
+    constructor($$source: Partial<POPaymentMilestone> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("poId" in $$source)) {
+            this["poId"] = "";
+        }
+        if (!("sequence" in $$source)) {
+            this["sequence"] = 0;
+        }
+        if (!("milestoneName" in $$source)) {
+            this["milestoneName"] = "";
+        }
+        if (!("stageType" in $$source)) {
+            this["stageType"] = "";
+        }
+        if (!("percentage" in $$source)) {
+            this["percentage"] = 0;
+        }
+        if (!("amount" in $$source)) {
+            this["amount"] = 0;
+        }
+        if (!("paidAmount" in $$source)) {
+            this["paidAmount"] = 0;
+        }
+        if (!("balanceAmount" in $$source)) {
+            this["balanceAmount"] = 0;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new POPaymentMilestone instance from a string or object.
+     */
+    static createFrom($$source: any = {}): POPaymentMilestone {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new POPaymentMilestone($$parsedSource as Partial<POPaymentMilestone>);
     }
 }
 
@@ -5945,13 +6553,13 @@ export class PartPeriodAnalysisResult {
      * Creates a new PartPeriodAnalysisResult instance from a string or object.
      */
     static createFrom($$source: any = {}): PartPeriodAnalysisResult {
-        const $$createField0_0 = $$createType60;
-        const $$createField1_0 = $$createType61;
-        const $$createField2_0 = $$createType63;
-        const $$createField3_0 = $$createType65;
-        const $$createField4_0 = $$createType67;
-        const $$createField5_0 = $$createType69;
-        const $$createField6_0 = $$createType71;
+        const $$createField0_0 = $$createType62;
+        const $$createField1_0 = $$createType63;
+        const $$createField2_0 = $$createType65;
+        const $$createField3_0 = $$createType67;
+        const $$createField4_0 = $$createType69;
+        const $$createField5_0 = $$createType71;
+        const $$createField6_0 = $$createType73;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("targetItem" in $$parsedSource) {
             $$parsedSource["targetItem"] = $$createField0_0($$parsedSource["targetItem"]);
@@ -6271,6 +6879,891 @@ export class PartTrendPoint {
 }
 
 /**
+ * Payment mirrors a row in payments (Payment Voucher).
+ */
+export class Payment {
+    "id": string;
+    "voucherNumber": string;
+    "paymentDate": string;
+    "supplierId": string;
+    "supplierName"?: string;
+
+    /**
+     * "PO_ADVANCE", "SINGLE_INVOICE", "MULTI_INVOICE_BATCH"
+     */
+    "paymentType": string;
+
+    /**
+     * "WIRE_TRANSFER", "TT", "RTGS", "NEFT", "LC", "CHEQUE", "CASH"
+     */
+    "paymentMode": string;
+    "currency": string;
+    "exchangeRate": number;
+    "totalAmount": number;
+    "bankName": string;
+    "bankAccountNo": string;
+
+    /**
+     * UTR / Cheque / Swift Ref
+     */
+    "referenceNumber": string;
+    "beneficiaryName": string;
+    "beneficiaryBank": string;
+    "beneficiaryAccount": string;
+    "beneficiarySwift": string;
+    "beneficiaryIban": string;
+
+    /**
+     * "DRAFT", "PROCESSED", "CANCELLED"
+     */
+    "status": string;
+    "notes"?: string;
+    "createdBy"?: string;
+    "allocations"?: PaymentAllocation[];
+    "createdAt": string;
+    "updatedAt": string;
+
+    /** Creates a new Payment instance. */
+    constructor($$source: Partial<Payment> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("voucherNumber" in $$source)) {
+            this["voucherNumber"] = "";
+        }
+        if (!("paymentDate" in $$source)) {
+            this["paymentDate"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("paymentType" in $$source)) {
+            this["paymentType"] = "";
+        }
+        if (!("paymentMode" in $$source)) {
+            this["paymentMode"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("exchangeRate" in $$source)) {
+            this["exchangeRate"] = 0;
+        }
+        if (!("totalAmount" in $$source)) {
+            this["totalAmount"] = 0;
+        }
+        if (!("bankName" in $$source)) {
+            this["bankName"] = "";
+        }
+        if (!("bankAccountNo" in $$source)) {
+            this["bankAccountNo"] = "";
+        }
+        if (!("referenceNumber" in $$source)) {
+            this["referenceNumber"] = "";
+        }
+        if (!("beneficiaryName" in $$source)) {
+            this["beneficiaryName"] = "";
+        }
+        if (!("beneficiaryBank" in $$source)) {
+            this["beneficiaryBank"] = "";
+        }
+        if (!("beneficiaryAccount" in $$source)) {
+            this["beneficiaryAccount"] = "";
+        }
+        if (!("beneficiarySwift" in $$source)) {
+            this["beneficiarySwift"] = "";
+        }
+        if (!("beneficiaryIban" in $$source)) {
+            this["beneficiaryIban"] = "";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Payment instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Payment {
+        const $$createField21_0 = $$createType75;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("allocations" in $$parsedSource) {
+            $$parsedSource["allocations"] = $$createField21_0($$parsedSource["allocations"]);
+        }
+        return new Payment($$parsedSource as Partial<Payment>);
+    }
+}
+
+/**
+ * PaymentAllocation records an itemized allocation to a PO milestone or commercial invoice.
+ */
+export class PaymentAllocation {
+    "id": string;
+    "paymentId": string;
+    "poId"?: string;
+    "poNumber"?: string;
+    "poMilestoneId"?: string;
+    "milestoneName"?: string;
+    "invoiceId"?: string;
+    "invoiceNumber"?: string;
+    "shipmentId"?: string;
+    "grossAmount": number;
+    "advanceAdjusted": number;
+    "deductions": number;
+    "netPaidAmount": number;
+    "notes"?: string;
+
+    /** Creates a new PaymentAllocation instance. */
+    constructor($$source: Partial<PaymentAllocation> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("paymentId" in $$source)) {
+            this["paymentId"] = "";
+        }
+        if (!("grossAmount" in $$source)) {
+            this["grossAmount"] = 0;
+        }
+        if (!("advanceAdjusted" in $$source)) {
+            this["advanceAdjusted"] = 0;
+        }
+        if (!("deductions" in $$source)) {
+            this["deductions"] = 0;
+        }
+        if (!("netPaidAmount" in $$source)) {
+            this["netPaidAmount"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PaymentAllocation instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PaymentAllocation {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PaymentAllocation($$parsedSource as Partial<PaymentAllocation>);
+    }
+}
+
+/**
+ * PaymentAllocationInput carries allocation details for payment processing.
+ */
+export class PaymentAllocationInput {
+    "poId"?: string;
+    "poMilestoneId"?: string;
+    "invoiceId"?: string;
+    "shipmentId"?: string;
+    "grossAmount": number;
+    "advanceAdjusted": number;
+    "deductions": number;
+    "notes"?: string;
+
+    /** Creates a new PaymentAllocationInput instance. */
+    constructor($$source: Partial<PaymentAllocationInput> = {}) {
+        if (!("grossAmount" in $$source)) {
+            this["grossAmount"] = 0;
+        }
+        if (!("advanceAdjusted" in $$source)) {
+            this["advanceAdjusted"] = 0;
+        }
+        if (!("deductions" in $$source)) {
+            this["deductions"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PaymentAllocationInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PaymentAllocationInput {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PaymentAllocationInput($$parsedSource as Partial<PaymentAllocationInput>);
+    }
+}
+
+/**
+ * PaymentAnnexure encapsulates the complete dossier for bank remittance / finance approval.
+ */
+export class PaymentAnnexure {
+    "annexureNumber": string;
+    "paymentVoucherNumber": string;
+    "generatedDate": string;
+    "paymentDate": string;
+    "paymentMode": string;
+    "remitterCompany": string;
+    "remitterBank": string;
+    "remitterAccount": string;
+
+    /**
+     * UTR / Cheque Ref
+     */
+    "referenceNumber": string;
+    "supplierId": string;
+    "supplierName": string;
+    "supplierAddress": string;
+    "supplierCountry": string;
+    "beneficiaryName": string;
+    "beneficiaryBank": string;
+    "beneficiaryAccount": string;
+    "beneficiarySwift": string;
+    "beneficiaryIban": string;
+    "currency": string;
+    "exchangeRate": number;
+    "items": PaymentAnnexureItem[];
+    "totalGrossAmount": number;
+    "totalAdvanceAdjusted": number;
+    "totalDeductions": number;
+    "totalNetAmount": number;
+    "netAmountInWords": string;
+    "notes": string;
+    "preparedBy": string;
+    "checkedBy": string;
+    "approvedBy": string;
+
+    /** Creates a new PaymentAnnexure instance. */
+    constructor($$source: Partial<PaymentAnnexure> = {}) {
+        if (!("annexureNumber" in $$source)) {
+            this["annexureNumber"] = "";
+        }
+        if (!("paymentVoucherNumber" in $$source)) {
+            this["paymentVoucherNumber"] = "";
+        }
+        if (!("generatedDate" in $$source)) {
+            this["generatedDate"] = "";
+        }
+        if (!("paymentDate" in $$source)) {
+            this["paymentDate"] = "";
+        }
+        if (!("paymentMode" in $$source)) {
+            this["paymentMode"] = "";
+        }
+        if (!("remitterCompany" in $$source)) {
+            this["remitterCompany"] = "";
+        }
+        if (!("remitterBank" in $$source)) {
+            this["remitterBank"] = "";
+        }
+        if (!("remitterAccount" in $$source)) {
+            this["remitterAccount"] = "";
+        }
+        if (!("referenceNumber" in $$source)) {
+            this["referenceNumber"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("supplierName" in $$source)) {
+            this["supplierName"] = "";
+        }
+        if (!("supplierAddress" in $$source)) {
+            this["supplierAddress"] = "";
+        }
+        if (!("supplierCountry" in $$source)) {
+            this["supplierCountry"] = "";
+        }
+        if (!("beneficiaryName" in $$source)) {
+            this["beneficiaryName"] = "";
+        }
+        if (!("beneficiaryBank" in $$source)) {
+            this["beneficiaryBank"] = "";
+        }
+        if (!("beneficiaryAccount" in $$source)) {
+            this["beneficiaryAccount"] = "";
+        }
+        if (!("beneficiarySwift" in $$source)) {
+            this["beneficiarySwift"] = "";
+        }
+        if (!("beneficiaryIban" in $$source)) {
+            this["beneficiaryIban"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("exchangeRate" in $$source)) {
+            this["exchangeRate"] = 0;
+        }
+        if (!("items" in $$source)) {
+            this["items"] = [];
+        }
+        if (!("totalGrossAmount" in $$source)) {
+            this["totalGrossAmount"] = 0;
+        }
+        if (!("totalAdvanceAdjusted" in $$source)) {
+            this["totalAdvanceAdjusted"] = 0;
+        }
+        if (!("totalDeductions" in $$source)) {
+            this["totalDeductions"] = 0;
+        }
+        if (!("totalNetAmount" in $$source)) {
+            this["totalNetAmount"] = 0;
+        }
+        if (!("netAmountInWords" in $$source)) {
+            this["netAmountInWords"] = "";
+        }
+        if (!("notes" in $$source)) {
+            this["notes"] = "";
+        }
+        if (!("preparedBy" in $$source)) {
+            this["preparedBy"] = "";
+        }
+        if (!("checkedBy" in $$source)) {
+            this["checkedBy"] = "";
+        }
+        if (!("approvedBy" in $$source)) {
+            this["approvedBy"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PaymentAnnexure instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PaymentAnnexure {
+        const $$createField20_0 = $$createType77;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("items" in $$parsedSource) {
+            $$parsedSource["items"] = $$createField20_0($$parsedSource["items"]);
+        }
+        return new PaymentAnnexure($$parsedSource as Partial<PaymentAnnexure>);
+    }
+}
+
+/**
+ * PaymentAnnexureItem represents a line item in a formal payment annexure document.
+ */
+export class PaymentAnnexureItem {
+    "slNo": number;
+
+    /**
+     * "PO Advance", "Commercial Invoice"
+     */
+    "documentType": string;
+    "documentNumber": string;
+    "documentDate": string;
+    "grossAmount": number;
+    "advanceAdjusted": number;
+    "deductions": number;
+    "netAmount": number;
+    "paymentTermMilestone": string;
+    "remarks": string;
+
+    /** Creates a new PaymentAnnexureItem instance. */
+    constructor($$source: Partial<PaymentAnnexureItem> = {}) {
+        if (!("slNo" in $$source)) {
+            this["slNo"] = 0;
+        }
+        if (!("documentType" in $$source)) {
+            this["documentType"] = "";
+        }
+        if (!("documentNumber" in $$source)) {
+            this["documentNumber"] = "";
+        }
+        if (!("documentDate" in $$source)) {
+            this["documentDate"] = "";
+        }
+        if (!("grossAmount" in $$source)) {
+            this["grossAmount"] = 0;
+        }
+        if (!("advanceAdjusted" in $$source)) {
+            this["advanceAdjusted"] = 0;
+        }
+        if (!("deductions" in $$source)) {
+            this["deductions"] = 0;
+        }
+        if (!("netAmount" in $$source)) {
+            this["netAmount"] = 0;
+        }
+        if (!("paymentTermMilestone" in $$source)) {
+            this["paymentTermMilestone"] = "";
+        }
+        if (!("remarks" in $$source)) {
+            this["remarks"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PaymentAnnexureItem instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PaymentAnnexureItem {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PaymentAnnexureItem($$parsedSource as Partial<PaymentAnnexureItem>);
+    }
+}
+
+/**
+ * PaymentInput carries the payload for creating a payment voucher.
+ */
+export class PaymentInput {
+    "paymentDate": string;
+    "supplierId": string;
+    "paymentType": string;
+    "paymentMode": string;
+    "currency": string;
+    "exchangeRate": number;
+    "totalAmount": number;
+    "bankName": string;
+    "bankAccountNo": string;
+    "referenceNumber": string;
+    "beneficiaryName"?: string;
+    "beneficiaryBank"?: string;
+    "beneficiaryAccount"?: string;
+    "beneficiarySwift"?: string;
+    "beneficiaryIban"?: string;
+    "notes"?: string;
+    "allocations": PaymentAllocationInput[];
+
+    /** Creates a new PaymentInput instance. */
+    constructor($$source: Partial<PaymentInput> = {}) {
+        if (!("paymentDate" in $$source)) {
+            this["paymentDate"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("paymentType" in $$source)) {
+            this["paymentType"] = "";
+        }
+        if (!("paymentMode" in $$source)) {
+            this["paymentMode"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("exchangeRate" in $$source)) {
+            this["exchangeRate"] = 0;
+        }
+        if (!("totalAmount" in $$source)) {
+            this["totalAmount"] = 0;
+        }
+        if (!("bankName" in $$source)) {
+            this["bankName"] = "";
+        }
+        if (!("bankAccountNo" in $$source)) {
+            this["bankAccountNo"] = "";
+        }
+        if (!("referenceNumber" in $$source)) {
+            this["referenceNumber"] = "";
+        }
+        if (!("allocations" in $$source)) {
+            this["allocations"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PaymentInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PaymentInput {
+        const $$createField16_0 = $$createType79;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("allocations" in $$parsedSource) {
+            $$parsedSource["allocations"] = $$createField16_0($$parsedSource["allocations"]);
+        }
+        return new PaymentInput($$parsedSource as Partial<PaymentInput>);
+    }
+}
+
+/**
+ * PaymentPage returns paginated Payment records and metadata totals.
+ */
+export class PaymentPage {
+    "items": Payment[];
+    "totalCount": number;
+    "page": number;
+    "pageSize": number;
+
+    /** Creates a new PaymentPage instance. */
+    constructor($$source: Partial<PaymentPage> = {}) {
+        if (!("items" in $$source)) {
+            this["items"] = [];
+        }
+        if (!("totalCount" in $$source)) {
+            this["totalCount"] = 0;
+        }
+        if (!("page" in $$source)) {
+            this["page"] = 0;
+        }
+        if (!("pageSize" in $$source)) {
+            this["pageSize"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PaymentPage instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PaymentPage {
+        const $$createField0_0 = $$createType81;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("items" in $$parsedSource) {
+            $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
+        }
+        return new PaymentPage($$parsedSource as Partial<PaymentPage>);
+    }
+}
+
+/**
+ * PaymentPageRequest specifies filters, sorting, and pagination for Payments.
+ */
+export class PaymentPageRequest {
+    "search"?: string;
+    "supplierId"?: string;
+    "paymentType"?: string;
+    "status"?: string;
+    "startDate"?: string;
+    "endDate"?: string;
+    "page": number;
+    "pageSize": number;
+
+    /** Creates a new PaymentPageRequest instance. */
+    constructor($$source: Partial<PaymentPageRequest> = {}) {
+        if (!("page" in $$source)) {
+            this["page"] = 0;
+        }
+        if (!("pageSize" in $$source)) {
+            this["pageSize"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PaymentPageRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PaymentPageRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PaymentPageRequest($$parsedSource as Partial<PaymentPageRequest>);
+    }
+}
+
+/**
+ * PurchaseOrder mirrors a row in purchase_orders with supplier metadata and computed financial balances.
+ */
+export class PurchaseOrder {
+    "id": string;
+    "poNumber": string;
+    "poDate": string;
+    "supplierId": string;
+    "supplierName"?: string;
+    "currency": string;
+    "exchangeRate": number;
+    "incoterm": string;
+
+    /**
+     * "100_ADVANCE", "40_40_20", "30_30_40", "50_50", "CUSTOM"
+     */
+    "paymentTermsPreset": string;
+    "paymentTermsDesc": string;
+    "totalAmount": number;
+
+    /**
+     * "DRAFT", "CONFIRMED", "PARTIALLY_PAID", "FULLY_PAID", "COMPLETED", "CANCELLED"
+     */
+    "status": string;
+    "expectedDeliveryDate"?: string;
+    "notes"?: string;
+    "advanceRequired": number;
+    "advancePaid": number;
+    "advanceBalance": number;
+    "totalPaid": number;
+    "totalBalance": number;
+    "lineItems"?: POLineItem[];
+    "milestones"?: POPaymentMilestone[];
+    "createdAt": string;
+    "updatedAt": string;
+
+    /** Creates a new PurchaseOrder instance. */
+    constructor($$source: Partial<PurchaseOrder> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("poNumber" in $$source)) {
+            this["poNumber"] = "";
+        }
+        if (!("poDate" in $$source)) {
+            this["poDate"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("exchangeRate" in $$source)) {
+            this["exchangeRate"] = 0;
+        }
+        if (!("incoterm" in $$source)) {
+            this["incoterm"] = "";
+        }
+        if (!("paymentTermsPreset" in $$source)) {
+            this["paymentTermsPreset"] = "";
+        }
+        if (!("paymentTermsDesc" in $$source)) {
+            this["paymentTermsDesc"] = "";
+        }
+        if (!("totalAmount" in $$source)) {
+            this["totalAmount"] = 0;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("advanceRequired" in $$source)) {
+            this["advanceRequired"] = 0;
+        }
+        if (!("advancePaid" in $$source)) {
+            this["advancePaid"] = 0;
+        }
+        if (!("advanceBalance" in $$source)) {
+            this["advanceBalance"] = 0;
+        }
+        if (!("totalPaid" in $$source)) {
+            this["totalPaid"] = 0;
+        }
+        if (!("totalBalance" in $$source)) {
+            this["totalBalance"] = 0;
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PurchaseOrder instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PurchaseOrder {
+        const $$createField19_0 = $$createType83;
+        const $$createField20_0 = $$createType85;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("lineItems" in $$parsedSource) {
+            $$parsedSource["lineItems"] = $$createField19_0($$parsedSource["lineItems"]);
+        }
+        if ("milestones" in $$parsedSource) {
+            $$parsedSource["milestones"] = $$createField20_0($$parsedSource["milestones"]);
+        }
+        return new PurchaseOrder($$parsedSource as Partial<PurchaseOrder>);
+    }
+}
+
+/**
+ * PurchaseOrderInput submits or updates a complete Purchase Order dossier.
+ */
+export class PurchaseOrderInput {
+    "id"?: string;
+    "poNumber": string;
+    "poDate": string;
+    "supplierId": string;
+    "currency": string;
+    "exchangeRate": number;
+    "incoterm": string;
+    "paymentTermsPreset": string;
+    "paymentTermsDesc"?: string;
+    "status"?: string;
+    "expectedDeliveryDate"?: string;
+    "notes"?: string;
+    "lineItems": POLineItemInput[];
+    "milestones"?: POMilestoneInput[];
+
+    /** Creates a new PurchaseOrderInput instance. */
+    constructor($$source: Partial<PurchaseOrderInput> = {}) {
+        if (!("poNumber" in $$source)) {
+            this["poNumber"] = "";
+        }
+        if (!("poDate" in $$source)) {
+            this["poDate"] = "";
+        }
+        if (!("supplierId" in $$source)) {
+            this["supplierId"] = "";
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("exchangeRate" in $$source)) {
+            this["exchangeRate"] = 0;
+        }
+        if (!("incoterm" in $$source)) {
+            this["incoterm"] = "";
+        }
+        if (!("paymentTermsPreset" in $$source)) {
+            this["paymentTermsPreset"] = "";
+        }
+        if (!("lineItems" in $$source)) {
+            this["lineItems"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PurchaseOrderInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PurchaseOrderInput {
+        const $$createField12_0 = $$createType87;
+        const $$createField13_0 = $$createType89;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("lineItems" in $$parsedSource) {
+            $$parsedSource["lineItems"] = $$createField12_0($$parsedSource["lineItems"]);
+        }
+        if ("milestones" in $$parsedSource) {
+            $$parsedSource["milestones"] = $$createField13_0($$parsedSource["milestones"]);
+        }
+        return new PurchaseOrderInput($$parsedSource as Partial<PurchaseOrderInput>);
+    }
+}
+
+/**
+ * PurchaseOrderPage returns paginated PO records and metadata totals.
+ */
+export class PurchaseOrderPage {
+    "items": PurchaseOrder[];
+    "totalCount": number;
+    "page": number;
+    "pageSize": number;
+
+    /** Creates a new PurchaseOrderPage instance. */
+    constructor($$source: Partial<PurchaseOrderPage> = {}) {
+        if (!("items" in $$source)) {
+            this["items"] = [];
+        }
+        if (!("totalCount" in $$source)) {
+            this["totalCount"] = 0;
+        }
+        if (!("page" in $$source)) {
+            this["page"] = 0;
+        }
+        if (!("pageSize" in $$source)) {
+            this["pageSize"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PurchaseOrderPage instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PurchaseOrderPage {
+        const $$createField0_0 = $$createType91;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("items" in $$parsedSource) {
+            $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
+        }
+        return new PurchaseOrderPage($$parsedSource as Partial<PurchaseOrderPage>);
+    }
+}
+
+/**
+ * PurchaseOrderPageRequest specifies filters, sorting, and pagination for POs.
+ */
+export class PurchaseOrderPageRequest {
+    "search"?: string;
+    "supplierId"?: string;
+    "status"?: string;
+    "sortBy"?: string;
+    "sortDir"?: string;
+    "page": number;
+    "pageSize": number;
+
+    /** Creates a new PurchaseOrderPageRequest instance. */
+    constructor($$source: Partial<PurchaseOrderPageRequest> = {}) {
+        if (!("page" in $$source)) {
+            this["page"] = 0;
+        }
+        if (!("pageSize" in $$source)) {
+            this["pageSize"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PurchaseOrderPageRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PurchaseOrderPageRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PurchaseOrderPageRequest($$parsedSource as Partial<PurchaseOrderPageRequest>);
+    }
+}
+
+/**
+ * ReconciledInvoiceItem represents an invoice matched against a PO advance.
+ */
+export class ReconciledInvoiceItem {
+    "invoiceId": string;
+    "shipmentId": string;
+    "invoiceNumber": string;
+    "invoiceDate": string;
+    "invoiceValue": number;
+    "currency": string;
+    "advanceAllocated": number;
+    "directPaid": number;
+    "balanceRemaining": number;
+    "status": string;
+
+    /** Creates a new ReconciledInvoiceItem instance. */
+    constructor($$source: Partial<ReconciledInvoiceItem> = {}) {
+        if (!("invoiceId" in $$source)) {
+            this["invoiceId"] = "";
+        }
+        if (!("shipmentId" in $$source)) {
+            this["shipmentId"] = "";
+        }
+        if (!("invoiceNumber" in $$source)) {
+            this["invoiceNumber"] = "";
+        }
+        if (!("invoiceDate" in $$source)) {
+            this["invoiceDate"] = "";
+        }
+        if (!("invoiceValue" in $$source)) {
+            this["invoiceValue"] = 0;
+        }
+        if (!("currency" in $$source)) {
+            this["currency"] = "";
+        }
+        if (!("advanceAllocated" in $$source)) {
+            this["advanceAllocated"] = 0;
+        }
+        if (!("directPaid" in $$source)) {
+            this["directPaid"] = 0;
+        }
+        if (!("balanceRemaining" in $$source)) {
+            this["balanceRemaining"] = 0;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ReconciledInvoiceItem instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ReconciledInvoiceItem {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ReconciledInvoiceItem($$parsedSource as Partial<ReconciledInvoiceItem>);
+    }
+}
+
+/**
  * RecordErrorInput captures a runtime error for deduplicated persistence in error_memory.
  */
 export class RecordErrorInput {
@@ -6361,8 +7854,8 @@ export class RecycleBinActionResult {
      * Creates a new RecycleBinActionResult instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinActionResult {
-        const $$createField7_0 = $$createType73;
-        const $$createField8_0 = $$createType19;
+        const $$createField7_0 = $$createType93;
+        const $$createField8_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("missingParents" in $$parsedSource) {
             $$parsedSource["missingParents"] = $$createField7_0($$parsedSource["missingParents"]);
@@ -6429,8 +7922,8 @@ export class RecycleBinListResponse {
      * Creates a new RecycleBinListResponse instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinListResponse {
-        const $$createField8_0 = $$createType31;
-        const $$createField9_0 = $$createType75;
+        const $$createField8_0 = $$createType33;
+        const $$createField9_0 = $$createType95;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("perTableCounts" in $$parsedSource) {
             $$parsedSource["perTableCounts"] = $$createField8_0($$parsedSource["perTableCounts"]);
@@ -6482,7 +7975,7 @@ export class RecycleBinRecord {
      * Creates a new RecycleBinRecord instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinRecord {
-        const $$createField6_0 = $$createType16;
+        const $$createField6_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rawFields" in $$parsedSource) {
             $$parsedSource["rawFields"] = $$createField6_0($$parsedSource["rawFields"]);
@@ -6613,7 +8106,7 @@ export class RestoreVerificationSummary {
      * Creates a new RestoreVerificationSummary instance from a string or object.
      */
     static createFrom($$source: any = {}): RestoreVerificationSummary {
-        const $$createField8_0 = $$createType31;
+        const $$createField8_0 = $$createType33;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tableCounts" in $$parsedSource) {
             $$parsedSource["tableCounts"] = $$createField8_0($$parsedSource["tableCounts"]);
@@ -6665,7 +8158,7 @@ export class RuleRiskAssessment {
      * Creates a new RuleRiskAssessment instance from a string or object.
      */
     static createFrom($$source: any = {}): RuleRiskAssessment {
-        const $$createField5_0 = $$createType15;
+        const $$createField5_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("factors" in $$parsedSource) {
             $$parsedSource["factors"] = $$createField5_0($$parsedSource["factors"]);
@@ -6798,7 +8291,7 @@ export class SaveInvoiceRequest {
      * Creates a new SaveInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): SaveInvoiceRequest {
-        const $$createField6_0 = $$createType77;
+        const $$createField6_0 = $$createType97;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField6_0($$parsedSource["lines"]);
@@ -7430,11 +8923,11 @@ export class ShipmentDetail {
      * Creates a new ShipmentDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentDetail {
-        const $$createField0_0 = $$createType4;
-        const $$createField1_0 = $$createType78;
-        const $$createField2_0 = $$createType80;
-        const $$createField3_0 = $$createType82;
-        const $$createField4_0 = $$createType84;
+        const $$createField0_0 = $$createType6;
+        const $$createField1_0 = $$createType98;
+        const $$createField2_0 = $$createType100;
+        const $$createField3_0 = $$createType102;
+        const $$createField4_0 = $$createType104;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("shipment" in $$parsedSource) {
             $$parsedSource["shipment"] = $$createField0_0($$parsedSource["shipment"]);
@@ -7554,7 +9047,7 @@ export class ShipmentInput {
      * Creates a new ShipmentInput instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentInput {
-        const $$createField29_0 = $$createType86;
+        const $$createField29_0 = $$createType106;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("containers" in $$parsedSource) {
             $$parsedSource["containers"] = $$createField29_0($$parsedSource["containers"]);
@@ -7682,7 +9175,7 @@ export class ShipmentPage {
      * Creates a new ShipmentPage instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentPage {
-        const $$createField0_0 = $$createType87;
+        const $$createField0_0 = $$createType107;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -7898,7 +9391,7 @@ export class SupplierHistorySummary {
      * Creates a new SupplierHistorySummary instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierHistorySummary {
-        const $$createField4_0 = $$createType89;
+        const $$createField4_0 = $$createType109;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recentRecords" in $$parsedSource) {
             $$parsedSource["recentRecords"] = $$createField4_0($$parsedSource["recentRecords"]);
@@ -8011,7 +9504,7 @@ export class SupplierPage {
      * Creates a new SupplierPage instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierPage {
-        const $$createField0_0 = $$createType91;
+        const $$createField0_0 = $$createType111;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -8206,9 +9699,9 @@ export class TransitShipmentReport {
      * Creates a new TransitShipmentReport instance from a string or object.
      */
     static createFrom($$source: any = {}): TransitShipmentReport {
-        const $$createField0_0 = $$createType92;
-        const $$createField1_0 = $$createType94;
-        const $$createField2_0 = $$createType96;
+        const $$createField0_0 = $$createType112;
+        const $$createField1_0 = $$createType114;
+        const $$createField2_0 = $$createType116;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("summary" in $$parsedSource) {
             $$parsedSource["summary"] = $$createField0_0($$parsedSource["summary"]);
@@ -8552,100 +10045,120 @@ export class WorkflowRule {
 }
 
 // Private type creation functions
-const $$createType0 = ModuleDisplaySettings.createFrom;
-const $$createType1 = $Create.Map($Create.Any, $$createType0);
-const $$createType2 = BOECalculationItemInput.createFrom;
-const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = Shipment.createFrom;
-const $$createType5 = BOECalcParams.createFrom;
-const $$createType6 = BOECalculationResult.createFrom;
-const $$createType7 = BOEAttachment.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = BOEReconciliationDiff.createFrom;
-const $$createType10 = BOECalcLineResult.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = IncotermRule.createFrom;
-const $$createType13 = CSVImportRowError.createFrom;
-const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = $Create.Array($Create.Any);
-const $$createType16 = $Create.Map($Create.Any, $Create.Any);
-const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = DependencyCount.createFrom;
+const $$createType0 = ReconciledInvoiceItem.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = ModuleDisplaySettings.createFrom;
+const $$createType3 = $Create.Map($Create.Any, $$createType2);
+const $$createType4 = BOECalculationItemInput.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = Shipment.createFrom;
+const $$createType7 = BOECalcParams.createFrom;
+const $$createType8 = BOECalculationResult.createFrom;
+const $$createType9 = BOEAttachment.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = BOEReconciliationDiff.createFrom;
+const $$createType12 = BOECalcLineResult.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = IncotermRule.createFrom;
+const $$createType15 = CSVImportRowError.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = $Create.Array($Create.Any);
+const $$createType18 = $Create.Map($Create.Any, $Create.Any);
 const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = DashboardKPIs.createFrom;
-const $$createType21 = DashboardMonthlyTrend.createFrom;
-const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = DashboardSupplierSummary.createFrom;
+const $$createType20 = DependencyCount.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = DashboardKPIs.createFrom;
+const $$createType23 = DashboardMonthlyTrend.createFrom;
 const $$createType24 = $Create.Array($$createType23);
-const $$createType25 = DashboardStatusCount.createFrom;
+const $$createType25 = DashboardSupplierSummary.createFrom;
 const $$createType26 = $Create.Array($$createType25);
-const $$createType27 = DashboardActivityItem.createFrom;
+const $$createType27 = DashboardStatusCount.createFrom;
 const $$createType28 = $Create.Array($$createType27);
-const $$createType29 = DashboardAlertItem.createFrom;
+const $$createType29 = DashboardActivityItem.createFrom;
 const $$createType30 = $Create.Array($$createType29);
-const $$createType31 = $Create.Map($Create.Any, $Create.Any);
-const $$createType32 = ExpenseLine.createFrom;
-const $$createType33 = $Create.Array($$createType32);
-const $$createType34 = ExpenseLineCalculation.createFrom;
+const $$createType31 = DashboardAlertItem.createFrom;
+const $$createType32 = $Create.Array($$createType31);
+const $$createType33 = $Create.Map($Create.Any, $Create.Any);
+const $$createType34 = ExpenseLine.createFrom;
 const $$createType35 = $Create.Array($$createType34);
-const $$createType36 = ExpenseLineInput.createFrom;
+const $$createType36 = ExpenseLineCalculation.createFrom;
 const $$createType37 = $Create.Array($$createType36);
-const $$createType38 = ExpenseReportDetailedRow.createFrom;
+const $$createType38 = ExpenseLineInput.createFrom;
 const $$createType39 = $Create.Array($$createType38);
-const $$createType40 = ExpenseReportGroup.createFrom;
+const $$createType40 = ExpenseReportDetailedRow.createFrom;
 const $$createType41 = $Create.Array($$createType40);
-const $$createType42 = InvoiceSummary.createFrom;
-const $$createType43 = InvoiceLineItem.createFrom;
-const $$createType44 = $Create.Array($$createType43);
-const $$createType45 = Item.createFrom;
+const $$createType42 = ExpenseReportGroup.createFrom;
+const $$createType43 = $Create.Array($$createType42);
+const $$createType44 = InvoiceSummary.createFrom;
+const $$createType45 = InvoiceLineItem.createFrom;
 const $$createType46 = $Create.Array($$createType45);
-const $$createType47 = LandedCostRow.createFrom;
+const $$createType47 = Item.createFrom;
 const $$createType48 = $Create.Array($$createType47);
-const $$createType49 = LandedCostSummary.createFrom;
-const $$createType50 = LegacyTableInspect.createFrom;
-const $$createType51 = $Create.Array($$createType50);
-const $$createType52 = LegacyFinancialSummary.createFrom;
-const $$createType53 = $Create.Map($Create.Any, $Create.Any);
-const $$createType54 = BackgroundJob.createFrom;
-const $$createType55 = $Create.Array($$createType54);
-const $$createType56 = FailureForecast.createFrom;
+const $$createType49 = LandedCostRow.createFrom;
+const $$createType50 = $Create.Array($$createType49);
+const $$createType51 = LandedCostSummary.createFrom;
+const $$createType52 = LegacyTableInspect.createFrom;
+const $$createType53 = $Create.Array($$createType52);
+const $$createType54 = LegacyFinancialSummary.createFrom;
+const $$createType55 = $Create.Map($Create.Any, $Create.Any);
+const $$createType56 = BackgroundJob.createFrom;
 const $$createType57 = $Create.Array($$createType56);
-const $$createType58 = WorkflowIncident.createFrom;
+const $$createType58 = FailureForecast.createFrom;
 const $$createType59 = $Create.Array($$createType58);
-const $$createType60 = PartItemMasterInfo.createFrom;
-const $$createType61 = PartPeriodSummary.createFrom;
-const $$createType62 = PartShipmentRow.createFrom;
-const $$createType63 = $Create.Array($$createType62);
-const $$createType64 = PartBOERow.createFrom;
+const $$createType60 = WorkflowIncident.createFrom;
+const $$createType61 = $Create.Array($$createType60);
+const $$createType62 = PartItemMasterInfo.createFrom;
+const $$createType63 = PartPeriodSummary.createFrom;
+const $$createType64 = PartShipmentRow.createFrom;
 const $$createType65 = $Create.Array($$createType64);
-const $$createType66 = PartExpenseRow.createFrom;
+const $$createType66 = PartBOERow.createFrom;
 const $$createType67 = $Create.Array($$createType66);
-const $$createType68 = PartTrendPoint.createFrom;
+const $$createType68 = PartExpenseRow.createFrom;
 const $$createType69 = $Create.Array($$createType68);
-const $$createType70 = PartLookupItem.createFrom;
+const $$createType70 = PartTrendPoint.createFrom;
 const $$createType71 = $Create.Array($$createType70);
-const $$createType72 = MissingParentGroup.createFrom;
+const $$createType72 = PartLookupItem.createFrom;
 const $$createType73 = $Create.Array($$createType72);
-const $$createType74 = RecycleBinRecord.createFrom;
+const $$createType74 = PaymentAllocation.createFrom;
 const $$createType75 = $Create.Array($$createType74);
-const $$createType76 = InvoiceLineInput.createFrom;
+const $$createType76 = PaymentAnnexureItem.createFrom;
 const $$createType77 = $Create.Array($$createType76);
-const $$createType78 = $Create.Array($$createType42);
-const $$createType79 = ShipmentLinkedBOE.createFrom;
-const $$createType80 = $Create.Array($$createType79);
-const $$createType81 = ShipmentLinkedExpense.createFrom;
-const $$createType82 = $Create.Array($$createType81);
-const $$createType83 = ShipmentContainer.createFrom;
-const $$createType84 = $Create.Array($$createType83);
-const $$createType85 = ShipmentContainerInput.createFrom;
-const $$createType86 = $Create.Array($$createType85);
-const $$createType87 = $Create.Array($$createType4);
-const $$createType88 = SupplierHistoryItem.createFrom;
+const $$createType78 = PaymentAllocationInput.createFrom;
+const $$createType79 = $Create.Array($$createType78);
+const $$createType80 = Payment.createFrom;
+const $$createType81 = $Create.Array($$createType80);
+const $$createType82 = POLineItem.createFrom;
+const $$createType83 = $Create.Array($$createType82);
+const $$createType84 = POPaymentMilestone.createFrom;
+const $$createType85 = $Create.Array($$createType84);
+const $$createType86 = POLineItemInput.createFrom;
+const $$createType87 = $Create.Array($$createType86);
+const $$createType88 = POMilestoneInput.createFrom;
 const $$createType89 = $Create.Array($$createType88);
-const $$createType90 = Supplier.createFrom;
+const $$createType90 = PurchaseOrder.createFrom;
 const $$createType91 = $Create.Array($$createType90);
-const $$createType92 = TransitShipmentSummary.createFrom;
-const $$createType93 = TransitStatusCount.createFrom;
-const $$createType94 = $Create.Array($$createType93);
-const $$createType95 = TransitShipmentItem.createFrom;
-const $$createType96 = $Create.Array($$createType95);
+const $$createType92 = MissingParentGroup.createFrom;
+const $$createType93 = $Create.Array($$createType92);
+const $$createType94 = RecycleBinRecord.createFrom;
+const $$createType95 = $Create.Array($$createType94);
+const $$createType96 = InvoiceLineInput.createFrom;
+const $$createType97 = $Create.Array($$createType96);
+const $$createType98 = $Create.Array($$createType44);
+const $$createType99 = ShipmentLinkedBOE.createFrom;
+const $$createType100 = $Create.Array($$createType99);
+const $$createType101 = ShipmentLinkedExpense.createFrom;
+const $$createType102 = $Create.Array($$createType101);
+const $$createType103 = ShipmentContainer.createFrom;
+const $$createType104 = $Create.Array($$createType103);
+const $$createType105 = ShipmentContainerInput.createFrom;
+const $$createType106 = $Create.Array($$createType105);
+const $$createType107 = $Create.Array($$createType6);
+const $$createType108 = SupplierHistoryItem.createFrom;
+const $$createType109 = $Create.Array($$createType108);
+const $$createType110 = Supplier.createFrom;
+const $$createType111 = $Create.Array($$createType110);
+const $$createType112 = TransitShipmentSummary.createFrom;
+const $$createType113 = TransitStatusCount.createFrom;
+const $$createType114 = $Create.Array($$createType113);
+const $$createType115 = TransitShipmentItem.createFrom;
+const $$createType116 = $Create.Array($$createType115);

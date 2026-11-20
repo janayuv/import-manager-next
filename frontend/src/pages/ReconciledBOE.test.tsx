@@ -145,6 +145,7 @@ const mockDetail: BOECalculationDetail = {
     swsTotal: 39249,
     igstTotal: 434360,
     interest: 0,
+    roundOffAdjustment: 0,
     customsDutyTotal: 866103,
     cashCustomsDutyTotal: 866103,
     hasBlockingBcdOverride: false,

@@ -42,6 +42,7 @@ func main() {
 			application.NewService(rt.Shipments),
 			application.NewService(rt.Invoices),
 			application.NewService(rt.InvoiceWizard),
+			application.NewService(rt.PaymentPO),
 			application.NewService(rt.BOE),
 			application.NewService(rt.BOEEntry),
 			application.NewService(rt.BOESummary),

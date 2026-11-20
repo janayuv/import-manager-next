@@ -30,6 +30,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/item_master"
 	memService "github.com/janayuv/import-manager-next/backend/services/memory"
 	"github.com/janayuv/import-manager-next/backend/services/options"
+	"github.com/janayuv/import-manager-next/backend/services/payment_po"
 	"github.com/janayuv/import-manager-next/backend/services/recycle_bin"
 	"github.com/janayuv/import-manager-next/backend/services/reports"
 	"github.com/janayuv/import-manager-next/backend/services/security"
@@ -57,6 +58,7 @@ type Runtime struct {
 	Shipments          *shipment.Service
 	Invoices           *invoice.Service
 	InvoiceWizard      *invoice_wizard.Service
+	PaymentPO          *payment_po.Service
 	BOE                *boe.Service
 	BOEEntry           *boe_entry.Service
 	BOESummary         *boe_summary.Service
@@ -154,6 +156,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 	shipSvc := shipment.NewService(dbMgr.DB(), securitySvc, auditSvc)
 	invSvc := invoice.NewService(dbMgr.DB(), securitySvc, auditSvc)
 	wizSvc := invoice_wizard.NewService(dbMgr.DB(), securitySvc, auditSvc)
+	paymentPOSvc := payment_po.NewService(dbMgr.DB(), securitySvc, auditSvc)
 	boeSvc := boe.NewService(dbMgr.DB(), securitySvc, auditSvc, cfg.Paths.AttachmentsDir)
 	boeEntrySvc := boe_entry.NewService(dbMgr.DB(), securitySvc, auditSvc)
 	boeSummarySvc := boe_summary.NewService(dbMgr.DB(), securitySvc, auditSvc)
@@ -212,6 +215,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		Shipments:          shipSvc,
 		Invoices:           invSvc,
 		InvoiceWizard:      wizSvc,
+		PaymentPO:          paymentPOSvc,
 		BOE:                boeSvc,
 		BOEEntry:           boeEntrySvc,
 		BOESummary:         boeSummarySvc,

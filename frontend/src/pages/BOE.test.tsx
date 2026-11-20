@@ -1030,12 +1030,11 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
           incoterm: 'CIF',
           status: 'in-transit',
           isFrozen: false,
-        } as unknown as Shipment,
+        } as any,
       ],
-      total: 1,
+      totalCount: 1,
       page: 1,
       pageSize: 50,
-      totalPages: 1,
     });
 
     vi.mocked(boeService.list).mockResolvedValue([
@@ -1062,7 +1061,7 @@ describe('Stage 6: BOE Registry & Duty Calculation Engine', () => {
         invoiceCurrency: 'USD',
         incoterm: 'CIF',
         status: 'in-transit',
-      } as unknown as Shipment,
+      } as any,
       params: {
         shipmentId: 'sh-roundoff',
         boeId: 'boe-ro-1',
