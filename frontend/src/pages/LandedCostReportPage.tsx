@@ -30,6 +30,7 @@ import {
   type LandedCostReport,
 } from '@/services/expense-service';
 import { supplierService, type Supplier } from '@/services/master-service';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 
 export function LandedCostReportPage() {
   const navigate = useNavigate();
@@ -45,6 +46,21 @@ export function LandedCostReportPage() {
 
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [report, setReport] = React.useState<LandedCostReport | null>(null);
+
+  const { itemsPerPage: pageSize } = useModuleSettings('landedCost');
+  const [page, setPage] = React.useState(1);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [pageSize, startDate, endDate, supplierId, invoiceNo, partNo, search]);
+
+  const rows = report?.rows ?? [];
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return rows.slice(start, start + pageSize);
+  }, [rows, currentPage, pageSize]);
 
   React.useEffect(() => {
     void supplierService
@@ -292,7 +308,7 @@ export function LandedCostReportPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  report!.rows.map((r, idx) => {
+                  pagedRows.map((r, idx) => {
                     const totalQty = report!.summary.totalQuantity || 1;
                     const dynamicExpenses =
                       allocationMethod === 'qty'
@@ -339,6 +355,30 @@ export function LandedCostReportPage() {
                 )}
               </TableBody>
             </Table>
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

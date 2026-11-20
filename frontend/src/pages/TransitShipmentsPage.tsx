@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SkeletonTable } from '@/components/ui/skeleton';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import {
   exportTransitShipmentExcel,
   exportTransitShipmentTabularCSV,
@@ -121,8 +122,16 @@ export function TransitShipmentsPage() {
   const [endDate, setEndDate] = React.useState('');
 
   // Pagination & Sorting
+  const { itemsPerPage: defaultPageSize } = useModuleSettings('transitTracker');
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(15);
+  const [pageSize, setPageSize] = React.useState(defaultPageSize || 15);
+
+  React.useEffect(() => {
+    if (defaultPageSize && defaultPageSize > 0) {
+      setPageSize(defaultPageSize);
+      setCurrentPage(1);
+    }
+  }, [defaultPageSize]);
   const [sortBy, setSortBy] = React.useState<'invoiceDate' | 'etd' | 'eta' | 'transitDays' | 'supplierName' | 'invoiceNumber'>('invoiceDate');
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc');
 
@@ -796,6 +805,9 @@ export function TransitShipmentsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                {![10, 15, 25, 50, 100].includes(pageSize) && (
+                  <SelectItem value={String(pageSize)}>{pageSize}</SelectItem>
+                )}
                 <SelectItem value="10">10</SelectItem>
                 <SelectItem value="15">15</SelectItem>
                 <SelectItem value="25">25</SelectItem>
@@ -893,7 +905,7 @@ export function TransitShipmentsPage() {
                   {paginatedItems.map((item, idx) => {
                     const rowNumber = (currentPage - 1) * pageSize + idx + 1;
                     return (
-                      <TableRow key={item.id} className="hover:bg-muted/30">
+                      <TableRow key={item.id || item.invoiceNumber || idx} className="hover:bg-muted/30">
                         {/* 1. S.No. */}
                         <TableCell className="text-center font-mono text-xs text-muted-foreground">
                           {rowNumber}

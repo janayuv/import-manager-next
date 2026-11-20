@@ -92,10 +92,9 @@ export function BOERegistryPage() {
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
 
-  const { itemsPerPage: summaryPageSize } = useModuleSettings('boeSummary');
-  const [summaryPage, setSummaryPage] = React.useState(1);
-
   const { itemsPerPage: boePageSize } = useModuleSettings('boe');
+  const summaryPageSize = boePageSize;
+  const [summaryPage, setSummaryPage] = React.useState(1);
   const [boePage, setBoePage] = React.useState(1);
 
   const [details, setDetails] = React.useState<BOEDetail[]>([]);

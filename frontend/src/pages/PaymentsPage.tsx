@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModuleSettings } from '@/contexts/ThemeContext';
 import { useDebounce } from '@/hooks/useDebounce';
 import { exportPaymentAnnexureExcel, exportPaymentAnnexurePdf } from '@/lib/payment-annexure-export';
 import { supplierService, type Supplier } from '@/services/master-service';
@@ -68,9 +69,13 @@ export function PaymentsPage() {
   const debouncedSearch = useDebounce(search, 250);
   const [supplierFilter, setSupplierFilter] = React.useState('all');
   const [typeFilter, setTypeFilter] = React.useState('all');
-  const page = 1;
+  const { itemsPerPage: pageSize } = useModuleSettings('payments');
+  const [page, setPage] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
-  const pageSize = 15;
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [pageSize, debouncedSearch, supplierFilter, typeFilter]);
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
@@ -126,7 +131,7 @@ export function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, supplierFilter, typeFilter, page]);
+  }, [debouncedSearch, supplierFilter, typeFilter, page, pageSize]);
 
   React.useEffect(() => {
     loadPayments();
@@ -526,6 +531,30 @@ export function PaymentsPage() {
               )}
             </TableBody>
           </Table>
+
+          <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+            <span>
+              Page {page} of {Math.max(1, Math.ceil(totalCount / pageSize))}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= Math.max(1, Math.ceil(totalCount / pageSize))}
+                onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(totalCount / pageSize)), p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
