@@ -58,7 +58,6 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { downloadTextFile } from '@/lib/download';
-import { exportPartPeriodAnalysisExcel } from '@/lib/part-analysis-export';
 import {
   reportsService,
   type PartPeriodAnalysisResult,
@@ -289,6 +288,7 @@ export function PartPeriodAnalysisPage() {
     if (!data?.targetItem?.partNumber) return;
     setExportingExcel(true);
     try {
+      const { exportPartPeriodAnalysisExcel } = await import('@/lib/part-analysis-export');
       await exportPartPeriodAnalysisExcel(data);
       toast.success(`Exported professional Excel workbook for ${data.targetItem.partNumber}`);
     } catch (err) {

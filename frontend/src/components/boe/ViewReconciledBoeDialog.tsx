@@ -110,10 +110,10 @@ export function ViewReconciledBoeDialog({
     }
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!detail) return;
     try {
-      exportBOEPdf(detail.params, detail.result);
+      await exportBOEPdf(detail.params, detail.result);
       toast.success('Generated BOE calculation PDF');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));

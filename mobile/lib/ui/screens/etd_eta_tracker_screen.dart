@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../database/db_helper.dart';
@@ -16,11 +17,34 @@ class _EtdEtaTrackerScreenState extends State<EtdEtaTrackerScreen> {
   bool _loading = true;
   String _rangeFilter = 'all'; // all, week, 15days, delayed
   String _search = '';
+  late final TextEditingController _searchController;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    if ((_search.isEmpty && val.isNotEmpty) || (_search.isNotEmpty && val.isEmpty)) {
+      setState(() => _search = val);
+    } else {
+      _search = val;
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _loadData();
+    });
   }
 
   Future<void> _loadData() async {
@@ -56,10 +80,8 @@ class _EtdEtaTrackerScreenState extends State<EtdEtaTrackerScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: TextField(
-                onChanged: (val) {
-                  setState(() => _search = val);
-                  _loadData();
-                },
+                controller: _searchController,
+                onChanged: _onSearchChanged,
                 decoration: InputDecoration(
                   hintText: 'Search by Invoice, Vessel, Supplier...',
                   prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF94A3B8)),
@@ -67,6 +89,8 @@ class _EtdEtaTrackerScreenState extends State<EtdEtaTrackerScreen> {
                       ? IconButton(
                           icon: const Icon(Icons.clear, size: 18),
                           onPressed: () {
+                            _debounceTimer?.cancel();
+                            _searchController.clear();
                             setState(() => _search = '');
                             _loadData();
                           },

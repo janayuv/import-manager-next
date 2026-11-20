@@ -45,6 +45,7 @@ import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { QuickOptionDialog } from '@/components/master/QuickOptionDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModuleSettings } from '@/contexts/ThemeContext';
+import { useDebounce } from '@/hooks/useDebounce';
 import { downloadTextFile } from '@/lib/download';
 import {
   itemService,
@@ -141,6 +142,7 @@ export function ItemMasterPage() {
     setPage(1);
   }, [pageSize]);
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [supplierFilter, setSupplierFilter] = React.useState('all');
   const [loading, setLoading] = React.useState(true);
 
@@ -201,7 +203,7 @@ export function ItemMasterPage() {
     setLoading(true);
     try {
       const res = await itemService.list({
-        search,
+        search: debouncedSearch,
         supplierId: supplierFilter === 'all' ? '' : supplierFilter,
         status: '',
         sortBy: 'partNumber',
@@ -216,7 +218,7 @@ export function ItemMasterPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, supplierFilter, page, pageSize]);
+  }, [debouncedSearch, supplierFilter, page, pageSize]);
 
   React.useEffect(() => {
     void loadItems();

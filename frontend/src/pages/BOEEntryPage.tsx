@@ -484,7 +484,7 @@ export function BOEEntryPage() {
                 <FileSpreadsheet className="h-4 w-4" />
                 Excel (.xlsx)
               </Button>
-              <Button variant="outline" onClick={() => exportBOEPdf(params, result)}>
+              <Button variant="outline" onClick={() => void exportBOEPdf(params, result)}>
                 <FileDown className="h-4 w-4" />
                 ICEGATE PDF
               </Button>

@@ -71,10 +71,14 @@ func OpenEncrypted(dbPath, hexOrPassKey string) (*Manager, error) {
 	}
 
 	// Optimize memory consumption & page cache bounds for desktop efficiency:
+	// - synchronous = NORMAL: In WAL mode, completely safe against crashes and avoids fsync stalls on every commit
+	// - journal_size_limit = 67108864: Caps WAL file growth to 64 MiB, reclaiming disk space on checkpoint
 	// - cache_size = -16000: caps in-memory cache to 16 MiB per connection
 	// - mmap_size = 67108864: enables up to 64 MiB memory-mapped I/O for high read throughput without memory bloat
 	// - temp_store = MEMORY: caches temporary indexes and aggregates in RAM without disk churn
 	optimizations := []string{
+		"PRAGMA synchronous = NORMAL;",
+		"PRAGMA journal_size_limit = 67108864;",
 		"PRAGMA cache_size = -16000;",
 		"PRAGMA mmap_size = 67108864;",
 		"PRAGMA temp_store = MEMORY;",
@@ -128,7 +132,8 @@ func (m *Manager) Health() (HealthInfo, error) {
 	return info, nil
 }
 
-// ShrinkMemory executes SQLite's PRAGMA shrink_memory to release cached pages back to the process heap.
+// ShrinkMemory executes SQLite's PRAGMA shrink_memory to release cached pages back to the process heap
+// and runs PRAGMA optimize to refresh query planner statistics.
 func (m *Manager) ShrinkMemory() error {
 	m.mu.RLock()
 	db := m.db
@@ -136,6 +141,7 @@ func (m *Manager) ShrinkMemory() error {
 	if db == nil {
 		return errors.New("database connection is closed")
 	}
+	_, _ = db.Exec("PRAGMA optimize;")
 	_, err := db.Exec("PRAGMA shrink_memory;")
 	return err
 }

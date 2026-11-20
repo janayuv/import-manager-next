@@ -90,7 +90,19 @@ class DBHelper {
       }
     }
 
-    final db = await openDatabase(path);
+    final db = await openDatabase(
+      path,
+      onConfigure: (db) async {
+        try {
+          await db.execute('PRAGMA synchronous = NORMAL;');
+          await db.execute('PRAGMA temp_store = MEMORY;');
+          await db.execute('PRAGMA cache_size = -8000;'); // 8MB memory cache
+        } catch (_) {}
+      },
+    );
+    try {
+      await db.rawQuery('PRAGMA journal_mode = WAL;');
+    } catch (_) {}
     await _ensureSchema(db);
     return db;
   }
@@ -102,9 +114,69 @@ class DBHelper {
       );
       if (tables.isEmpty) {
         await _createDB(db);
+      } else {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS ldc_cached_report (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supplier TEXT,
+            supplier_id TEXT,
+            invoice_no TEXT,
+            invoice_date TEXT,
+            part_no TEXT,
+            description TEXT,
+            unit TEXT,
+            qty REAL,
+            unit_price REAL,
+            assessable_value REAL,
+            bcd_amount REAL,
+            sws_amount REAL,
+            igst_amount REAL,
+            boe_interest REAL,
+            expenses_total REAL,
+            ldc_per_qty REAL
+          )
+        ''');
       }
+      await _ensureIndexes(db);
     } catch (e) {
       debugPrint('DBHelper schema check error: $e');
+    }
+  }
+
+  Future<void> _ensureIndexes(Database db) async {
+    try {
+      // Shipments filtering & searching indexes
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_shipments_status ON shipments(deleted_at, status, eta);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_shipments_inv ON shipments(deleted_at, invoice_number);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_shipments_supplier ON shipments(deleted_at, supplier_id);');
+
+      // Parts & Customs Duty catalog indexes
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_items_part ON items(deleted_at, part_number);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_items_desc ON items(deleted_at, item_description);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_items_hsn ON items(deleted_at, hsn_code);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_items_category ON items(deleted_at, category);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_items_supplier ON items(deleted_at, supplier_id);');
+
+      // Invoices & Line items relational indexes
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_invoices_shipment ON invoices(deleted_at, shipment_id);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_inv_lines_inv ON invoice_line_items(deleted_at, invoice_id);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_inv_lines_item ON invoice_line_items(deleted_at, item_id);');
+
+      // Landed Cost report indexes
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_ldc_part ON ldc_cached_report(part_no);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_mob_ldc_inv ON ldc_cached_report(invoice_no);');
+    } catch (e) {
+      debugPrint('DBHelper index creation error: $e');
+    }
+  }
+
+  /// Compact and optimize SQLite query execution plans
+  Future<void> optimizeDatabase() async {
+    try {
+      final db = await database;
+      await db.rawQuery('PRAGMA optimize;');
+    } catch (e) {
+      debugPrint('DBHelper optimize error: $e');
     }
   }
 

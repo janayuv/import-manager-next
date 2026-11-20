@@ -1,17 +1,3 @@
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Ensure worker is configured safely in browser runtime
-if (typeof window !== 'undefined') {
-  try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
-      import.meta.url,
-    ).toString();
-  } catch {
-    // Ignore URL constructor failure in non-browser/test environments
-  }
-}
-
 export interface ExtractedCurrencyRate {
   currencyCode: string;
   currencyName: string;
@@ -56,8 +42,22 @@ const KNOWN_CURRENCY_NAMES: Record<string, string> = {
 
 /**
  * Extracts text from a PDF ArrayBuffer or Uint8Array, preserving line breaks.
+ * Lazily loads pdfjs-dist on demand to prevent heavy initial bundle bloat.
  */
 export async function extractTextFromPdf(data: ArrayBuffer | Uint8Array): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist');
+
+  if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url,
+      ).toString();
+    } catch {
+      // Ignore URL constructor failure in non-browser/test environments
+    }
+  }
+
   const loadingTask = pdfjsLib.getDocument({
     data,
     useSystemFonts: true,

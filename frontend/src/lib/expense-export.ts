@@ -1,6 +1,3 @@
-import ExcelJS from 'exceljs';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import type { ExpenseReportResult, LandedCostReport } from '@/services/expense-service';
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -15,6 +12,7 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 export async function exportExpenseReportExcel(report: ExpenseReportResult): Promise<void> {
+  const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Import Manager Next';
   wb.created = new Date();
@@ -99,7 +97,11 @@ export async function exportExpenseReportExcel(report: ExpenseReportResult): Pro
   triggerDownload(blob, `Expense_Report_${report.viewMode}.xlsx`);
 }
 
-export function exportLandedCostPdf(report: LandedCostReport): void {
+export async function exportLandedCostPdf(report: LandedCostReport): Promise<void> {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   doc.setFontSize(13);
   doc.text('Import Manager Next Generation — Landed Cost Summary (Excl. IGST)', 32, 34);

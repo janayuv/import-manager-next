@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../database/db_helper.dart';
@@ -17,13 +18,36 @@ class _InvoiceSearchScreenState extends State<InvoiceSearchScreen> {
   bool _loading = true;
   String _query = '';
   String _selectedStatus = 'All';
+  late final TextEditingController _searchController;
+  Timer? _debounceTimer;
 
   final List<String> _statuses = ['All', 'Finalized', 'Draft'];
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _loadInvoices();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    if ((_query.isEmpty && val.isNotEmpty) || (_query.isNotEmpty && val.isEmpty)) {
+      setState(() => _query = val);
+    } else {
+      _query = val;
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _loadInvoices();
+    });
   }
 
   Future<void> _loadInvoices() async {
@@ -59,11 +83,9 @@ class _InvoiceSearchScreenState extends State<InvoiceSearchScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: TextField(
+                controller: _searchController,
                 autofocus: false,
-                onChanged: (val) {
-                  setState(() => _query = val);
-                  _loadInvoices();
-                },
+                onChanged: _onSearchChanged,
                 decoration: InputDecoration(
                   hintText: 'Search by Invoice Number, Supplier...',
                   prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF94A3B8)),
@@ -71,6 +93,8 @@ class _InvoiceSearchScreenState extends State<InvoiceSearchScreen> {
                       ? IconButton(
                           icon: const Icon(Icons.clear, size: 18),
                           onPressed: () {
+                            _debounceTimer?.cancel();
+                            _searchController.clear();
                             setState(() => _query = '');
                             _loadInvoices();
                           },

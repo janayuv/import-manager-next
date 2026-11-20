@@ -24,6 +24,9 @@ export default defineConfig({
             if (id.includes('jspdf') || id.includes('jspdf-autotable') || id.includes('html2canvas')) {
               return 'vendor-pdf';
             }
+            if (id.includes('pdfjs-dist')) {
+              return 'vendor-pdfjs';
+            }
             if (id.includes('recharts') || id.includes('d3-')) {
               return 'vendor-charts';
             }
@@ -32,6 +35,9 @@ export default defineConfig({
             }
             if (id.includes('@radix-ui') || id.includes('lucide-react')) {
               return 'vendor-ui';
+            }
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'vendor-react';
             }
           }
         },

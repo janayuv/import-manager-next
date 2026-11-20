@@ -1,6 +1,3 @@
-import ExcelJS from 'exceljs';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import type { PaymentAnnexure } from '@/services/payment-po-service';
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -15,6 +12,7 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 export async function exportPaymentAnnexureExcel(annexure: PaymentAnnexure): Promise<void> {
+  const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Import Manager Next';
   wb.created = new Date();
@@ -98,7 +96,11 @@ export async function exportPaymentAnnexureExcel(annexure: PaymentAnnexure): Pro
   );
 }
 
-export function exportPaymentAnnexurePdf(annexure: PaymentAnnexure): void {
+export async function exportPaymentAnnexurePdf(annexure: PaymentAnnexure): Promise<void> {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
   // Header Title

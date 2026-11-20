@@ -1,6 +1,3 @@
-import ExcelJS from 'exceljs';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import type { BOECalcParams, BOECalculationResult } from '@/services/boe-service';
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -18,6 +15,7 @@ export async function exportBOEExcel(
   params: BOECalcParams,
   result: BOECalculationResult,
 ): Promise<void> {
+  const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Import Manager Next';
   wb.created = new Date();
@@ -108,7 +106,11 @@ export async function exportBOEExcel(
   );
 }
 
-export function exportBOEPdf(params: BOECalcParams, result: BOECalculationResult): void {
+export async function exportBOEPdf(params: BOECalcParams, result: BOECalculationResult): Promise<void> {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   doc.setFontSize(14);
   doc.text('ICEGATE Customs Valuation & Duty Worksheet (INR)', 14, 14);
