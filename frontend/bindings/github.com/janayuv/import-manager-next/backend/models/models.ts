@@ -3407,6 +3407,11 @@ export class ExpenseInvoice {
     "invoiceNo": string;
     "invoiceDate": string;
     "currency": string;
+    "isPaidByClearingAgent": boolean;
+    "clearingAgentId": string;
+    "clearingAgentName": string;
+    "chaReimburseInvoiceNo": string;
+    "chaReimburseInvoiceDate": string;
     "baseAmountPaise": number;
     "totalCgstPaise": number;
     "totalSgstPaise": number;
@@ -3447,6 +3452,21 @@ export class ExpenseInvoice {
         }
         if (!("currency" in $$source)) {
             this["currency"] = "";
+        }
+        if (!("isPaidByClearingAgent" in $$source)) {
+            this["isPaidByClearingAgent"] = false;
+        }
+        if (!("clearingAgentId" in $$source)) {
+            this["clearingAgentId"] = "";
+        }
+        if (!("clearingAgentName" in $$source)) {
+            this["clearingAgentName"] = "";
+        }
+        if (!("chaReimburseInvoiceNo" in $$source)) {
+            this["chaReimburseInvoiceNo"] = "";
+        }
+        if (!("chaReimburseInvoiceDate" in $$source)) {
+            this["chaReimburseInvoiceDate"] = "";
         }
         if (!("baseAmountPaise" in $$source)) {
             this["baseAmountPaise"] = 0;
@@ -3498,10 +3518,10 @@ export class ExpenseInvoice {
      * Creates a new ExpenseInvoice instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoice {
-        const $$createField21_0 = $$createType35;
+        const $$createField26_0 = $$createType35;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
-            $$parsedSource["lines"] = $$createField21_0($$parsedSource["lines"]);
+            $$parsedSource["lines"] = $$createField26_0($$parsedSource["lines"]);
         }
         return new ExpenseInvoice($$parsedSource as Partial<ExpenseInvoice>);
     }
@@ -3589,6 +3609,10 @@ export class ExpenseInvoiceRequest {
     "invoiceNo": string;
     "invoiceDate": string;
     "currency": string;
+    "isPaidByClearingAgent": boolean;
+    "clearingAgentId": string;
+    "chaReimburseInvoiceNo": string;
+    "chaReimburseInvoiceDate": string;
     "remarks": string;
     "idempotencyKey": string;
     "version": number;
@@ -3612,6 +3636,18 @@ export class ExpenseInvoiceRequest {
         }
         if (!("currency" in $$source)) {
             this["currency"] = "";
+        }
+        if (!("isPaidByClearingAgent" in $$source)) {
+            this["isPaidByClearingAgent"] = false;
+        }
+        if (!("clearingAgentId" in $$source)) {
+            this["clearingAgentId"] = "";
+        }
+        if (!("chaReimburseInvoiceNo" in $$source)) {
+            this["chaReimburseInvoiceNo"] = "";
+        }
+        if (!("chaReimburseInvoiceDate" in $$source)) {
+            this["chaReimburseInvoiceDate"] = "";
         }
         if (!("remarks" in $$source)) {
             this["remarks"] = "";
@@ -3639,10 +3675,10 @@ export class ExpenseInvoiceRequest {
      * Creates a new ExpenseInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoiceRequest {
-        const $$createField11_0 = $$createType39;
+        const $$createField15_0 = $$createType39;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
-            $$parsedSource["lines"] = $$createField11_0($$parsedSource["lines"]);
+            $$parsedSource["lines"] = $$createField15_0($$parsedSource["lines"]);
         }
         return new ExpenseInvoiceRequest($$parsedSource as Partial<ExpenseInvoiceRequest>);
     }
@@ -3914,6 +3950,11 @@ export class ExpenseReportDetailedRow {
     "expenseTypeName": string;
     "invoiceNo": string;
     "invoiceDate": string;
+    "isPaidByClearingAgent": boolean;
+    "clearingAgentId": string;
+    "clearingAgentName": string;
+    "chaReimburseInvoiceNo": string;
+    "chaReimburseInvoiceDate": string;
     "amountPaise": number;
     "cgstPaise": number;
     "sgstPaise": number;
@@ -3954,6 +3995,21 @@ export class ExpenseReportDetailedRow {
         }
         if (!("invoiceDate" in $$source)) {
             this["invoiceDate"] = "";
+        }
+        if (!("isPaidByClearingAgent" in $$source)) {
+            this["isPaidByClearingAgent"] = false;
+        }
+        if (!("clearingAgentId" in $$source)) {
+            this["clearingAgentId"] = "";
+        }
+        if (!("clearingAgentName" in $$source)) {
+            this["clearingAgentName"] = "";
+        }
+        if (!("chaReimburseInvoiceNo" in $$source)) {
+            this["chaReimburseInvoiceNo"] = "";
+        }
+        if (!("chaReimburseInvoiceDate" in $$source)) {
+            this["chaReimburseInvoiceDate"] = "";
         }
         if (!("amountPaise" in $$source)) {
             this["amountPaise"] = 0;
@@ -3997,7 +4053,7 @@ export class ExpenseReportDetailedRow {
  */
 export class ExpenseReportFilter {
     /**
-     * detailed, summary-by-type, summary-by-provider, summary-by-shipment, summary-by-month
+     * detailed, summary-by-type, summary-by-provider, summary-by-shipment, summary-by-month, summary-by-clearing-agent
      */
     "viewMode": string;
     "startDate": string;
@@ -4005,6 +4061,9 @@ export class ExpenseReportFilter {
     "shipmentId": string;
     "serviceProviderId": string;
     "expenseTypeId": string;
+    "clearingAgentId": string;
+    "chaReimburseInvoiceNo": string;
+    "isPaidByClearingAgent"?: boolean | null;
     "minAmountPaise": number;
     "maxAmountPaise": number;
     "search": string;
@@ -4028,6 +4087,12 @@ export class ExpenseReportFilter {
         }
         if (!("expenseTypeId" in $$source)) {
             this["expenseTypeId"] = "";
+        }
+        if (!("clearingAgentId" in $$source)) {
+            this["clearingAgentId"] = "";
+        }
+        if (!("chaReimburseInvoiceNo" in $$source)) {
+            this["chaReimburseInvoiceNo"] = "";
         }
         if (!("minAmountPaise" in $$source)) {
             this["minAmountPaise"] = 0;

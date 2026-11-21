@@ -137,6 +137,10 @@ export function ExpensesPage() {
   const [serviceProviderId, setServiceProviderId] = React.useState('');
   const [invoiceNo, setInvoiceNo] = React.useState('');
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [isPaidByClearingAgent, setIsPaidByClearingAgent] = React.useState(false);
+  const [clearingAgentId, setClearingAgentId] = React.useState('');
+  const [chaReimburseInvoiceNo, setChaReimburseInvoiceNo] = React.useState('');
+  const [chaReimburseInvoiceDate, setChaReimburseInvoiceDate] = React.useState('');
   const [remarks, setRemarks] = React.useState('');
   const [idempotencyKey, setIdempotencyKey] = React.useState('');
   const [draftLines, setDraftLines] = React.useState<DraftLine[]>([]);
@@ -310,6 +314,11 @@ export function ExpensesPage() {
       shipmentInvoiceNo: string;
       serviceProviderId: string;
       serviceProviderName: string;
+      isPaidByClearingAgent: boolean;
+      clearingAgentId: string;
+      clearingAgentName: string;
+      chaReimburseInvoiceNo: string;
+      chaReimburseInvoiceDate: string;
       expenseTypeId: string;
       expenseTypeName: string;
       amountPaise: number;
@@ -340,6 +349,11 @@ export function ExpensesPage() {
             shipmentInvoiceNo: inv.shipmentInvoiceNo,
             serviceProviderId: inv.serviceProviderId,
             serviceProviderName: inv.serviceProviderName,
+            isPaidByClearingAgent: Boolean(inv.isPaidByClearingAgent),
+            clearingAgentId: inv.clearingAgentId || '',
+            clearingAgentName: inv.clearingAgentName || '',
+            chaReimburseInvoiceNo: inv.chaReimburseInvoiceNo || '',
+            chaReimburseInvoiceDate: inv.chaReimburseInvoiceDate || '',
             expenseTypeId: line.expenseTypeId,
             expenseTypeName: line.expenseTypeName || 'Expense Item',
             amountPaise: line.amountPaise,
@@ -381,6 +395,8 @@ export function ExpensesPage() {
           l.serviceProviderName.toLowerCase().includes(query) ||
           l.expenseTypeName.toLowerCase().includes(query) ||
           l.shipmentInvoiceNo.toLowerCase().includes(query) ||
+          l.clearingAgentName.toLowerCase().includes(query) ||
+          l.chaReimburseInvoiceNo.toLowerCase().includes(query) ||
           l.remarks.toLowerCase().includes(query);
         if (!matches) return false;
       }
@@ -489,6 +505,10 @@ export function ExpensesPage() {
     setServiceProviderId(providers[0]?.id ?? '');
     setInvoiceNo('');
     setInvoiceDate(new Date().toISOString().slice(0, 10));
+    setIsPaidByClearingAgent(false);
+    setClearingAgentId('');
+    setChaReimburseInvoiceNo('');
+    setChaReimburseInvoiceDate('');
     setRemarks('');
     setRoundOffInr('0');
     setIdempotencyKey(`exp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -504,6 +524,10 @@ export function ExpensesPage() {
     setServiceProviderId(inv.serviceProviderId);
     setInvoiceNo(inv.invoiceNo);
     setInvoiceDate(inv.invoiceDate);
+    setIsPaidByClearingAgent(Boolean(inv.isPaidByClearingAgent));
+    setClearingAgentId(inv.clearingAgentId || '');
+    setChaReimburseInvoiceNo(inv.chaReimburseInvoiceNo || '');
+    setChaReimburseInvoiceDate(inv.chaReimburseInvoiceDate || '');
     setRemarks(inv.remarks);
     setRoundOffInr(Math.round((inv.roundOffPaise || 0) / 100).toString());
     setIdempotencyKey(inv.idempotencyKey);
@@ -556,6 +580,10 @@ export function ExpensesPage() {
   };
 
   const handleSaveInvoice = async () => {
+    if (isPaidByClearingAgent && !clearingAgentId) {
+      toast.error('Please select the Clearing Agent who paid these charges.');
+      return;
+    }
     setSavingInv(true);
     try {
       const roundOffVal = Math.round(Number.parseFloat(roundOffInr) || 0);
@@ -566,6 +594,10 @@ export function ExpensesPage() {
         invoiceNo,
         invoiceDate,
         currency: 'INR',
+        isPaidByClearingAgent,
+        clearingAgentId: isPaidByClearingAgent ? clearingAgentId : '',
+        chaReimburseInvoiceNo: isPaidByClearingAgent ? chaReimburseInvoiceNo.trim() : '',
+        chaReimburseInvoiceDate: isPaidByClearingAgent ? chaReimburseInvoiceDate : '',
         remarks,
         idempotencyKey,
         version: editingInv?.version ?? 1,
@@ -730,6 +762,71 @@ export function ExpensesPage() {
                     onChange={(e) => setInvoiceDate(e.target.value)}
                   />
                 </div>
+              </div>
+
+              {/* Clearing Agent (CHA) Reimbursement Section */}
+              <div className="rounded-lg border p-3.5 bg-muted/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="cha-toggle" className="text-sm font-semibold cursor-pointer">
+                        Paid by Clearing Agent (Reimbursement)
+                      </Label>
+                      <Badge variant="outline" className="text-[10px] font-normal">
+                        e.g. Liner &amp; CFS Charges
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Check this if charges were paid upfront by your clearing agent. The expense remains attributed to the original provider for GST credit, but payment liability is linked to the clearing agent.
+                    </p>
+                  </div>
+                  <Switch
+                    id="cha-toggle"
+                    checked={isPaidByClearingAgent}
+                    onCheckedChange={setIsPaidByClearingAgent}
+                  />
+                </div>
+
+                {isPaidByClearingAgent && (
+                  <div className="grid gap-4 sm:grid-cols-3 pt-3 border-t">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="clearingAgentSelect">Clearing Agent (Payable To) *</Label>
+                      <Select value={clearingAgentId} onValueChange={setClearingAgentId}>
+                        <SelectTrigger id="clearingAgentSelect" className="w-full">
+                          <SelectValue placeholder="Select clearing agent" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {providers.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="chaReimbInvNo">CHA Reimburse Invoice No</Label>
+                      <Input
+                        id="chaReimbInvNo"
+                        placeholder="e.g. CHA-REIMB-2026-001"
+                        value={chaReimburseInvoiceNo}
+                        onChange={(e) => setChaReimburseInvoiceNo(e.target.value)}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="chaReimbInvDate">CHA Reimburse Date</Label>
+                      <Input
+                        id="chaReimbInvDate"
+                        type="date"
+                        value={chaReimburseInvoiceDate}
+                        onChange={(e) => setChaReimburseInvoiceDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1426,7 +1523,17 @@ export function ExpensesPage() {
                                 {inv.invoiceDate} · v{inv.version}
                               </div>
                             </TableCell>
-                            <TableCell>{inv.serviceProviderName || '—'}</TableCell>
+                            <TableCell>
+                              <div className="font-medium">{inv.serviceProviderName || '—'}</div>
+                              {inv.isPaidByClearingAgent && (
+                                <div className="mt-1">
+                                  <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300">
+                                    Paid by CHA: {inv.clearingAgentName || 'Clearing Agent'}
+                                    {inv.chaReimburseInvoiceNo ? ` (Ref: ${inv.chaReimburseInvoiceNo})` : ''}
+                                  </Badge>
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell className="font-mono text-xs">{inv.shipmentInvoiceNo || '—'}</TableCell>
                             <TableCell>
                               <Button
@@ -1817,7 +1924,17 @@ export function ExpensesPage() {
                             <div className="font-medium">{line.invoiceNo}</div>
                             <div className="text-xs text-muted-foreground">{line.invoiceDate}</div>
                           </TableCell>
-                          <TableCell>{line.serviceProviderName}</TableCell>
+                          <TableCell>
+                            <div>{line.serviceProviderName}</div>
+                            {line.isPaidByClearingAgent && (
+                              <div className="mt-0.5">
+                                <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300">
+                                  Paid by CHA: {line.clearingAgentName || 'Clearing Agent'}
+                                  {line.chaReimburseInvoiceNo ? ` (Ref: ${line.chaReimburseInvoiceNo})` : ''}
+                                </Badge>
+                              </div>
+                            )}
+                          </TableCell>
                           <TableCell className="font-mono text-xs">{line.shipmentInvoiceNo}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="font-medium">

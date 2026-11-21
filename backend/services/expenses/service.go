@@ -397,6 +397,11 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 	q := `SELECT ei.id, ei.shipment_id, COALESCE(sh.invoice_number,''),
 	             ei.service_provider_id, COALESCE(sp.name,''),
 	             ei.invoice_no, ei.invoice_date, COALESCE(ei.currency,'INR'),
+	             COALESCE(ei.is_paid_by_clearing_agent, 0),
+	             COALESCE(ei.clearing_agent_id, ''),
+	             COALESCE(cha.name, ''),
+	             COALESCE(ei.cha_reimburse_invoice_no, ''),
+	             COALESCE(ei.cha_reimburse_invoice_date, ''),
 	             COALESCE(ei.total_amount_paise, CAST(ROUND(ei.total_amount*100) AS INTEGER)),
 	             COALESCE(ei.total_cgst_amount_paise, CAST(ROUND(ei.total_cgst_amount*100) AS INTEGER)),
 	             COALESCE(ei.total_sgst_amount_paise, CAST(ROUND(ei.total_sgst_amount*100) AS INTEGER)),
@@ -409,6 +414,7 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 	      FROM expense_invoices ei
 	      LEFT JOIN shipments sh ON sh.id = ei.shipment_id
 	      LEFT JOIN service_providers sp ON sp.id = ei.service_provider_id
+	      LEFT JOIN service_providers cha ON cha.id = ei.clearing_agent_id
 	      WHERE ei.deleted_at IS NULL`
 	var args []any
 	if sid := strings.TrimSpace(shipmentID); sid != "" {
@@ -417,8 +423,8 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 	}
 	if st := strings.TrimSpace(search); st != "" {
 		like := "%" + st + "%"
-		q += ` AND (ei.invoice_no LIKE ? OR sp.name LIKE ? OR sh.invoice_number LIKE ? OR COALESCE(ei.remarks,'') LIKE ?)`
-		args = append(args, like, like, like, like)
+		q += ` AND (ei.invoice_no LIKE ? OR sp.name LIKE ? OR sh.invoice_number LIKE ? OR COALESCE(ei.remarks,'') LIKE ? OR COALESCE(cha.name,'') LIKE ? OR COALESCE(ei.cha_reimburse_invoice_no,'') LIKE ?)`
+		args = append(args, like, like, like, like, like, like)
 	}
 	q += ` ORDER BY ei.invoice_date DESC, ei.created_at DESC`
 
@@ -430,10 +436,13 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 	var out []models.ExpenseInvoice
 	for rows.Next() {
 		var inv models.ExpenseInvoice
+		var isPaidByCA int
 		if err := rows.Scan(
 			&inv.ID, &inv.ShipmentID, &inv.ShipmentInvoiceNo,
 			&inv.ServiceProviderID, &inv.ServiceProviderName,
 			&inv.InvoiceNo, &inv.InvoiceDate, &inv.Currency,
+			&isPaidByCA, &inv.ClearingAgentID, &inv.ClearingAgentName,
+			&inv.CHAReimburseInvoiceNo, &inv.CHAReimburseInvoiceDate,
 			&inv.TotalAmountPaise, &inv.TotalCGSTPaise, &inv.TotalSGSTPaise,
 			&inv.TotalIGSTPaise, &inv.TotalTDSPaise, &inv.RoundOffPaise, &inv.NetAmountPaise,
 			&inv.Remarks, &inv.IdempotencyKey, &inv.Version, &inv.CreatedAt, &inv.UpdatedAt,
@@ -441,6 +450,7 @@ func (s *Service) ListExpenseInvoices(shipmentID string, search string) ([]model
 			_ = rows.Close()
 			return nil, err
 		}
+		inv.IsPaidByClearingAgent = isPaidByCA == 1
 		inv.Lines = make([]models.ExpenseLine, 0)
 		out = append(out, inv)
 	}
@@ -471,10 +481,16 @@ func (s *Service) GetExpenseInvoice(id string) (models.ExpenseInvoice, error) {
 		return models.ExpenseInvoice{}, err
 	}
 	var inv models.ExpenseInvoice
+	var isPaidByCA int
 	err := s.db.QueryRow(`
 		SELECT ei.id, ei.shipment_id, COALESCE(sh.invoice_number,''),
 		       ei.service_provider_id, COALESCE(sp.name,''),
 		       ei.invoice_no, ei.invoice_date, COALESCE(ei.currency,'INR'),
+		       COALESCE(ei.is_paid_by_clearing_agent, 0),
+		       COALESCE(ei.clearing_agent_id, ''),
+		       COALESCE(cha.name, ''),
+		       COALESCE(ei.cha_reimburse_invoice_no, ''),
+		       COALESCE(ei.cha_reimburse_invoice_date, ''),
 		       COALESCE(ei.total_amount_paise, CAST(ROUND(ei.total_amount*100) AS INTEGER)),
 		       COALESCE(ei.total_cgst_amount_paise, CAST(ROUND(ei.total_cgst_amount*100) AS INTEGER)),
 		       COALESCE(ei.total_sgst_amount_paise, CAST(ROUND(ei.total_sgst_amount*100) AS INTEGER)),
@@ -487,11 +503,14 @@ func (s *Service) GetExpenseInvoice(id string) (models.ExpenseInvoice, error) {
 		FROM expense_invoices ei
 		LEFT JOIN shipments sh ON sh.id = ei.shipment_id
 		LEFT JOIN service_providers sp ON sp.id = ei.service_provider_id
+		LEFT JOIN service_providers cha ON cha.id = ei.clearing_agent_id
 		WHERE ei.id = ? AND ei.deleted_at IS NULL`, id,
 	).Scan(
 		&inv.ID, &inv.ShipmentID, &inv.ShipmentInvoiceNo,
 		&inv.ServiceProviderID, &inv.ServiceProviderName,
 		&inv.InvoiceNo, &inv.InvoiceDate, &inv.Currency,
+		&isPaidByCA, &inv.ClearingAgentID, &inv.ClearingAgentName,
+		&inv.CHAReimburseInvoiceNo, &inv.CHAReimburseInvoiceDate,
 		&inv.TotalAmountPaise, &inv.TotalCGSTPaise, &inv.TotalSGSTPaise,
 		&inv.TotalIGSTPaise, &inv.TotalTDSPaise, &inv.RoundOffPaise, &inv.NetAmountPaise,
 		&inv.Remarks, &inv.IdempotencyKey, &inv.Version, &inv.CreatedAt, &inv.UpdatedAt,
@@ -499,6 +518,7 @@ func (s *Service) GetExpenseInvoice(id string) (models.ExpenseInvoice, error) {
 	if err != nil {
 		return models.ExpenseInvoice{}, err
 	}
+	inv.IsPaidByClearingAgent = isPaidByCA == 1
 	lines, err := s.loadInvoiceLines(inv.ID)
 	if err != nil {
 		return models.ExpenseInvoice{}, err
@@ -583,7 +603,7 @@ func (s *Service) CreateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 	}
 
 	err = transactions.WithinTx(context.Background(), s.db, func(tx *sql.Tx) error {
-		if err := s.ensureMutableRefs(tx, req.ShipmentID, req.ServiceProviderID, preparedLines); err != nil {
+		if err := s.ensureMutableRefs(tx, req.ShipmentID, req.ServiceProviderID, req.ClearingAgentID, req.IsPaidByClearingAgent, preparedLines); err != nil {
 			return err
 		}
 		var dupCount int
@@ -599,16 +619,33 @@ func (s *Service) CreateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 		}
 
 		now := time.Now().UTC().Format(time.RFC3339)
+		isPaidByCA := 0
+		var caID, chaReimbNo, chaReimbDate any
+		if req.IsPaidByClearingAgent {
+			isPaidByCA = 1
+			if trimmed := strings.TrimSpace(req.ClearingAgentID); trimmed != "" {
+				caID = trimmed
+			}
+			if trimmed := strings.TrimSpace(req.CHAReimburseInvoiceNo); trimmed != "" {
+				chaReimbNo = trimmed
+			}
+			if trimmed := strings.TrimSpace(req.CHAReimburseInvoiceDate); trimmed != "" {
+				chaReimbDate = trimmed
+			}
+		}
+
 		if _, err := tx.Exec(`
 			INSERT INTO expense_invoices (
 				id, shipment_id, service_provider_id, invoice_no, invoice_number, invoice_date, currency,
+				is_paid_by_clearing_agent, clearing_agent_id, cha_reimburse_invoice_no, cha_reimburse_invoice_date,
 				total_amount, total_cgst_amount, total_sgst_amount, total_igst_amount,
 				total_amount_paise, total_cgst_amount_paise, total_sgst_amount_paise,
 				total_igst_amount_paise, total_tds_amount_paise, net_amount_paise, round_off_paise,
 				remarks, idempotency_key, version, created_by, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
 			invID, req.ShipmentID, req.ServiceProviderID,
 			strings.TrimSpace(req.InvoiceNo), strings.TrimSpace(req.InvoiceNo), normDate, cur,
+			isPaidByCA, caID, chaReimbNo, chaReimbDate,
 			float64(calc.TotalAmountPaise)/100.0, float64(calc.TotalCGSTPaise)/100.0,
 			float64(calc.TotalSGSTPaise)/100.0, float64(calc.TotalIGSTPaise)/100.0,
 			calc.TotalAmountPaise, calc.TotalCGSTPaise, calc.TotalSGSTPaise,
@@ -661,11 +698,11 @@ func (s *Service) UpdateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 			return fmt.Errorf("optimistic lock conflict: expected version %d but database is at version %d", req.Version, curVersion)
 		}
 
-		if err := s.ensureMutableRefs(tx, oldShipmentID, req.ServiceProviderID, preparedLines); err != nil {
+		if err := s.ensureMutableRefs(tx, oldShipmentID, req.ServiceProviderID, req.ClearingAgentID, req.IsPaidByClearingAgent, preparedLines); err != nil {
 			return err
 		}
 		if oldShipmentID != req.ShipmentID {
-			if err := s.ensureMutableRefs(tx, req.ShipmentID, req.ServiceProviderID, preparedLines); err != nil {
+			if err := s.ensureMutableRefs(tx, req.ShipmentID, req.ServiceProviderID, req.ClearingAgentID, req.IsPaidByClearingAgent, preparedLines); err != nil {
 				return err
 			}
 		}
@@ -683,15 +720,32 @@ func (s *Service) UpdateExpenseInvoice(req models.ExpenseInvoiceRequest) (models
 		}
 
 		now := time.Now().UTC().Format(time.RFC3339)
+		isPaidByCA := 0
+		var caID, chaReimbNo, chaReimbDate any
+		if req.IsPaidByClearingAgent {
+			isPaidByCA = 1
+			if trimmed := strings.TrimSpace(req.ClearingAgentID); trimmed != "" {
+				caID = trimmed
+			}
+			if trimmed := strings.TrimSpace(req.CHAReimburseInvoiceNo); trimmed != "" {
+				chaReimbNo = trimmed
+			}
+			if trimmed := strings.TrimSpace(req.CHAReimburseInvoiceDate); trimmed != "" {
+				chaReimbDate = trimmed
+			}
+		}
+
 		if _, err := tx.Exec(`
 			UPDATE expense_invoices
 			SET shipment_id = ?, service_provider_id = ?, invoice_no = ?, invoice_number = ?, invoice_date = ?, currency = ?,
+			    is_paid_by_clearing_agent = ?, clearing_agent_id = ?, cha_reimburse_invoice_no = ?, cha_reimburse_invoice_date = ?,
 			    total_amount = ?, total_cgst_amount = ?, total_sgst_amount = ?, total_igst_amount = ?,
 			    total_amount_paise = ?, total_cgst_amount_paise = ?, total_sgst_amount_paise = ?,
 			    total_igst_amount_paise = ?, total_tds_amount_paise = ?, net_amount_paise = ?, round_off_paise = ?,
 			    remarks = ?, version = version + 1, updated_at = ?
 			WHERE id = ? AND deleted_at IS NULL`,
 			req.ShipmentID, req.ServiceProviderID, strings.TrimSpace(req.InvoiceNo), strings.TrimSpace(req.InvoiceNo), normDate, cur,
+			isPaidByCA, caID, chaReimbNo, chaReimbDate,
 			float64(calc.TotalAmountPaise)/100.0, float64(calc.TotalCGSTPaise)/100.0,
 			float64(calc.TotalSGSTPaise)/100.0, float64(calc.TotalIGSTPaise)/100.0,
 			calc.TotalAmountPaise, calc.TotalCGSTPaise, calc.TotalSGSTPaise,
@@ -790,6 +844,12 @@ func (s *Service) prepareAndValidateInvoice(req models.ExpenseInvoiceRequest) ([
 		return nil, models.ExpenseInvoiceCalculation{}, "", "", errors.New("duplicate expense type found on invoice; combine duplicate lines before saving")
 	}
 
+	if req.IsPaidByClearingAgent {
+		if strings.TrimSpace(req.ClearingAgentID) == "" {
+			return nil, models.ExpenseInvoiceCalculation{}, "", "", errors.New("clearingAgentId is required when invoice is marked as paid by clearing agent")
+		}
+	}
+
 	calc, err := CalculateInvoice(lines)
 	if err != nil {
 		return nil, models.ExpenseInvoiceCalculation{}, "", "", err
@@ -804,7 +864,7 @@ func (s *Service) prepareAndValidateInvoice(req models.ExpenseInvoiceRequest) ([
 	return lines, calc, normDate, cur, nil
 }
 
-func (s *Service) ensureMutableRefs(tx *sql.Tx, shipmentID, spID string, lines []models.ExpenseLineInput) error {
+func (s *Service) ensureMutableRefs(tx *sql.Tx, shipmentID, spID, clearingAgentID string, isPaidByCA bool, lines []models.ExpenseLineInput) error {
 	var isFrozen bool
 	err := tx.QueryRow(`SELECT COALESCE(is_frozen, 0) FROM shipments WHERE id = ? AND deleted_at IS NULL`, shipmentID).Scan(&isFrozen)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -823,6 +883,16 @@ func (s *Service) ensureMutableRefs(tx *sql.Tx, shipmentID, spID string, lines [
 	}
 	if spExists == 0 {
 		return fmt.Errorf("service provider %q not found", spID)
+	}
+
+	if isPaidByCA && strings.TrimSpace(clearingAgentID) != "" {
+		var caExists int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM service_providers WHERE id = ? AND deleted_at IS NULL`, strings.TrimSpace(clearingAgentID)).Scan(&caExists); err != nil {
+			return err
+		}
+		if caExists == 0 {
+			return fmt.Errorf("clearing agent %q not found", clearingAgentID)
+		}
 	}
 
 	for _, l := range lines {

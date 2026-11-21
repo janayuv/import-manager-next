@@ -805,3 +805,168 @@ func TestBulkCSVImportMultipleShipments(t *testing.T) {
 		t.Errorf("expected 0 invoices on frozen shipment, got %d", len(invoicesF))
 	}
 }
+
+func TestClearingAgentReimbursementAndReports(t *testing.T) {
+	rt := setupExpenseEnv(t)
+
+	// Seed supplier & shipment
+	sup, err := rt.Suppliers.Create(models.SupplierInput{
+		SupplierName: "Global Exporter Inc",
+		ShortName:    "GLOBAL",
+		Country:      "Singapore",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("create supplier: %v", err)
+	}
+
+	sh, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "INV-CHA-701",
+		InvoiceDate:     "2026-11-20",
+		GoodsCategory:   "Machinery",
+		InvoiceValue:    50000,
+		InvoiceCurrency: "USD",
+		Incoterm:        "FOB",
+	})
+	if err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+
+	// 1. Create Service Provider (Shipping Line)
+	liner, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "Maersk Line India",
+		GSTIN: "27AABCM1234F1Z1",
+		State: "Maharashtra",
+	})
+	if err != nil {
+		t.Fatalf("create liner: %v", err)
+	}
+
+	// 2. Create Service Provider (Clearing Agent / CHA)
+	cha, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "Express Clearing & Forwarding Ltd",
+		GSTIN: "27AABCE9876F1Z2",
+		State: "Maharashtra",
+	})
+	if err != nil {
+		t.Fatalf("create cha: %v", err)
+	}
+
+	// 3. Create Expense Types
+	etLiner, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Liner Charges",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("create etLiner: %v", err)
+	}
+
+	// 4. Test validation: IsPaidByClearingAgent=true without clearingAgentId must fail
+	_, err = rt.Expenses.CreateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ShipmentID:            sh.ID,
+		ServiceProviderID:     liner.ID,
+		InvoiceNo:             "MSK-9901",
+		InvoiceDate:           "2026-11-21",
+		IsPaidByClearingAgent: true,
+		ClearingAgentID:       "", // Empty!
+		Lines: []models.ExpenseLineInput{
+			{ExpenseTypeID: etLiner.ID, AmountPaise: 2500000, CGSTRateBP: 900, SGSTRateBP: 900},
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected error when clearingAgentId is empty for paid-by-clearing-agent invoice")
+	}
+
+	// 5. Create valid invoice with CHA reimbursement
+	inv, err := rt.Expenses.CreateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ShipmentID:              sh.ID,
+		ServiceProviderID:       liner.ID,
+		InvoiceNo:               "MSK-9901",
+		InvoiceDate:             "2026-11-21",
+		IsPaidByClearingAgent:   true,
+		ClearingAgentID:         cha.ID,
+		CHAReimburseInvoiceNo:   "CHA-REIMB-0088",
+		CHAReimburseInvoiceDate: "2026-11-22",
+		Remarks:                 "Liner charges paid upfront by CHA",
+		Lines: []models.ExpenseLineInput{
+			{ExpenseTypeID: etLiner.ID, AmountPaise: 2500000, CGSTRateBP: 900, SGSTRateBP: 900},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create paid-by-cha invoice: %v", err)
+	}
+
+	if !inv.IsPaidByClearingAgent {
+		t.Errorf("expected IsPaidByClearingAgent to be true")
+	}
+	if inv.ClearingAgentID != cha.ID {
+		t.Errorf("expected ClearingAgentID %q, got %q", cha.ID, inv.ClearingAgentID)
+	}
+	if inv.ClearingAgentName != cha.Name {
+		t.Errorf("expected ClearingAgentName %q, got %q", cha.Name, inv.ClearingAgentName)
+	}
+	if inv.CHAReimburseInvoiceNo != "CHA-REIMB-0088" {
+		t.Errorf("expected CHAReimburseInvoiceNo CHA-REIMB-0088, got %q", inv.CHAReimburseInvoiceNo)
+	}
+	if inv.CHAReimburseInvoiceDate != "2026-11-22" {
+		t.Errorf("expected CHAReimburseInvoiceDate 2026-11-22, got %q", inv.CHAReimburseInvoiceDate)
+	}
+
+	// 6. Test search in ListExpenseInvoices by CHA Reimburse Inv No
+	searchList, err := rt.Expenses.ListExpenseInvoices(sh.ID, "CHA-REIMB-0088")
+	if err != nil {
+		t.Fatalf("ListExpenseInvoices search: %v", err)
+	}
+	if len(searchList) != 1 || searchList[0].ID != inv.ID {
+		t.Fatalf("expected 1 invoice matching CHA-REIMB-0088, got %d", len(searchList))
+	}
+	if !searchList[0].IsPaidByClearingAgent || searchList[0].ClearingAgentName != cha.Name {
+		t.Errorf("searchList row missing clearing agent info: %+v", searchList[0])
+	}
+
+	// 7. Test summary-by-clearing-agent in Expense Reports
+	rpt, err := rt.ExpenseReports.GetExpenseReport(models.ExpenseReportFilter{
+		ViewMode: "summary-by-clearing-agent",
+	})
+	if err != nil {
+		t.Fatalf("GetExpenseReport summary-by-clearing-agent: %v", err)
+	}
+	if len(rpt.GroupedRows) != 1 {
+		t.Fatalf("expected 1 grouped row for clearing agent, got %d", len(rpt.GroupedRows))
+	}
+	grp := rpt.GroupedRows[0]
+	expectedKey := cha.ID + ":CHA-REIMB-0088"
+	if grp.GroupKey != expectedKey {
+		t.Errorf("expected groupKey %q, got %q", expectedKey, grp.GroupKey)
+	}
+	if grp.AmountPaise != 2500000 {
+		t.Errorf("expected AmountPaise 2500000, got %d", grp.AmountPaise)
+	}
+
+	// 8. Update invoice: update CHA Reimburse Invoice number
+	inv.CHAReimburseInvoiceNo = "CHA-REIMB-0089"
+	updatedInv, err := rt.Expenses.UpdateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ID:                      inv.ID,
+		ShipmentID:              sh.ID,
+		ServiceProviderID:       liner.ID,
+		InvoiceNo:               "MSK-9901",
+		InvoiceDate:             "2026-11-21",
+		IsPaidByClearingAgent:   true,
+		ClearingAgentID:         cha.ID,
+		CHAReimburseInvoiceNo:   "CHA-REIMB-0089",
+		CHAReimburseInvoiceDate: "2026-11-22",
+		Version:                 inv.Version,
+		Lines: []models.ExpenseLineInput{
+			{ExpenseTypeID: etLiner.ID, AmountPaise: 2500000, CGSTRateBP: 900, SGSTRateBP: 900},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateExpenseInvoice: %v", err)
+	}
+	if updatedInv.CHAReimburseInvoiceNo != "CHA-REIMB-0089" {
+		t.Errorf("expected updated CHAReimburseInvoiceNo CHA-REIMB-0089, got %q", updatedInv.CHAReimburseInvoiceNo)
+	}
+}

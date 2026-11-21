@@ -29,8 +29,8 @@ func TestEmbeddedMigrationsExecuteCleanlyOnSQLCipher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first migration run failed: %v", err)
 	}
-	if res.AppliedCount != 18 || res.CurrentVersion != 18 {
-		t.Fatalf("expected 18 migrations applied to v18, got %+v", res)
+	if res.AppliedCount != 19 || res.CurrentVersion != 19 {
+		t.Fatalf("expected 19 migrations applied to v19, got %+v", res)
 	}
 
 	// Re-run should be a no-op.
@@ -38,7 +38,7 @@ func TestEmbeddedMigrationsExecuteCleanlyOnSQLCipher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second migration run failed: %v", err)
 	}
-	if res2.AppliedCount != 0 || res2.CurrentVersion != 18 {
+	if res2.AppliedCount != 0 || res2.CurrentVersion != 19 {
 		t.Fatalf("expected 0 pending migrations on second run, got %+v", res2)
 	}
 
@@ -48,8 +48,8 @@ func TestEmbeddedMigrationsExecuteCleanlyOnSQLCipher(t *testing.T) {
 	}
 
 	applied, err := migrations.ListApplied(ctx, mgr.DB())
-	if err != nil || len(applied) != 18 {
-		t.Fatalf("expected 18 applied records, got %d (err=%v)", len(applied), err)
+	if err != nil || len(applied) != 19 {
+		t.Fatalf("expected 19 applied records, got %d (err=%v)", len(applied), err)
 	}
 	for _, r := range applied {
 		if r.Status != "APPLIED" || r.Checksum == "" || r.AppVersion != "1.0.0" {

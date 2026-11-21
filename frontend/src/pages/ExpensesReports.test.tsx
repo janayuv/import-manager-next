@@ -102,6 +102,11 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         invoiceNo: 'DHL-101',
         invoiceDate: '2026-04-15',
         currency: 'INR',
+        isPaidByClearingAgent: false,
+        clearingAgentId: '',
+        clearingAgentName: '',
+        chaReimburseInvoiceNo: '',
+        chaReimburseInvoiceDate: '',
         baseAmountPaise: 100000,
         totalCgstPaise: 9000,
         totalSgstPaise: 9000,
@@ -240,6 +245,11 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         invoiceNo: 'CHA-101',
         invoiceDate: '2026-04-18',
         currency: 'INR',
+        isPaidByClearingAgent: false,
+        clearingAgentId: '',
+        clearingAgentName: '',
+        chaReimburseInvoiceNo: '',
+        chaReimburseInvoiceDate: '',
         baseAmountPaise: 900000,
         totalCgstPaise: 81000,
         totalSgstPaise: 81000,
@@ -397,6 +407,11 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
           expenseTypeName: 'Clearance',
           invoiceNo: 'DHL-101',
           invoiceDate: '2026-04-15',
+          isPaidByClearingAgent: false,
+          clearingAgentId: '',
+          clearingAgentName: '',
+          chaReimburseInvoiceNo: '',
+          chaReimburseInvoiceDate: '',
           amountPaise: 100000,
           cgstPaise: 9000,
           sgstPaise: 9000,
@@ -628,6 +643,11 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         invoiceNo: 'EXP-INV-999',
         invoiceDate: '2026-04-15',
         currency: 'INR',
+        isPaidByClearingAgent: false,
+        clearingAgentId: '',
+        clearingAgentName: '',
+        chaReimburseInvoiceNo: '',
+        chaReimburseInvoiceDate: '',
         baseAmountPaise: 5000000,
         totalCgstPaise: 450000,
         totalSgstPaise: 450000,
@@ -766,6 +786,11 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         invoiceNo: '377',
         invoiceDate: '2026-10-14',
         currency: 'INR',
+        isPaidByClearingAgent: false,
+        clearingAgentId: '',
+        clearingAgentName: '',
+        chaReimburseInvoiceNo: '',
+        chaReimburseInvoiceDate: '',
         baseAmountPaise: 625000,
         totalCgstPaise: 56300,
         totalSgstPaise: 56300,
@@ -942,6 +967,81 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
           ]),
         })
       );
+    });
+  });
+
+  it('supports marking expense invoice as paid by clearing agent and displays CHA reimbursement details', async () => {
+    vi.mocked(expenseService.listServiceProviders).mockResolvedValue([
+      { id: 'SP-LINER', name: 'Maersk Line India', gstin: '27AABCM1234F1Z1', state: 'MH', contactPerson: '', contactEmail: '', contactPhone: '', createdAt: '' },
+      { id: 'SP-CHA', name: 'Express Clearing & Forwarding', gstin: '27AABCE9876F1Z2', state: 'MH', contactPerson: '', contactEmail: '', contactPhone: '', createdAt: '' },
+    ]);
+    vi.mocked(expenseService.listExpenseTypes).mockResolvedValue([
+      { id: 'ET-LINER', name: 'Liner Charges', defaultCgstRateBp: 900, defaultSgstRateBp: 900, defaultIgstRateBp: 0, defaultTdsRateBp: 0, isActive: true, createdAt: '' },
+    ]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'SH-1',
+          supplierId: 'SUP-1',
+          supplierName: 'Bosch GmbH',
+          invoiceNumber: 'INV-SH-1',
+          invoiceDate: '2026-04-15',
+          goodsCategory: 'Machinery',
+          invoiceValue: 50000,
+          invoiceCurrency: 'USD',
+          incoterm: 'FOB',
+          isFrozen: false,
+        } as any,
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+    vi.mocked(expenseService.listExpenseInvoices).mockResolvedValue([
+      {
+        id: 'EINV-CHA-1',
+        shipmentId: 'SH-1',
+        shipmentInvoiceNo: 'INV-SH-1',
+        serviceProviderId: 'SP-LINER',
+        serviceProviderName: 'Maersk Line India',
+        invoiceNo: 'MSK-9901',
+        invoiceDate: '2026-11-20',
+        currency: 'INR',
+        isPaidByClearingAgent: true,
+        clearingAgentId: 'SP-CHA',
+        clearingAgentName: 'Express Clearing & Forwarding',
+        chaReimburseInvoiceNo: 'CHA-REIMB-0088',
+        chaReimburseInvoiceDate: '2026-11-22',
+        baseAmountPaise: 2500000,
+        totalCgstPaise: 225000,
+        totalSgstPaise: 225000,
+        totalIgstPaise: 0,
+        totalTdsPaise: 0,
+        totalAmountPaise: 2950000,
+        netAmountPaise: 2950000,
+        roundOffPaise: 0,
+        remarks: 'Liner charges disbursed by CHA',
+        idempotencyKey: 'k-cha-1',
+        version: 1,
+        createdAt: '2026-11-20T00:00:00Z',
+        updatedAt: '2026-11-20T00:00:00Z',
+        lines: [],
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ExpensesPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    // Verify invoice MSK-9901 and Clearing Agent badge appear
+    await waitFor(() => {
+      expect(screen.getByText('MSK-9901')).toBeInTheDocument();
+      expect(screen.getByText(/Paid by CHA: Express Clearing & Forwarding/i)).toBeInTheDocument();
+      expect(screen.getByText(/Ref: CHA-REIMB-0088/i)).toBeInTheDocument();
     });
   });
 });
