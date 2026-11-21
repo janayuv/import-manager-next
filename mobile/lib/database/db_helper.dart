@@ -875,6 +875,7 @@ class DBHelper {
           unit,
           qty,
           unit_price,
+          material_value,
           assessable_value,
           bcd_amount,
           sws_amount,
@@ -963,16 +964,19 @@ class DBHelper {
           final partNo = (item['partNumber'] ?? item['partNo'] ?? '').toString();
           final desc = (item['description'] ?? '').toString();
           final assessable = (item['assessableValue'] as num?)?.toDouble() ?? 0.0;
+          final qty = (item['quantity'] as num?)?.toDouble() ?? 1.0;
+          final unitPrice = (item['unitPrice'] as num?)?.toDouble() ?? 0.0;
+          final exRate = (resData['exchangeRate'] as num?)?.toDouble() ?? 1.0;
+          final computedMatVal = qty * unitPrice * exRate;
+          final materialVal = (item['itemValueInr'] as num?)?.toDouble() ?? (computedMatVal > 0 ? computedMatVal : assessable);
           final bcd = (item['bcdValue'] as num?)?.toDouble() ?? 0.0;
           final sws = (item['swsValue'] as num?)?.toDouble() ?? 0.0;
           final igst = (item['igstValue'] as num?)?.toDouble() ?? 0.0;
-          final qty = (item['quantity'] as num?)?.toDouble() ?? 1.0;
-          final unitPrice = (item['unitPrice'] as num?)?.toDouble() ?? 0.0;
 
           final ratio = totalAssessable > 0 ? (assessable / totalAssessable) : 0.0;
           final boeInt = interest * ratio;
           final expTotal = logistics * ratio;
-          final ldcPerQty = qty > 0 ? ((assessable + bcd + sws + boeInt + expTotal) / qty) : 0.0;
+          final ldcPerQty = qty > 0 ? ((materialVal + bcd + sws + boeInt + expTotal) / qty) : 0.0;
 
           result.add(
             LandedCostRow(
@@ -985,6 +989,7 @@ class DBHelper {
               unit: (item['unit'] ?? 'PCS').toString(),
               qty: qty,
               unitPrice: unitPrice,
+              materialValue: materialVal,
               assessableValue: assessable,
               bcdAmount: bcd,
               swsAmount: sws,

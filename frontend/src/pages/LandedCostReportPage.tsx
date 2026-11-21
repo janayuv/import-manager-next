@@ -127,7 +127,7 @@ export function LandedCostReportPage() {
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Per-unit landed cost from report_view: (Assessable + BCD + SWS + BOE Interest + Proportional Basic Expenses) / Qty.
+            Per-unit landed cost from report_view: (Material Value + BCD + SWS + BOE Interest + Proportional Basic Expenses) / Qty.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -144,7 +144,7 @@ export function LandedCostReportPage() {
             <>
               <Button variant="outline" onClick={() => void handleExportCsv()}>
                 <FileSpreadsheet className="h-4 w-4 mr-1.5" />
-                Export 15-Col CSV
+                Export 16-Col CSV
               </Button>
               <Button
                 variant="outline"
@@ -234,12 +234,20 @@ export function LandedCostReportPage() {
       </Card>
 
       {report && (
-        <div className="grid gap-4 md:grid-cols-7">
+        <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-8">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Items / Qty</CardDescription>
               <CardTitle className="text-lg">
                 {report.summary.totalRows} / {report.summary.totalQuantity.toLocaleString()}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Material Value (INR)</CardDescription>
+              <CardTitle className="text-lg">
+                {(report.summary.totalMaterialValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -310,6 +318,7 @@ export function LandedCostReportPage() {
                   <TableHead>Unit</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Material Value</TableHead>
                   <TableHead className="text-right">Assessable</TableHead>
                   <TableHead className="text-right">BCD</TableHead>
                   <TableHead className="text-right">SWS</TableHead>
@@ -324,7 +333,7 @@ export function LandedCostReportPage() {
               <TableBody>
                 {(report?.rows ?? []).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={15} className="text-center text-muted-foreground">
+                    <TableCell colSpan={16} className="text-center text-muted-foreground">
                       No finalized BOE &amp; invoice records matched filters.
                     </TableCell>
                   </TableRow>
@@ -335,9 +344,10 @@ export function LandedCostReportPage() {
                       allocationMethod === 'qty'
                         ? (r.qty / totalQty) * report!.summary.totalBasicExpenses
                         : r.expensesTotal;
+                    const materialVal = r.materialValue > 0 ? r.materialValue : (r.assessableValue || 0);
                     const dynamicLdc =
                       r.qty > 0
-                        ? (r.assessableValue + r.bcdAmount + r.swsAmount + (r.boeInterest || 0) + dynamicExpenses) / r.qty
+                        ? (materialVal + r.bcdAmount + r.swsAmount + (r.boeInterest || 0) + dynamicExpenses) / r.qty
                         : r.ldcPerQty;
 
                     return (
@@ -359,6 +369,7 @@ export function LandedCostReportPage() {
                         <TableCell>{r.unit}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{r.qty.toLocaleString()}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{r.unitPrice.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{materialVal.toFixed(2)}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{r.assessableValue.toFixed(2)}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{r.bcdAmount.toFixed(2)}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{r.swsAmount.toFixed(2)}</TableCell>

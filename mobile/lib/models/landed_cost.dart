@@ -8,6 +8,7 @@ class LandedCostRow {
   final String unit;
   final double qty;
   final double unitPrice;
+  final double materialValue;
   final double assessableValue;
   final double bcdAmount;
   final double swsAmount;
@@ -26,6 +27,7 @@ class LandedCostRow {
     required this.unit,
     required this.qty,
     required this.unitPrice,
+    required this.materialValue,
     required this.assessableValue,
     required this.bcdAmount,
     required this.swsAmount,
@@ -36,6 +38,8 @@ class LandedCostRow {
   });
 
   factory LandedCostRow.fromMap(Map<String, dynamic> map) {
+    final assessable = (map['assessable_value'] as num?)?.toDouble() ?? 0.0;
+    final matVal = (map['material_value'] as num?)?.toDouble() ?? assessable;
     return LandedCostRow(
       supplier: map['supplier']?.toString() ?? '',
       supplierId: map['supplier_id']?.toString() ?? '',
@@ -46,7 +50,8 @@ class LandedCostRow {
       unit: map['unit']?.toString() ?? 'PCS',
       qty: (map['qty'] as num?)?.toDouble() ?? 0.0,
       unitPrice: (map['unit_price'] as num?)?.toDouble() ?? 0.0,
-      assessableValue: (map['assessable_value'] as num?)?.toDouble() ?? 0.0,
+      materialValue: matVal,
+      assessableValue: assessable,
       bcdAmount: (map['bcd_amount'] as num?)?.toDouble() ?? 0.0,
       swsAmount: (map['sws_amount'] as num?)?.toDouble() ?? 0.0,
       igstAmount: (map['igst_amount'] as num?)?.toDouble() ?? 0.0,
@@ -59,13 +64,14 @@ class LandedCostRow {
   // Basic customs duty sum (BCD + SWS)
   double get totalBasicDuties => bcdAmount + swsAmount;
 
-  // Total Landed Cost (Excl. IGST) for this row
-  double get totalLandedCostExIgst => assessableValue + bcdAmount + swsAmount + boeInterest + expensesTotal;
+  // Total Landed Cost (Excl. IGST) for this row (Material Value + Duties + Expenses)
+  double get totalLandedCostExIgst => (materialValue > 0 ? materialValue : assessableValue) + bcdAmount + swsAmount + boeInterest + expensesTotal;
 }
 
 class LandedCostSummary {
   final int totalRows;
   final double totalQuantity;
+  final double totalMaterialValue;
   final double totalAssessableValue;
   final double totalBasicDuties; // BCD + SWS
   final double totalIgst;
@@ -76,6 +82,7 @@ class LandedCostSummary {
   LandedCostSummary({
     required this.totalRows,
     required this.totalQuantity,
+    required this.totalMaterialValue,
     required this.totalAssessableValue,
     required this.totalBasicDuties,
     required this.totalIgst,
@@ -87,6 +94,7 @@ class LandedCostSummary {
   factory LandedCostSummary.fromRows(List<LandedCostRow> rows) {
     int count = rows.length;
     double qty = 0;
+    double material = 0;
     double assessable = 0;
     double basicDuties = 0;
     double igst = 0;
@@ -96,6 +104,7 @@ class LandedCostSummary {
 
     for (final r in rows) {
       qty += r.qty;
+      material += (r.materialValue > 0 ? r.materialValue : r.assessableValue);
       assessable += r.assessableValue;
       basicDuties += (r.bcdAmount + r.swsAmount);
       igst += r.igstAmount;
@@ -107,6 +116,7 @@ class LandedCostSummary {
     return LandedCostSummary(
       totalRows: count,
       totalQuantity: qty,
+      totalMaterialValue: material,
       totalAssessableValue: assessable,
       totalBasicDuties: basicDuties,
       totalIgst: igst,

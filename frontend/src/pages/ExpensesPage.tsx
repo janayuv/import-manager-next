@@ -393,6 +393,7 @@ export function ExpensesPage() {
     let cgst = 0;
     let sgst = 0;
     let igst = 0;
+    let total = 0;
     let tds = 0;
     let net = 0;
     for (const l of filteredItemizedLines) {
@@ -400,6 +401,7 @@ export function ExpensesPage() {
       cgst += l.cgstPaise;
       sgst += l.sgstPaise;
       igst += l.igstPaise;
+      total += l.totalPaise || (l.amountPaise + l.cgstPaise + l.sgstPaise + l.igstPaise);
       tds += l.tdsPaise;
       net += l.netPaise;
     }
@@ -407,6 +409,7 @@ export function ExpensesPage() {
       count: filteredItemizedLines.length,
       basicPaise: basic,
       gstPaise: cgst + sgst + igst,
+      totalPaise: total,
       tdsPaise: tds,
       netPaise: net,
     };
@@ -448,6 +451,7 @@ export function ExpensesPage() {
       'SGST (INR)',
       'IGST %',
       'IGST (INR)',
+      'Invoice Total (INR)',
       'TDS %',
       'TDS (INR)',
       'Net Payable (INR)',
@@ -466,6 +470,7 @@ export function ExpensesPage() {
       Math.round(l.sgstPaise / 100).toString(),
       (l.igstRateBp / 100).toFixed(2),
       Math.round(l.igstPaise / 100).toString(),
+      Math.round((l.totalPaise || (l.amountPaise + l.cgstPaise + l.sgstPaise + l.igstPaise)) / 100).toString(),
       (l.tdsRateBp / 100).toFixed(2),
       Math.round(l.tdsPaise / 100).toString(),
       Math.round(l.netPaise / 100).toString(),
@@ -1152,7 +1157,7 @@ export function ExpensesPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                   <div className="rounded-lg border bg-card p-4 shadow-xs">
                     <span className="text-xs text-muted-foreground font-medium">Base (Excl. GST)</span>
                     <div className="font-mono text-lg font-bold text-foreground mt-1">
@@ -1169,6 +1174,21 @@ export function ExpensesPage() {
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
                       CGST: {formatPaiseINR(preview.totalCgstPaise)} | SGST: {formatPaiseINR(preview.totalSgstPaise)} | IGST: {formatPaiseINR(preview.totalIgstPaise)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border/80 bg-muted/40 p-4 shadow-xs">
+                    <span className="text-xs text-muted-foreground font-medium">Invoice Total</span>
+                    <div className="font-mono text-lg font-bold text-foreground mt-1">
+                      INR {formatPaiseINR(
+                        preview.baseAmountPaise +
+                          preview.totalCgstPaise +
+                          preview.totalSgstPaise +
+                          preview.totalIgstPaise +
+                          Math.round((Number.parseFloat(roundOffInr) || 0) * 100)
+                      )}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      Base + GST (w/o TDS)
                     </div>
                   </div>
                   <div className="rounded-lg border bg-card p-4 shadow-xs">
@@ -1238,7 +1258,11 @@ export function ExpensesPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setBulkShipmentId(shipments.find((s) => !s.isFrozen)?.id ?? '');
+                    const initialShipmentId =
+                      (shipmentFilter && shipments.find((s) => s.id === shipmentFilter && !s.isFrozen)?.id) ||
+                      shipments.find((s) => !s.isFrozen)?.id ||
+                      '';
+                    setBulkShipmentId(initialShipmentId);
                     setBulkOpen(true);
                   }}
                 >
@@ -1349,6 +1373,7 @@ export function ExpensesPage() {
                     <TableHead>Lines</TableHead>
                     <TableHead className="text-right">Basic (INR)</TableHead>
                     <TableHead className="text-right">GST (INR)</TableHead>
+                    <TableHead className="text-right">Invoice Total (INR)</TableHead>
                     <TableHead className="text-right">TDS (INR)</TableHead>
                     <TableHead className="text-right">Net Payable (INR)</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -1357,7 +1382,7 @@ export function ExpensesPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         <div className="flex items-center justify-center gap-2">
                           <RefreshCw className="h-4 w-4 animate-spin text-primary" />
                           <span>Loading expense ledger...</span>
@@ -1366,7 +1391,7 @@ export function ExpensesPage() {
                     </TableRow>
                   ) : invoices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         No expense invoices recorded yet.
                       </TableCell>
                     </TableRow>
@@ -1429,8 +1454,16 @@ export function ExpensesPage() {
                             <TableCell className="text-right font-mono">
                               {formatPaiseINR(gstPaise)}
                             </TableCell>
-                            <TableCell className="text-right font-mono">
-                              {formatPaiseINR(inv.totalTdsPaise)}
+                            <TableCell className="text-right font-mono font-medium">
+                              <div>
+                                {formatPaiseINR(inv.totalAmountPaise || (inv.baseAmountPaise + gstPaise + (inv.roundOffPaise ?? 0)))}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground font-normal">
+                                (w/o TDS)
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
+                              {inv.totalTdsPaise > 0 ? `-${formatPaiseINR(inv.totalTdsPaise)}` : '0.00'}
                             </TableCell>
                             <TableCell className="text-right font-mono font-semibold">
                               {formatPaiseINR(inv.netAmountPaise)}
@@ -1475,7 +1508,7 @@ export function ExpensesPage() {
                           {/* Expanded Line Items Breakdown */}
                           {isExpanded && (
                             <TableRow className="bg-muted/10 hover:bg-muted/10 border-t-0">
-                              <TableCell colSpan={10} className="p-0">
+                              <TableCell colSpan={11} className="p-0">
                                 <div className="p-4 pl-10 pr-4 border-b border-border/60 bg-slate-950/30 dark:bg-slate-900/40 space-y-3">
                                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                                     <div className="flex items-center gap-2 font-medium text-foreground">
@@ -1525,6 +1558,7 @@ export function ExpensesPage() {
                                             <TableHead className="text-right py-2">CGST</TableHead>
                                             <TableHead className="text-right py-2">SGST</TableHead>
                                             <TableHead className="text-right py-2">IGST</TableHead>
+                                            <TableHead className="text-right py-2">Line Total (INR)</TableHead>
                                             <TableHead className="text-right py-2">TDS</TableHead>
                                             <TableHead className="text-right py-2 font-semibold">Net Payable (INR)</TableHead>
                                             <TableHead className="py-2">Remarks</TableHead>
@@ -1585,6 +1619,9 @@ export function ExpensesPage() {
                                                 ) : (
                                                   '—'
                                                 )}
+                                              </TableCell>
+                                              <TableCell className="text-right font-mono py-2 font-medium">
+                                                {formatPaiseINR(line.totalPaise || (line.amountPaise + line.cgstPaise + line.sgstPaise + line.igstPaise))}
                                               </TableCell>
                                               <TableCell className="text-right font-mono text-amber-500 py-2">
                                                 {line.tdsRateBp > 0 ? (
@@ -1647,7 +1684,7 @@ export function ExpensesPage() {
         </TabsContent>
 
         <TabsContent value="itemized" className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Card className="p-3">
               <div className="text-xs text-muted-foreground">Total Line Items</div>
               <div className="text-xl font-bold">{itemizedSummary.count}</div>
@@ -1659,6 +1696,11 @@ export function ExpensesPage() {
             <Card className="p-3">
               <div className="text-xs text-muted-foreground">Total GST (INR)</div>
               <div className="text-xl font-bold font-mono text-blue-500">{formatPaiseINR(itemizedSummary.gstPaise)}</div>
+            </Card>
+            <Card className="p-3">
+              <div className="text-xs text-muted-foreground">Total Invoice Gross (INR)</div>
+              <div className="text-xl font-bold font-mono text-foreground">{formatPaiseINR(itemizedSummary.totalPaise)}</div>
+              <div className="text-[10px] text-muted-foreground">Basic + GST (w/o TDS)</div>
             </Card>
             <Card className="p-3">
               <div className="text-xs text-muted-foreground">Total Net Payable (INR)</div>
@@ -1753,6 +1795,7 @@ export function ExpensesPage() {
                     <TableHead>Expense Type</TableHead>
                     <TableHead className="text-right">Basic (INR)</TableHead>
                     <TableHead className="text-right">GST (INR)</TableHead>
+                    <TableHead className="text-right">Invoice Total (INR)</TableHead>
                     <TableHead className="text-right">TDS (INR)</TableHead>
                     <TableHead className="text-right">Net Payable (INR)</TableHead>
                     <TableHead>Remarks</TableHead>
@@ -1762,7 +1805,7 @@ export function ExpensesPage() {
                 <TableBody>
                   {filteredItemizedLines.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         No itemized expense lines match the current filters.
                       </TableCell>
                     </TableRow>
@@ -1793,6 +1836,14 @@ export function ExpensesPage() {
                                 </Badge>
                               )}
                               <span>{formatPaiseINR(gstPaise)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-medium">
+                            <div>
+                              {formatPaiseINR(line.totalPaise || (line.amountPaise + gstPaise))}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-normal">
+                              (w/o TDS)
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-amber-500">
@@ -2323,12 +2374,51 @@ export function ExpensesPage() {
         open={bulkOpen}
         onOpenChange={setBulkOpen}
         title="Bulk Expense CSV Import"
-        description="Imports the 11-column Expense CSV into the selected active shipment."
+        description="Select the destination shipment and import the 11-column Expense CSV."
         templateFilename="expenses_bulk_template.csv"
         onDownloadTemplate={() => expenseService.downloadBulkTemplateCsv()}
-        onImport={(content) => expenseService.importBulkCsv(bulkShipmentId, content)}
+        onImport={(content) => {
+          if (!bulkShipmentId) {
+            toast.error('Please select an active target shipment before running the import.');
+            return Promise.reject(new Error('Please select an active target shipment before running the import.'));
+          }
+          const selectedShipment = shipments.find((s) => s.id === bulkShipmentId);
+          if (selectedShipment?.isFrozen) {
+            toast.error('The selected shipment is frozen and cannot accept new expense entries.');
+            return Promise.reject(new Error('The selected shipment is frozen and cannot accept new expense entries.'));
+          }
+          return expenseService.importBulkCsv(bulkShipmentId, content);
+        }}
         onCompleted={loadAll}
-      />
+      >
+        <div className="space-y-1.5 rounded-lg border border-border/80 bg-muted/40 p-3">
+          <Label className="text-xs font-semibold flex items-center justify-between">
+            <span>Target Shipment for Uploaded Expenses</span>
+            {bulkShipmentId && (
+              <span className="text-[11px] font-normal text-muted-foreground">
+                {shipments.find((s) => s.id === bulkShipmentId)?.isFrozen
+                  ? '⚠️ Selected shipment is frozen (Locked)'
+                  : '✓ Active shipment ready'}
+              </span>
+            )}
+          </Label>
+          <Select value={bulkShipmentId} onValueChange={setBulkShipmentId}>
+            <SelectTrigger className="w-full bg-background h-9 text-xs">
+              <SelectValue placeholder="Select target shipment..." />
+            </SelectTrigger>
+            <SelectContent>
+              {shipments.map((s) => (
+                <SelectItem key={s.id} value={s.id} disabled={s.isFrozen}>
+                  {s.invoiceNumber} — {s.supplierName || 'No Supplier'} {s.isFrozen ? '(Frozen - Locked)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            All expense invoices and lines in this CSV file will be attached directly to this shipment.
+          </p>
+        </div>
+      </CsvImportDialog>
 
       <ManageServiceProvidersDialog
         open={manageSpOpen}

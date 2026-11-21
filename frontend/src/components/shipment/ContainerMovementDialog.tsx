@@ -4,11 +4,14 @@ import {
   Building2,
   CheckCircle2,
   Clock,
+  Lock,
   PackageCheck,
+  Plane,
   Plus,
   Ship,
   Trash2,
   Truck,
+  Unlock,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -43,6 +46,7 @@ import {
   Shipment,
   ShipmentContainer,
   ShipmentContainerInput,
+  ShipmentInput,
   shipmentService,
 } from '@/services/shipment-invoice-service';
 import { toast } from 'sonner';
@@ -60,11 +64,14 @@ export function ContainerMovementDialog({
   shipment,
   onSuccess,
 }: ContainerMovementDialogProps) {
+  const [currentShipment, setCurrentShipment] = React.useState<Shipment | null>(shipment);
   const [containers, setContainers] = React.useState<ShipmentContainer[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [actionTab, setActionTab] = React.useState<'direct' | 'to-wh' | 'from-wh'>('direct');
   const [submitting, setSubmitting] = React.useState(false);
+  const [freezeAfterDelivery, setFreezeAfterDelivery] = React.useState(false);
+  const [isFreezing, setIsFreezing] = React.useState(false);
 
   // Direct Delivery Form State
   const [directDate, setDirectDate] = React.useState(new Date().toISOString().slice(0, 10));
@@ -72,6 +79,19 @@ export function ContainerMovementDialog({
   const [directTransporter, setDirectTransporter] = React.useState('');
   const [directLR, setDirectLR] = React.useState('');
   const [directRemarks, setDirectRemarks] = React.useState('');
+
+  React.useEffect(() => {
+    setCurrentShipment(shipment);
+    if (shipment?.dateOfDelivery) {
+      setDirectDate(shipment.dateOfDelivery);
+    } else {
+      setDirectDate(new Date().toISOString().slice(0, 10));
+    }
+  }, [shipment]);
+
+  const isAirShipment = currentShipment?.shipmentMode?.toLowerCase() === 'air';
+  const isNonContainerized = isAirShipment || (containers.length === 0 && !loading);
+  const isFrozen = Boolean(currentShipment?.isFrozen);
 
   // Move to Warehouse Form State
   const [whName, setWhName] = React.useState('Main CFS Warehouse');
@@ -210,8 +230,85 @@ export function ContainerMovementDialog({
     }
   };
 
+  const handleToggleFreeze = async () => {
+    if (!currentShipment?.id) return;
+    setIsFreezing(true);
+    try {
+      let updated: Shipment;
+      if (currentShipment.isFrozen) {
+        updated = await shipmentService.unfreeze(currentShipment.id);
+        toast.success(`Shipment ${currentShipment.id} unfrozen successfully`);
+      } else {
+        updated = await shipmentService.freeze(currentShipment.id);
+        toast.success(`Shipment ${currentShipment.id} frozen successfully`);
+      }
+      setCurrentShipment(updated);
+      onSuccess?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsFreezing(false);
+    }
+  };
+
   const handleExecuteAction = async () => {
-    if (!shipment?.id) return;
+    if (!currentShipment?.id) return;
+
+    // Handle Air / Non-containerized direct delivery (when no containers exist)
+    if (containers.length === 0 || (isAirShipment && selectedIds.length === 0)) {
+      if (actionTab !== 'direct') {
+        toast.error('Warehouse transfer operations require container lots. For air/direct cargo, use Direct Delivery.');
+        return;
+      }
+      if (!directDate) {
+        toast.error('Factory delivery date is required');
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        const payload: ShipmentInput = {
+          supplierId: currentShipment.supplierId,
+          invoiceNumber: currentShipment.invoiceNumber,
+          invoiceDate: currentShipment.invoiceDate,
+          goodsCategory: currentShipment.goodsCategory,
+          invoiceValue: currentShipment.invoiceValue,
+          invoiceCurrency: currentShipment.invoiceCurrency,
+          incoterm: currentShipment.incoterm,
+          shipmentMode: currentShipment.shipmentMode,
+          shipmentType: currentShipment.shipmentType,
+          blAwbNumber: currentShipment.blAwbNumber,
+          blAwbDate: currentShipment.blAwbDate,
+          vesselName: currentShipment.vesselName,
+          containerNumber: currentShipment.containerNumber,
+          grossWeightKg: currentShipment.grossWeightKg,
+          etd: currentShipment.etd,
+          eta: currentShipment.eta,
+          status: 'delivered',
+          dateOfDelivery: directDate,
+        };
+
+        const updated = await shipmentService.update(currentShipment.id, payload);
+        setCurrentShipment(updated);
+
+        if (freezeAfterDelivery) {
+          const frozen = await shipmentService.freeze(currentShipment.id);
+          setCurrentShipment(frozen);
+          toast.success(`Shipment ${currentShipment.id} marked delivered on ${directDate} and frozen`);
+        } else {
+          toast.success(`Shipment ${currentShipment.id} marked as delivered on ${directDate}`);
+        }
+
+        onSuccess?.();
+        onOpenChange(false);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (selectedIds.length === 0) {
       toast.error('Please select at least one container to apply this action');
       return;
@@ -223,7 +320,7 @@ export function ContainerMovementDialog({
 
       if (actionTab === 'direct') {
         action = {
-          shipmentId: shipment.id,
+          shipmentId: currentShipment.id,
           containerIds: selectedIds,
           actionType: 'DIRECT_DELIVER',
           dateOfDelivery: directDate,
@@ -234,7 +331,7 @@ export function ContainerMovementDialog({
         };
       } else if (actionTab === 'to-wh') {
         action = {
-          shipmentId: shipment.id,
+          shipmentId: currentShipment.id,
           containerIds: selectedIds,
           actionType: 'MOVE_TO_WAREHOUSE',
           warehouseName: whName.trim() || 'Main CFS Warehouse',
@@ -245,7 +342,7 @@ export function ContainerMovementDialog({
         };
       } else {
         action = {
-          shipmentId: shipment.id,
+          shipmentId: currentShipment.id,
           containerIds: selectedIds,
           actionType: 'DISPATCH_FROM_WAREHOUSE',
           gateOutDate: whOutDate,
@@ -259,11 +356,18 @@ export function ContainerMovementDialog({
 
       await shipmentService.processContainerMovement(action);
       toast.success(`Processed movement for ${selectedIds.length} container(s)`);
+
+      if (freezeAfterDelivery) {
+        const frozen = await shipmentService.freeze(currentShipment.id);
+        setCurrentShipment(frozen);
+        toast.success(`Shipment ${currentShipment.id} frozen successfully`);
+      }
+
       await loadContainers();
       onSuccess?.();
       // If all delivered or finished, can close dialog or stay to view
       if (actionTab === 'direct' || actionTab === 'from-wh') {
-        const refreshed = await shipmentService.listContainers(shipment.id);
+        const refreshed = await shipmentService.listContainers(currentShipment.id);
         const pending = refreshed.filter((c) => c.deliveryStatus !== 'DELIVERED');
         if (pending.length === 0) {
           onOpenChange(false);
@@ -287,18 +391,53 @@ export function ContainerMovementDialog({
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="flex items-center gap-2 text-lg">
-                <Truck className="h-5 w-5 text-primary" />
-                Staged Container & Delivery Manager
+                {isAirShipment ? (
+                  <Plane className="h-5 w-5 text-sky-600" />
+                ) : (
+                  <Truck className="h-5 w-5 text-primary" />
+                )}
+                {isAirShipment ? 'Air Cargo Delivery & Shipment Manager' : 'Staged Container & Delivery Manager'}
               </DialogTitle>
               <DialogDescription>
-                Shipment {shipment?.id} • Invoice {shipment?.invoiceNumber} ({shipment?.supplierName})
+                Shipment {currentShipment?.id} • Invoice {currentShipment?.invoiceNumber} ({currentShipment?.supplierName})
+                {currentShipment?.blAwbNumber ? ` • ${isAirShipment ? 'AWB' : 'BL'}: ${currentShipment.blAwbNumber}` : ''}
               </DialogDescription>
             </div>
-            <div className="flex gap-2">
-              <Badge variant="outline" className="text-xs">
-                {containers.length} Total Containers
-              </Badge>
-              {deliveredCount > 0 && (
+            <div className="flex items-center gap-2">
+              {currentShipment?.isFrozen ? (
+                <Badge variant="destructive" className="gap-1 text-xs">
+                  <Lock className="h-3 w-3" /> Frozen (Locked)
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs">
+                  {containers.length} Total Containers
+                </Badge>
+              )}
+              {currentShipment?.isFrozen ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs border-amber-500 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1"
+                  disabled={isFreezing}
+                  onClick={() => void handleToggleFreeze()}
+                >
+                  <Unlock className="h-3.5 w-3.5" />
+                  Unfreeze
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  disabled={isFreezing}
+                  onClick={() => void handleToggleFreeze()}
+                  title="Freeze shipment once all processing is completed"
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  Freeze
+                </Button>
+              )}
+              {deliveredCount > 0 && !currentShipment?.isFrozen && (
                 <Badge variant="success" className="text-xs">
                   {deliveredCount} Delivered
                 </Badge>
@@ -318,6 +457,24 @@ export function ContainerMovementDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {isAirShipment && (
+            <div className="p-3 rounded-lg border border-sky-200 bg-sky-50/70 dark:border-sky-900/50 dark:bg-sky-950/30 flex items-start gap-3">
+              <Plane className="h-5 w-5 text-sky-600 dark:text-sky-400 mt-0.5 shrink-0" />
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-xs text-sky-900 dark:text-sky-200">
+                    Air Shipment (AWB: {currentShipment?.blAwbNumber || '—'})
+                  </span>
+                  <Badge variant="outline" className="text-[10px] bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/60 dark:text-sky-300">
+                    No Ocean Containers Needed
+                  </Badge>
+                </div>
+                <p className="text-xs text-sky-800 dark:text-sky-300">
+                  Air freight consignments do not require ocean shipping containers. Enter the factory delivery date and transport details below in <strong>1. Direct Delivery</strong> and click <strong>Confirm Direct Delivery</strong> to update delivery.
+                </p>
+              </div>
+            </div>
+          )}
           {/* Container List Table */}
           <div className="rounded-md border border-border">
             <div className="flex items-center justify-between p-2.5 bg-muted/40 border-b border-border">
@@ -509,8 +666,26 @@ export function ContainerMovementDialog({
                   </TableRow>
                 ) : containers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-4 text-xs text-muted-foreground">
-                      No containers recorded yet. Click &quot;Add Container&quot; above.
+                    <TableCell colSpan={9} className="text-center py-6 text-xs text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center space-y-1">
+                        {isAirShipment ? (
+                          <>
+                            <Plane className="h-6 w-6 text-sky-500 mb-1" />
+                            <span className="font-semibold text-foreground">Air Shipment — No Ocean Containers Required</span>
+                            <span className="text-[11px] max-w-md">
+                              This air freight consignment moves under AWB {currentShipment?.blAwbNumber || ''}. Select <strong>1. Direct Delivery</strong> below to record the factory delivery date and complete this shipment.
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <PackageCheck className="h-6 w-6 text-emerald-500 mb-1" />
+                            <span className="font-semibold text-foreground">No Containers Recorded</span>
+                            <span className="text-[11px] max-w-md">
+                              No containers recorded yet. For non-containerized cargo, apply <strong>Direct Delivery</strong> below, or click &quot;Add Container&quot; above.
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -641,7 +816,9 @@ export function ContainerMovementDialog({
           {/* Action Tabs for Staged Delivery Operations */}
           <div className="rounded-lg border border-border p-3 bg-card shadow-xs">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              Apply Operation on Selected Containers ({selectedIds.length} chosen)
+              {isNonContainerized
+                ? 'Record Delivery for Air / Non-Containerized Cargo'
+                : `Apply Operation on Selected Containers (${selectedIds.length} chosen)`}
             </h4>
 
             <Tabs value={actionTab} onValueChange={(v) => setActionTab(v as typeof actionTab)}>
@@ -663,7 +840,16 @@ export function ContainerMovementDialog({
               {/* Mode 1: Direct Delivery */}
               <TabsContent value="direct" className="space-y-3 mt-0">
                 <div className="p-2.5 rounded bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 text-xs text-emerald-800 dark:text-emerald-300">
-                  Bypasses warehouse storage and delivers selected container(s) straight to factory gate.
+                  {isAirShipment ? (
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Plane className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                      Air Cargo Direct Delivery: Records factory delivery date and dispatch details directly for this air shipment.
+                    </span>
+                  ) : isNonContainerized ? (
+                    'Bypasses warehouse storage and delivers non-containerized cargo straight to factory gate.'
+                  ) : (
+                    'Bypasses warehouse storage and delivers selected container(s) straight to factory gate.'
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
@@ -718,6 +904,20 @@ export function ContainerMovementDialog({
                       onChange={(e) => setDirectRemarks(e.target.value)}
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center space-x-2 pt-2 border-t border-border">
+                  <input
+                    type="checkbox"
+                    id="freezeAfterDelivery"
+                    checked={freezeAfterDelivery}
+                    onChange={(e) => setFreezeAfterDelivery(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  <Label htmlFor="freezeAfterDelivery" className="text-xs font-normal cursor-pointer flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                    <Lock className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Freeze shipment once delivery is completed (commercial lock to prevent further edits)</span>
+                  </Label>
                 </div>
               </TabsContent>
 
@@ -859,9 +1059,19 @@ export function ContainerMovementDialog({
 
         <DialogFooter className="flex items-center justify-between sm:justify-between border-t border-border pt-3">
           <div className="text-xs text-muted-foreground">
-            {selectedIds.length === 0 ? (
-              <span className="flex items-center gap-1">
-                <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+            {isFrozen ? (
+              <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                <Lock className="h-3.5 w-3.5" />
+                Shipment is frozen (locked). Click &quot;Unfreeze&quot; above to modify delivery.
+              </span>
+            ) : isNonContainerized ? (
+              <span className="flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {isAirShipment ? 'Air Shipment' : 'Non-containerized cargo'}: Ready to record factory delivery
+              </span>
+            ) : selectedIds.length === 0 ? (
+              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                <AlertCircle className="h-3.5 w-3.5" />
                 Select at least 1 container above to apply action
               </span>
             ) : (
@@ -876,10 +1086,14 @@ export function ContainerMovementDialog({
             </Button>
             <Button
               size="sm"
-              disabled={selectedIds.length === 0 || submitting}
+              disabled={isFrozen || submitting || (isNonContainerized ? !directDate : selectedIds.length === 0)}
               onClick={() => void handleExecuteAction()}
             >
-              {submitting ? 'Updating...' : `Confirm ${actionTab === 'direct' ? 'Direct Delivery' : actionTab === 'to-wh' ? 'Move to Warehouse' : 'Dispatch & Deliver'}`}
+              {submitting
+                ? 'Updating...'
+                : isNonContainerized
+                ? 'Confirm Direct Delivery'
+                : `Confirm ${actionTab === 'direct' ? 'Direct Delivery' : actionTab === 'to-wh' ? 'Move to Warehouse' : 'Dispatch & Deliver'}`}
             </Button>
           </div>
         </DialogFooter>

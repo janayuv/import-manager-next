@@ -186,7 +186,7 @@ func (s *Service) Freeze(id string) (models.Shipment, error) {
 
 // Unfreeze lifts the commercial freeze lock (admin/privileged role check).
 func (s *Service) Unfreeze(id string) (models.Shipment, error) {
-	sess, err := s.sec.RequirePermission(security.PermRoleWrite)
+	sess, err := s.sec.RequireAnyPermission(security.PermRoleWrite, security.PermDataWrite)
 	if err != nil {
 		return models.Shipment{}, err
 	}

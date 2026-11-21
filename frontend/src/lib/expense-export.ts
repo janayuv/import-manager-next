@@ -110,7 +110,7 @@ export async function exportLandedCostPdf(report: LandedCostReport, companyHeade
   doc.text(title, 32, 34);
   doc.setFontSize(9);
   doc.text(
-    `Rows: ${report.summary.totalRows} | Assessable: INR ${report.summary.totalAssessableValue.toFixed(2)} | ` +
+    `Rows: ${report.summary.totalRows} | Material: INR ${(report.summary.totalMaterialValue || 0).toFixed(2)} | Assessable: INR ${report.summary.totalAssessableValue.toFixed(2)} | ` +
       `Basic Duties: INR ${report.summary.totalBasicDuties.toFixed(2)} | BOE Interest: INR ${(report.summary.totalBoeInterest || 0).toFixed(2)} | Basic Expenses: INR ${report.summary.totalBasicExpenses.toFixed(2)} | ` +
       `Total LDC (Excl. IGST): INR ${report.summary.totalLandedCostExIgst.toFixed(2)}`,
     32,
@@ -127,6 +127,7 @@ export async function exportLandedCostPdf(report: LandedCostReport, companyHeade
       'Part No',
       'Unit',
       'Qty',
+      'Material Val',
       'Assessable',
       'BCD',
       'SWS',
@@ -142,6 +143,7 @@ export async function exportLandedCostPdf(report: LandedCostReport, companyHeade
       r.partNo,
       r.unit,
       r.qty.toFixed(2),
+      (r.materialValue > 0 ? r.materialValue : r.assessableValue).toFixed(2),
       r.assessableValue.toFixed(2),
       r.bcdAmount.toFixed(2),
       r.swsAmount.toFixed(2),

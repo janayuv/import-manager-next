@@ -9,6 +9,9 @@ vi.mock('@/services/shipment-invoice-service', () => ({
     createContainer: vi.fn(),
     deleteContainer: vi.fn(),
     processContainerMovement: vi.fn(),
+    update: vi.fn(),
+    freeze: vi.fn(),
+    unfreeze: vi.fn(),
   },
 }));
 
@@ -256,6 +259,97 @@ describe('ContainerMovementDialog (Staged Split Delivery & Warehouse Tracking)',
           containerIds: ['C-2'],
         })
       );
+    });
+  });
+
+  it('supports direct delivery for Air shipments without containers', async () => {
+    const airShipment: Shipment = {
+      ...mockShipment,
+      id: 'SHP-033',
+      shipmentMode: 'Air',
+      blAwbNumber: 'AWB-778899',
+      containerNumber: '',
+    };
+
+    vi.mocked(shipmentService.listContainers).mockResolvedValue([]);
+    vi.mocked(shipmentService.update).mockResolvedValue({
+      ...airShipment,
+      status: 'delivered',
+      dateOfDelivery: '2026-11-20',
+    });
+
+    render(
+      <ContainerMovementDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        shipment={airShipment}
+      />
+    );
+
+    // Shows Air shipment banner and title
+    expect(screen.getByText('Air Cargo Delivery & Shipment Manager')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Air Shipment — No Ocean Containers Required/i)).toBeInTheDocument();
+    });
+
+    // Confirm button is NOT disabled despite 0 containers
+    const submitBtn = screen.getByRole('button', { name: /Confirm Direct Delivery/i });
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(shipmentService.update).toHaveBeenCalledWith(
+        'SHP-033',
+        expect.objectContaining({
+          status: 'delivered',
+          dateOfDelivery: expect.any(String),
+        })
+      );
+    });
+  });
+
+  it('allows freezing and unfreezing the shipment from the dialog header', async () => {
+    vi.mocked(shipmentService.freeze).mockResolvedValue({
+      ...mockShipment,
+      isFrozen: true,
+    });
+    vi.mocked(shipmentService.unfreeze).mockResolvedValue({
+      ...mockShipment,
+      isFrozen: false,
+    });
+
+    const { rerender } = render(
+      <ContainerMovementDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        shipment={mockShipment}
+      />
+    );
+
+    // Click Freeze button
+    const freezeBtn = screen.getByRole('button', { name: /^Freeze$/i });
+    fireEvent.click(freezeBtn);
+
+    await waitFor(() => {
+      expect(shipmentService.freeze).toHaveBeenCalledWith('SHP-001');
+    });
+
+    // Rerender with frozen shipment
+    rerender(
+      <ContainerMovementDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        shipment={{ ...mockShipment, isFrozen: true }}
+      />
+    );
+
+    const unfreezeBtn = screen.getByRole('button', { name: /Unfreeze/i });
+    expect(unfreezeBtn).toBeInTheDocument();
+    fireEvent.click(unfreezeBtn);
+
+    await waitFor(() => {
+      expect(shipmentService.unfreeze).toHaveBeenCalledWith('SHP-001');
     });
   });
 });

@@ -60,6 +60,7 @@ type PartPeriodSummary struct {
 	Unit                            string  `json:"unit"`
 	TotalForexValue                 float64 `json:"totalForexValue"`
 	Currency                        string  `json:"currency"`
+	TotalMaterialValueINR           float64 `json:"totalMaterialValueInr"`
 	TotalAssessableValueINR         float64 `json:"totalAssessableValueInr"`
 	TotalBCDAmount                  float64 `json:"totalBcdAmount"`
 	TotalSWSAmount                  float64 `json:"totalSwsAmount"`
@@ -166,6 +167,7 @@ type PartTrendPoint struct {
 	Quantity              float64 `json:"quantity"`
 	UnitPriceForex        float64 `json:"unitPriceForex"`
 	Currency              string  `json:"currency"`
+	MaterialValuePerUnit  float64 `json:"materialValuePerUnit"`
 	AssessableValuePerUnit float64 `json:"assessableValuePerUnit"`
 	DutyPerUnit           float64 `json:"dutyPerUnit"`
 	ExpensePerUnit        float64 `json:"expensePerUnit"`
