@@ -2,6 +2,8 @@ package bootstrap
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/database/migrations"
 	"github.com/janayuv/import-manager-next/backend/logging"
 	"github.com/janayuv/import-manager-next/backend/memory"
+	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/scheduler"
 	"github.com/janayuv/import-manager-next/backend/services/audit"
 	"github.com/janayuv/import-manager-next/backend/services/backup"
@@ -20,6 +23,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/boe_entry"
 	"github.com/janayuv/import-manager-next/backend/services/boe_summary"
 	"github.com/janayuv/import-manager-next/backend/services/cbic_rates"
+	"github.com/janayuv/import-manager-next/backend/services/company"
 	"github.com/janayuv/import-manager-next/backend/services/dashboard"
 	"github.com/janayuv/import-manager-next/backend/services/database_management"
 	"github.com/janayuv/import-manager-next/backend/services/expense_reports"
@@ -77,6 +81,8 @@ type Runtime struct {
 	Scheduler          *scheduler.Scheduler
 	MemoryMgr          *memory.Manager
 	Memory             *memService.Service
+	Company            *company.Service
+	DBKey              string
 }
 
 // Initialize resolves configuration, opens logging, fetches/creates the SQLCipher database key
@@ -199,7 +205,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		"dataDir", cfg.Paths.DataDir,
 	)
 
-	return &Runtime{
+	rt := &Runtime{
 		Config:             cfg,
 		Logger:             logger,
 		DB:                 dbMgr,
@@ -234,7 +240,179 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		Scheduler:          sched,
 		MemoryMgr:          memMgr,
 		Memory:             memSvc,
-	}, nil
+		DBKey:              dbKey,
+	}
+
+	companySvc, err := company.NewService(
+		cfg.Paths.DataDir,
+		cfg.Paths.DatabasePath,
+		dbKey,
+		cfg.AppVersion,
+		dbMgr.DB(),
+		securitySvc,
+		auditSvc,
+		func(newPath string, compID string) (*sql.DB, error) {
+			return rt.SwitchDatabase(newPath, compID)
+		},
+	)
+	if err != nil {
+		return cleanupOnErr(fmt.Errorf("init company service: %w", err))
+	}
+	rt.Company = companySvc
+
+	return rt, nil
+}
+
+// SwitchDatabase dynamically switches the application's active database connection
+// to another company database file, migrating schema and rebinding all active services.
+func (r *Runtime) SwitchDatabase(targetPath string, compID string) (*sql.DB, error) {
+	if r.RestoreControl != nil && r.RestoreControl.IsRestoring() {
+		return nil, errors.New("cannot switch company while database maintenance or restore is in progress")
+	}
+
+	if r.Scheduler != nil {
+		r.Scheduler.Stop()
+	}
+
+	if r.DB != nil {
+		_ = r.DB.CheckpointWAL()
+	}
+
+	newMgr, err := connection.OpenEncrypted(targetPath, r.DBKey)
+	if err != nil {
+		if r.Scheduler != nil && !r.Config.RecoveryMode {
+			r.Scheduler.Start()
+		}
+		return nil, fmt.Errorf("open target company database: %w", err)
+	}
+
+	ctx := context.Background()
+	_, err = migrations.Run(ctx, newMgr.DB(), r.Config.AppVersion, nil)
+	if err != nil {
+		_ = newMgr.Close()
+		if r.Scheduler != nil && !r.Config.RecoveryMode {
+			r.Scheduler.Start()
+		}
+		return nil, fmt.Errorf("migrate target company database: %w", err)
+	}
+
+	integ, err := integrity.Verify(newMgr.DB())
+	if err != nil || !integ.IntegrityOK {
+		_ = newMgr.Close()
+		if r.Scheduler != nil && !r.Config.RecoveryMode {
+			r.Scheduler.Start()
+		}
+		return nil, fmt.Errorf("target company database integrity check failed: %v", err)
+	}
+
+	oldDB := r.DB
+	r.DB = newMgr
+	r.Config.Paths.DatabasePath = targetPath
+	if oldDB != nil {
+		_ = oldDB.Close()
+	}
+
+	r.RebindServices(newMgr.DB(), newMgr, targetPath)
+
+	if r.Company != nil {
+		r.Company.SetActiveDB(newMgr.DB())
+	}
+
+	if h, hErr := newMgr.Health(); hErr == nil {
+		r.Health = h
+	}
+	r.Integrity = integ
+
+	if r.Scheduler != nil && !r.Config.RecoveryMode {
+		r.Scheduler.Start()
+	}
+
+	r.Logger.Info("switched active company database", "companyID", compID, "path", targetPath)
+	return newMgr.DB(), nil
+}
+
+// RebindServices propagates a newly opened database connection to all initialized domain services.
+func (r *Runtime) RebindServices(newDB *sql.DB, newMgr *connection.Manager, newPath string) {
+	if r.Audit != nil {
+		r.Audit.SetDB(newDB)
+	}
+	if r.Security != nil {
+		r.Security.SetDB(newDB)
+	}
+	if r.Options != nil {
+		r.Options.SetDB(newDB)
+	}
+	if r.Suppliers != nil {
+		r.Suppliers.SetDB(newDB)
+	}
+	if r.Items != nil {
+		r.Items.SetDB(newDB)
+	}
+	if r.Shipments != nil {
+		r.Shipments.SetDB(newDB)
+	}
+	if r.Invoices != nil {
+		r.Invoices.SetDB(newDB)
+	}
+	if r.InvoiceWizard != nil {
+		r.InvoiceWizard.SetDB(newDB)
+	}
+	if r.PaymentPO != nil {
+		r.PaymentPO.SetDB(newDB)
+	}
+	if r.BOE != nil {
+		r.BOE.SetDB(newDB)
+	}
+	if r.BOEEntry != nil {
+		r.BOEEntry.SetDB(newDB)
+	}
+	if r.BOESummary != nil {
+		r.BOESummary.SetDB(newDB)
+	}
+	if r.CBICRates != nil {
+		r.CBICRates.SetDB(newDB)
+	}
+	if r.Expenses != nil {
+		r.Expenses.SetDB(newDB)
+	}
+	if r.ExpenseReports != nil {
+		r.ExpenseReports.SetDB(newDB)
+	}
+	if r.Reports != nil {
+		r.Reports.SetDB(newDB)
+	}
+	if r.Dashboard != nil {
+		r.Dashboard.SetDB(newDB)
+	}
+	if r.Settings != nil {
+		r.Settings.SetDB(newDB)
+	}
+	if r.Backup != nil {
+		r.Backup.SetDB(newDB)
+	}
+	if r.GoogleDrive != nil {
+		r.GoogleDrive.SetDB(newDB)
+	}
+	if r.RecycleBin != nil {
+		r.RecycleBin.SetDB(newDB)
+	}
+	if r.DatabaseManagement != nil {
+		r.DatabaseManagement.SetDB(newDB, newMgr, newPath)
+	}
+	if r.Workflow != nil {
+		r.Workflow.SetDB(newDB)
+	}
+	if r.MemoryMgr != nil {
+		r.MemoryMgr.SetDB(newMgr)
+	}
+}
+
+// SwitchCompany dynamically switches active company context and returns the newly active profile.
+func (r *Runtime) SwitchCompany(compID string) (models.Company, error) {
+	if r.Company == nil {
+		return models.Company{}, errors.New("company service not initialized")
+	}
+	return r.Company.SwitchCompany(compID)
 }
 
 // Shutdown flushes and closes open database and log handles cleanly.

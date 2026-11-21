@@ -43,6 +43,11 @@ func NewService(
 	}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 func newID(prefix string) string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)

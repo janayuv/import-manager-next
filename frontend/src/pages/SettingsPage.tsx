@@ -2,11 +2,13 @@ import * as React from 'react';
 import {
   AlertCircle,
   ArrowUpCircle,
+  Building2,
   CheckCircle2,
   Download,
   ExternalLink,
   Loader2,
   Palette,
+  Plus,
   RefreshCw,
   RotateCcw,
   Save,
@@ -28,6 +30,9 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOptionalTheme } from '@/contexts/ThemeContext';
+import { useCompany } from '@/contexts/CompanyContext';
+import { CreateCompanyModal } from '@/components/company/CreateCompanyModal';
+import { CompanyProfileModal } from '@/components/company/CompanyProfileModal';
 import {
   applyThemeProfile,
   settingsService,
@@ -65,6 +70,9 @@ export function SettingsPage() {
   const themeCtx = useOptionalTheme();
   const syncTheme = themeCtx?.syncTheme;
   const canWrite = hasPermission('data.write');
+  const { currentCompany, companies, switchCompany } = useCompany();
+  const [createCompanyOpen, setCreateCompanyOpen] = React.useState(false);
+  const [editProfileOpen, setEditProfileOpen] = React.useState(false);
 
   const [profile, setProfile] = React.useState<AppSettingsProfile | null>(null);
   const [selectedModule, setSelectedModule] = React.useState('shipment');
@@ -229,6 +237,128 @@ export function SettingsPage() {
           </Button>
         )}
       </div>
+
+      {/* Multi-Company Management & Active Entity */}
+      <Card className="border-primary/25 bg-card/80 shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  Corporate Identity &amp; Company Database
+                </CardTitle>
+                {currentCompany && (
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {currentCompany.shortCode}
+                  </Badge>
+                )}
+              </div>
+              <CardDescription className="text-xs">
+                Each company operates with its own encrypted SQLite database, customs credentials, and financial ledger.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setEditProfileOpen(true)}
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                <span>Edit Profile</span>
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setCreateCompanyOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Create Company</span>
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {currentCompany && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-border/80 bg-muted/30 p-3 text-xs">
+              <div>
+                <span className="text-[11px] text-muted-foreground block">Active Company</span>
+                <span className="font-semibold text-foreground text-sm truncate block mt-0.5">
+                  {currentCompany.name}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-muted-foreground block">IEC Code</span>
+                <span className="font-mono font-medium text-foreground block mt-0.5">
+                  {currentCompany.iecCode || '—'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-muted-foreground block">GSTIN</span>
+                <span className="font-mono font-medium text-foreground block mt-0.5">
+                  {currentCompany.gstin || '—'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-muted-foreground block">PAN</span>
+                <span className="font-mono font-medium text-foreground block mt-0.5">
+                  {currentCompany.pan || '—'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {companies.length > 1 && (
+            <div className="space-y-2 pt-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                Registered Companies ({companies.length})
+              </span>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {companies.map((c) => {
+                  const isActive = c.id === currentCompany?.id;
+                  return (
+                    <div
+                      key={c.id}
+                      className={`flex items-center justify-between gap-2 rounded-md border p-2.5 text-xs transition-colors ${
+                        isActive
+                          ? 'border-primary bg-primary/5 text-primary'
+                          : 'border-border bg-card hover:bg-accent'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold truncate">{c.name}</span>
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 font-mono">
+                            {c.shortCode}
+                          </Badge>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block mt-0.5">
+                          {c.iecCode ? `IEC: ${c.iecCode}` : 'Isolated Database'}
+                        </span>
+                      </div>
+                      {isActive ? (
+                        <Badge variant="default" className="text-[10px] px-2 py-0.5">
+                          Active
+                        </Badge>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => void switchCompany(c.id)}
+                        >
+                          Switch
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -578,6 +708,9 @@ export function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <CreateCompanyModal open={createCompanyOpen} onOpenChange={setCreateCompanyOpen} />
+      <CompanyProfileModal open={editProfileOpen} onOpenChange={setEditProfileOpen} />
     </div>
   );
 }

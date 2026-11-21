@@ -44,6 +44,11 @@ func NewService(db *sql.DB, sec *security.Service, aud *audit.Service, attachmen
 	}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // --- Service Providers ---
 
 func (s *Service) ListServiceProviders(search string) ([]models.ServiceProvider, error) {

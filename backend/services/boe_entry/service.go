@@ -49,6 +49,13 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Ser
 	}
 }
 
+// SetDB rebinds the service and its repositories to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+	s.shipRepo = repositories.NewShipmentRepository(db)
+	s.invRepo = repositories.NewInvoiceRepository(db)
+}
+
 // PreviewCalculation computes duties on demand without persisting to DB.
 func (s *Service) PreviewCalculation(params models.BOECalcParams) (models.BOECalculationResult, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {

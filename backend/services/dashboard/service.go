@@ -31,6 +31,11 @@ func NewService(db *sql.DB, sec *security.Service, aud *audit.Service) *Service 
 	return &Service{db: db, sec: sec, audit: aud}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // ResolveFinancialYearBounds converts an Indian FY string ("2026-27") to Apr 1..Mar 31 bounds.
 func ResolveFinancialYearBounds(fy, startOverride, endOverride string) (string, string, string) {
 	fyClean := strings.TrimSpace(fy)

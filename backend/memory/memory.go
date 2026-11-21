@@ -100,6 +100,13 @@ func NewManager(db *connection.Manager, logger *logging.Logger, cfg Config) *Man
 	return mgr
 }
 
+// SetDB rebinds the memory manager to an active database connection manager.
+func (m *Manager) SetDB(db *connection.Manager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.db = db
+}
+
 // Touch registers user or API activity, resetting the idle timer.
 func (m *Manager) Touch() {
 	m.mu.Lock()

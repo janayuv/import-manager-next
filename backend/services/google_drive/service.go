@@ -85,6 +85,13 @@ func NewService(db *sql.DB, sec *security.Service, aud *audit.Service, secrets c
 	}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.db = db
+}
+
 func gdriveErr(msg string, err error) error {
 	if err != nil {
 		return fmt.Errorf("GDRIVE_ERROR: %s: %w", msg, err)

@@ -48,6 +48,11 @@ func NewService(db *sql.DB, sec *security.Service, aud *audit.Service) *Service 
 	return &Service{db: db, sec: sec, audit: aud}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // DefaultProfile builds canonical version-1 settings matching legacy defaults.
 func DefaultProfile() models.AppSettingsProfile {
 	mods := make(map[string]models.ModuleDisplaySettings, len(managedModules))

@@ -58,6 +58,7 @@ func main() {
 			application.NewService(rt.DatabaseManagement),
 			application.NewService(rt.Workflow),
 			application.NewService(rt.Updater),
+			application.NewService(rt.Company),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

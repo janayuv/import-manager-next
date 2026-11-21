@@ -47,6 +47,11 @@ func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // SetPermissionGate injects an authorization check invoked by UI-facing query methods.
 func (s *Service) SetPermissionGate(gate func(perm string) error) {
 	s.permGate = gate

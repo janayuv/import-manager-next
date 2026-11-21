@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../database/db_helper.dart';
 import '../../models/item_part.dart';
+import '../../services/company_service.dart';
 import '../widgets/duty_breakdown_dialog.dart';
 import '../widgets/part_duty_card.dart';
+import '../widgets/company_switcher_badge.dart';
 
 class PartsDutyScreen extends StatefulWidget {
   const PartsDutyScreen({super.key});
@@ -26,14 +28,22 @@ class _PartsDutyScreenState extends State<PartsDutyScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    CompanyService.instance.addListener(_onCompanyChanged);
     _initData();
   }
 
   @override
   void dispose() {
+    CompanyService.instance.removeListener(_onCompanyChanged);
     _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onCompanyChanged() {
+    if (mounted) {
+      _initData();
+    }
   }
 
   void _onSearchChanged(String val) {
@@ -87,24 +97,9 @@ class _PartsDutyScreenState extends State<PartsDutyScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Parts & Duty Structure'),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.totalDuty.withAlpha(25),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.totalDuty.withAlpha(80)),
-            ),
-            child: Text(
-              '${_items.length} PARTS',
-              style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.bold,
-                color: AppColors.totalDuty,
-              ),
-            ),
-          ),
+        actions: const [
+          CompanySwitcherBadge(),
+          SizedBox(width: 14),
         ],
       ),
       body: RefreshIndicator(

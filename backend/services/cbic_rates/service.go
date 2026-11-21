@@ -28,6 +28,11 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Ser
 	}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // List returns CBIC exchange rate entries, optionally filtered by currency code.
 func (s *Service) List(currency string) ([]models.CBICExchangeRate, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
@@ -156,6 +161,14 @@ func (s *Service) Create(in models.CBICExchangeRateInput) (models.CBICExchangeRa
 	if in.EffectiveTo != nil && strings.TrimSpace(*in.EffectiveTo) != "" {
 		cleaned := strings.TrimSpace(*in.EffectiveTo)
 		effTo = &cleaned
+	}
+
+	var existsCount int
+	_ = s.db.QueryRow(`
+		SELECT COUNT(*) FROM cbic_exchange_rates
+		WHERE currency_code = ? AND notification_number = ?`, curr, notif).Scan(&existsCount)
+	if existsCount > 0 {
+		return models.CBICExchangeRate{}, fmt.Errorf("CBIC exchange rate for %s under notification %q already exists", curr, notif)
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)

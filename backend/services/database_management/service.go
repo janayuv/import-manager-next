@@ -135,6 +135,16 @@ func NewService(
 	}
 }
 
+// SetDB rebinds the service and connection pointers to an active database handle.
+func (s *Service) SetDB(db *sql.DB, dbMgr *connection.Manager, dbPath string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.db = db
+	s.dbMgr = dbMgr
+	s.dbPath = dbPath
+	s.undoBatches = make(map[string]undoBatch)
+}
+
 // ListBrowseableTables returns the allowlisted table names exposed in the Database Console.
 func (s *Service) ListBrowseableTables() ([]string, error) {
 	if _, err := s.security.RequirePermission(security.PermAdminSystemTools); err != nil {

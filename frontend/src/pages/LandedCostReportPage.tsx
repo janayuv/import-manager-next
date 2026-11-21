@@ -2,10 +2,12 @@ import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calculator, FileDown, FileSpreadsheet, PackageSearch, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useCompany } from '@/contexts/CompanyContext';
 import {
   Select,
   SelectContent,
@@ -43,6 +45,7 @@ export function LandedCostReportPage() {
   const [allocationMethod, setAllocationMethod] = React.useState<'av' | 'qty' | 'weight'>('av');
   const [simulatorOpen, setSimulatorOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const { currentCompany } = useCompany();
 
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [report, setReport] = React.useState<LandedCostReport | null>(null);
@@ -111,11 +114,19 @@ export function LandedCostReportPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <PackageSearch className="h-6 w-6 text-primary" />
-            Landed Cost Report (Excl. IGST)
-          </h1>
-          <p className="text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+              <PackageSearch className="h-6 w-6 text-primary" />
+              Landed Cost Report (Excl. IGST)
+            </h1>
+            {currentCompany && (
+              <Badge variant="outline" className="font-mono text-xs">
+                {currentCompany.name} ({currentCompany.shortCode})
+                {currentCompany.iecCode ? ` • IEC: ${currentCompany.iecCode}` : ''}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Per-unit landed cost from report_view: (Assessable + BCD + SWS + BOE Interest + Proportional Basic Expenses) / Qty.
           </p>
         </div>
@@ -135,7 +146,17 @@ export function LandedCostReportPage() {
                 <FileSpreadsheet className="h-4 w-4 mr-1.5" />
                 Export 15-Col CSV
               </Button>
-              <Button variant="outline" onClick={() => void exportLandedCostPdf(report)}>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  void exportLandedCostPdf(
+                    report,
+                    currentCompany
+                      ? `${currentCompany.name}${currentCompany.iecCode ? ` (IEC: ${currentCompany.iecCode})` : ''}`
+                      : undefined,
+                  )
+                }
+              >
                 <FileDown className="h-4 w-4 mr-1.5" />
                 Print Summary PDF
               </Button>

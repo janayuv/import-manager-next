@@ -44,3 +44,23 @@ export class HealthInfo {
         return new HealthInfo($$parsedSource as Partial<HealthInfo>);
     }
 }
+
+/**
+ * Manager owns the SQLCipher-backed database/sql handle and connection lifecycle.
+ */
+export class Manager {
+
+    /** Creates a new Manager instance. */
+    constructor($$source: Partial<Manager> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Manager instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Manager {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Manager($$parsedSource as Partial<Manager>);
+    }
+}

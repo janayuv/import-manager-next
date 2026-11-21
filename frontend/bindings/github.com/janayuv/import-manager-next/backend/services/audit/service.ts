@@ -12,6 +12,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
@@ -44,6 +48,13 @@ export function RecordTableAudit(tableName: string, rowID: string, action: strin
  */
 export function RecordUserActivity(userID: string, actionName: string, entityType: string, entityID: string, status: string, severity: string, details: any): $CancellablePromise<void> {
     return $Call.ByID(3649892800, userID, actionName, entityType, entityID, status, severity, details);
+}
+
+/**
+ * SetDB rebinds the service to an active database handle.
+ */
+export function SetDB(db: sql$0.DB | null): $CancellablePromise<void> {
+    return $Call.ByID(4103496443, db);
 }
 
 /**

@@ -51,6 +51,7 @@ import { DocumentPreviewDialog, type DocumentPreviewFile } from '@/components/sy
 import { UpdateDialog } from '@/components/system/UpdateDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { CompanySwitcher } from '@/components/company/CompanySwitcher';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -357,6 +358,7 @@ export function AppShell() {
         {/* Desktop Quick Header & Command Trigger */}
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card/60 px-4 backdrop-blur-xs">
           <div className="flex items-center gap-3">
+            <CompanySwitcher />
             <button
               type="button"
               onClick={() => setCommandPaletteOpen(true)}

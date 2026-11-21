@@ -12,6 +12,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../../models/models.js";
 
 /**
@@ -47,6 +50,13 @@ export function ListActiveShipmentsForInvoicing(): $CancellablePromise<models$0.
     return $Call.ByID(1190659581).then(($result: any) => {
         return $$createType4($result);
     });
+}
+
+/**
+ * SetDB rebinds the service and its repositories to an active database handle.
+ */
+export function SetDB(db: sql$0.DB | null): $CancellablePromise<void> {
+    return $Call.ByID(217382131, db);
 }
 
 // Private type creation functions

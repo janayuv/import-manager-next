@@ -49,6 +49,12 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Ser
 	}
 }
 
+// SetDB rebinds the service and its repositories to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+	s.repo = repositories.NewSupplierRepository(db)
+}
+
 // List returns paginated, filtered, sorted active suppliers.
 func (s *Service) List(req models.SupplierPageRequest) (models.SupplierPage, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {

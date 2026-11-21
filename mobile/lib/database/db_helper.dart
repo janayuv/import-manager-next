@@ -10,13 +10,17 @@ import '../models/shipment.dart';
 import '../models/item_part.dart';
 import '../models/invoice.dart';
 import '../models/landed_cost.dart';
+import '../models/company.dart';
 
 class DBHelper {
   static final DBHelper instance = DBHelper._init();
   static Database? _database;
   static Completer<Database>? _initCompleter;
+  String _activeDbFileName = 'import_manager_mobile.db';
 
   DBHelper._init();
+
+  String get activeDbFileName => _activeDbFileName;
 
   Future<Database> get database async {
     if (_database != null && _database!.isOpen) return _database!;
@@ -26,7 +30,7 @@ class DBHelper {
     final completer = Completer<Database>();
     _initCompleter = completer;
     try {
-      _database = await _initDB('import_manager_mobile.db');
+      _database = await _initDB(_activeDbFileName);
       completer.complete(_database);
       return _database!;
     } catch (e, st) {
@@ -43,10 +47,11 @@ class DBHelper {
 
     final file = File(path);
     final exists = await file.exists();
-    // Bundled desktop database is 2.99MB. If file is < 50KB or empty, it must be seeded.
-    bool needSeed = !exists || (await file.length()) < 50000;
+    
+    // Bundled desktop database is 2.99MB. Only seed the default primary database from assets.
+    bool needSeed = filePath == 'import_manager_mobile.db' && (!exists || (await file.length()) < 50000);
 
-    if (exists && !needSeed) {
+    if (filePath == 'import_manager_mobile.db' && exists && !needSeed) {
       // Test if shipments table exists and has active records
       try {
         final testDb = await openDatabase(path, readOnly: true);
@@ -137,6 +142,43 @@ class DBHelper {
           )
         ''');
       }
+
+      // Ensure company_profile table
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS company_profile (
+          id TEXT PRIMARY KEY,
+          company_name TEXT NOT NULL,
+          short_code TEXT NOT NULL,
+          iec_code TEXT,
+          gstin TEXT,
+          pan TEXT,
+          registered_address TEXT,
+          bank_name TEXT,
+          bank_account_no TEXT,
+          bank_branch TEXT,
+          bank_swift TEXT,
+          base_currency TEXT NOT NULL DEFAULT 'INR',
+          financial_year TEXT,
+          is_default BOOLEAN NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+
+      // Seed default company profile if empty
+      final profRows = await db.rawQuery("SELECT count(*) as cnt FROM company_profile");
+      final profCount = Sqflite.firstIntValue(profRows) ?? 0;
+      if (profCount == 0) {
+        final nowStr = DateTime.now().toIso8601String();
+        await db.rawInsert('''
+          INSERT INTO company_profile (
+            id, company_name, short_code, base_currency, financial_year, is_default, created_at, updated_at
+          ) VALUES (
+            'comp_default', 'Primary Company', 'PRIMARY', 'INR', '2026-2027', 1, ?, ?
+          )
+        ''', [nowStr, nowStr]);
+      }
+
       await _ensureIndexes(db);
     } catch (e) {
       debugPrint('DBHelper schema check error: $e');
@@ -180,7 +222,8 @@ class DBHelper {
     }
   }
 
-  Future<void> _createDB(Database db) async {
+  /// Creates schema tables without data (clean/fresh database structure)
+  Future<void> _createDBStructureOnly(Database db) async {
     // 1. Suppliers
     await db.execute('''
       CREATE TABLE IF NOT EXISTS suppliers (
@@ -301,7 +344,32 @@ class DBHelper {
       )
     ''');
 
-    // Seed sample data for immediate view-only experience
+    // 7. Company Profile
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS company_profile (
+        id TEXT PRIMARY KEY,
+        company_name TEXT NOT NULL,
+        short_code TEXT NOT NULL,
+        iec_code TEXT,
+        gstin TEXT,
+        pan TEXT,
+        registered_address TEXT,
+        bank_name TEXT,
+        bank_account_no TEXT,
+        bank_branch TEXT,
+        bank_swift TEXT,
+        base_currency TEXT NOT NULL DEFAULT 'INR',
+        financial_year TEXT,
+        is_default BOOLEAN NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createDB(Database db) async {
+    await _createDBStructureOnly(db);
+    // Seed initial mock data for primary company default view
     await _seedInitialData(db);
   }
 
@@ -399,6 +467,156 @@ class DBHelper {
       }
     } catch (e) {
       debugPrint('Seed ldc error: $e');
+    }
+  }
+
+  // ==========================================
+  // MULTI-COMPANY / MULTI-DATABASE MANAGEMENT
+  // ==========================================
+
+  /// Switches active SQLite database dynamically
+  Future<void> switchDatabase(String dbFileName) async {
+    if (_activeDbFileName == dbFileName && _database != null && _database!.isOpen) {
+      return;
+    }
+    if (_database != null) {
+      try {
+        await _database!.close();
+      } catch (_) {}
+      _database = null;
+    }
+    _activeDbFileName = dbFileName;
+    await database;
+  }
+
+  /// Creates a dedicated, fresh database file for a new company with 0 records
+  Future<void> createFreshCompanyDatabase(String dbFileName, Company company) async {
+    final dbPath = await getDatabasesPath();
+    final path = p.join(dbPath, dbFileName);
+
+    await Directory(dbPath).create(recursive: true);
+
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
+    for (final ext in ['-wal', '-shm']) {
+      final aux = File('$path$ext');
+      if (await aux.exists()) await aux.delete();
+    }
+
+    final db = await openDatabase(
+      path,
+      onConfigure: (db) async {
+        try {
+          await db.execute('PRAGMA synchronous = NORMAL;');
+          await db.execute('PRAGMA temp_store = MEMORY;');
+          await db.execute('PRAGMA cache_size = -8000;');
+        } catch (_) {}
+      },
+    );
+    try {
+      await db.rawQuery('PRAGMA journal_mode = WAL;');
+    } catch (_) {}
+
+    // Build fresh/clean tables without dummy records
+    await _createDBStructureOnly(db);
+    await _ensureIndexes(db);
+
+    // Seed the company's identity
+    await db.rawInsert('''
+      INSERT INTO company_profile (
+        id, company_name, short_code, iec_code, gstin, pan, registered_address,
+        bank_name, bank_account_no, bank_branch, bank_swift, base_currency, financial_year,
+        is_default, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', [
+      company.id,
+      company.name,
+      company.shortCode,
+      company.iecCode,
+      company.gstin,
+      company.pan,
+      company.registeredAddress,
+      company.bankName,
+      company.bankAccountNo,
+      company.bankBranch,
+      company.bankSwift,
+      company.baseCurrency,
+      company.financialYear,
+      company.isDefault ? 1 : 0,
+      company.createdAt,
+      company.updatedAt,
+    ]);
+
+    await db.close();
+  }
+
+  /// Retrieves the active company's profile row
+  Future<Company?> getActiveCompanyProfile() async {
+    final db = await database;
+    try {
+      final rows = await db.rawQuery('SELECT * FROM company_profile LIMIT 1');
+      if (rows.isNotEmpty) {
+        return Company.fromMap(rows.first);
+      }
+    } catch (e) {
+      debugPrint('getActiveCompanyProfile error: $e');
+    }
+    return null;
+  }
+
+  /// Updates or inserts company profile in the active database
+  Future<void> saveCompanyProfile(Company company) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('company_profile');
+      await txn.rawInsert('''
+        INSERT INTO company_profile (
+          id, company_name, short_code, iec_code, gstin, pan, registered_address,
+          bank_name, bank_account_no, bank_branch, bank_swift, base_currency, financial_year,
+          is_default, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ''', [
+        company.id,
+        company.name,
+        company.shortCode,
+        company.iecCode,
+        company.gstin,
+        company.pan,
+        company.registeredAddress,
+        company.bankName,
+        company.bankAccountNo,
+        company.bankBranch,
+        company.bankSwift,
+        company.baseCurrency,
+        company.financialYear,
+        company.isDefault ? 1 : 0,
+        company.createdAt,
+        company.updatedAt,
+      ]);
+    });
+  }
+
+  /// Deletes a company database file from disk
+  Future<void> deleteCompanyDatabase(String dbFileName) async {
+    if (dbFileName == 'import_manager_mobile.db') {
+      throw Exception('Cannot delete primary database');
+    }
+    if (_activeDbFileName == dbFileName) {
+      if (_database != null) {
+        await _database!.close();
+        _database = null;
+      }
+      _activeDbFileName = 'import_manager_mobile.db';
+    }
+    final dbPath = await getDatabasesPath();
+    final path = p.join(dbPath, dbFileName);
+    final file = File(path);
+    if (await file.exists()) await file.delete();
+    for (final ext in ['-wal', '-shm']) {
+      final aux = File('$path$ext');
+      if (await aux.exists()) await aux.delete();
     }
   }
 
@@ -816,7 +1034,7 @@ class DBHelper {
     }
 
     final dbPath = await getDatabasesPath();
-    final targetPath = p.join(dbPath, 'import_manager_mobile.db');
+    final targetPath = p.join(dbPath, _activeDbFileName);
 
     final sourceFile = File(newDbFilePath);
     if (!await sourceFile.exists()) {

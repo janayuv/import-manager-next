@@ -16,6 +16,9 @@ import * as integrity$0 from "./backend/database/integrity/models.js";
 import * as memory$0 from "./backend/memory/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as models$0 from "./backend/models/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as windows$0 from "./backend/windows/models.js";
 
 /**
@@ -33,6 +36,7 @@ export class BootstrapInfo {
     "database": connection$0.HealthInfo;
     "integrity": integrity$0.Report;
     "memory": memory$0.Stats;
+    "activeCompany": models$0.Company;
 
     /** Creates a new BootstrapInfo instance. */
     constructor($$source: Partial<BootstrapInfo> = {}) {
@@ -69,6 +73,9 @@ export class BootstrapInfo {
         if (!("memory" in $$source)) {
             this["memory"] = (new memory$0.Stats());
         }
+        if (!("activeCompany" in $$source)) {
+            this["activeCompany"] = (new models$0.Company());
+        }
 
         Object.assign(this, $$source);
     }
@@ -81,6 +88,7 @@ export class BootstrapInfo {
         const $$createField8_0 = $$createType1;
         const $$createField9_0 = $$createType2;
         const $$createField10_0 = $$createType3;
+        const $$createField11_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("paths" in $$parsedSource) {
             $$parsedSource["paths"] = $$createField7_0($$parsedSource["paths"]);
@@ -94,6 +102,9 @@ export class BootstrapInfo {
         if ("memory" in $$parsedSource) {
             $$parsedSource["memory"] = $$createField10_0($$parsedSource["memory"]);
         }
+        if ("activeCompany" in $$parsedSource) {
+            $$parsedSource["activeCompany"] = $$createField11_0($$parsedSource["activeCompany"]);
+        }
         return new BootstrapInfo($$parsedSource as Partial<BootstrapInfo>);
     }
 }
@@ -103,3 +114,4 @@ const $$createType0 = windows$0.AppPaths.createFrom;
 const $$createType1 = connection$0.HealthInfo.createFrom;
 const $$createType2 = integrity$0.Report.createFrom;
 const $$createType3 = memory$0.Stats.createFrom;
+const $$createType4 = models$0.Company.createFrom;

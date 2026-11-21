@@ -19,6 +19,11 @@ func NewService(db *sql.DB, sec *security.Service) *Service {
 	return &Service{db: db, sec: sec}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // GetExpenseReport evaluates one of 5 views ('detailed', 'summary-by-type', 'summary-by-provider',
 // 'summary-by-shipment', 'summary-by-month') along with filtered line-level rows & summary totals.
 func (s *Service) GetExpenseReport(filter models.ExpenseReportFilter) (models.ExpenseReportResult, error) {

@@ -154,6 +154,45 @@ func (r *ShipmentRepository) GetByID(id string) (models.Shipment, error) {
 	return sh, nil
 }
 
+// FindDuplicate finds an active shipment with the same supplierID and case-insensitive invoiceNumber.
+func (r *ShipmentRepository) FindDuplicate(supplierID, invoiceNumber, excludeID string) (*models.Shipment, error) {
+	sid := strings.TrimSpace(supplierID)
+	inv := strings.TrimSpace(invoiceNumber)
+	if sid == "" || inv == "" {
+		return nil, nil
+	}
+	exc := strings.TrimSpace(excludeID)
+	var id string
+	var err error
+	if exc != "" {
+		err = r.db.QueryRow(`
+			SELECT id FROM shipments
+			WHERE deleted_at IS NULL
+			  AND id <> ?
+			  AND supplier_id = ?
+			  AND LOWER(TRIM(invoice_number)) = LOWER(TRIM(?))
+			LIMIT 1`, exc, sid, inv).Scan(&id)
+	} else {
+		err = r.db.QueryRow(`
+			SELECT id FROM shipments
+			WHERE deleted_at IS NULL
+			  AND supplier_id = ?
+			  AND LOWER(TRIM(invoice_number)) = LOWER(TRIM(?))
+			LIMIT 1`, sid, inv).Scan(&id)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	existing, err := r.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return &existing, nil
+}
+
 // NextID returns the next sequential SHP-XXX identifier.
 func (r *ShipmentRepository) NextID() (string, error) {
 	rows, err := r.db.Query(`SELECT id FROM shipments WHERE id LIKE 'SHP-%'`)

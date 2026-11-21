@@ -34,6 +34,11 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Ser
 	return &Service{db: db, sec: sec, audit: auditSvc}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // List returns saved BOE calculation rows joined with linked boe_details.
 func (s *Service) List(search, status string) ([]models.BOECalculationSummary, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {

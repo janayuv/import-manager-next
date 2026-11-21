@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,6 +42,7 @@ class SyncService {
 
     return SyncStatus(
       isConnectedToDrive: gdrive.isAuthenticated,
+      accountEmail: gdrive.effectiveAccountEmail,
       lastSyncTime: lastTime,
       lastBackupFileName: lastFile,
       shipmentCount: counts['shipments'] ?? 0,
@@ -69,11 +69,18 @@ class SyncService {
   /// Syncs the latest backup automatically from Google Drive
   Future<SyncStatus> syncLatestFromDrive({String? passphrase}) async {
     final backups = await gdrive.listBackups();
-    if (backups.isEmpty) {
-      throw Exception('No backup files found in Google Drive');
+    final backupFiles = backups.where((b) =>
+      b.name.endsWith('.imbk2') ||
+      b.name.endsWith('.imbk') ||
+      b.name.endsWith('.db') ||
+      b.name.endsWith('.sqlite')
+    ).toList();
+
+    if (backupFiles.isEmpty) {
+      throw Exception('No backup files (.imbk2 or .db) found in Google Drive');
     }
 
-    final latest = backups.first;
+    final latest = backupFiles.first;
     final bytes = await gdrive.downloadBackupFile(latest.id);
 
     return await restoreFromBytes(bytes, latest.name, passphrase: passphrase);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'constants/app_theme.dart';
 import 'database/db_helper.dart';
+import 'services/company_service.dart';
 import 'services/sync_service.dart';
 import 'ui/screens/main_navigation_shell.dart';
 
@@ -20,8 +21,12 @@ void main() async {
 
   runApp(const ImportManagerMobileApp());
 
-  // Background non-blocking warm up
-  DBHelper.instance.database.ignore();
+  // Background non-blocking warm up with multi-company initialization
+  CompanyService.instance.init().then((_) {
+    DBHelper.instance.database.ignore();
+  }).catchError((e) {
+    DBHelper.instance.database.ignore();
+  });
   SyncService.instance.init().ignore();
 }
 

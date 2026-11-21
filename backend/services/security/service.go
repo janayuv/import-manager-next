@@ -94,6 +94,12 @@ func NewService(db *sql.DB, recoveryMode bool, auditSvc *audit.Service) *Service
 	}
 }
 
+// SetDB rebinds the service and its lockout manager to an active database handle without dropping active user sessions.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+	s.lockout = NewLockoutManager(db)
+}
+
 // RequirePermission validates an active desktop session and checks canonical permission authorization.
 // Backend services must always use this helper rather than trusting client-supplied role parameters.
 func (s *Service) RequirePermission(perm string) (SessionInfo, error) {
