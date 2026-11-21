@@ -1260,8 +1260,7 @@ export function ExpensesPage() {
                   onClick={() => {
                     const initialShipmentId =
                       (shipmentFilter && shipments.find((s) => s.id === shipmentFilter && !s.isFrozen)?.id) ||
-                      shipments.find((s) => !s.isFrozen)?.id ||
-                      '';
+                      '__MULTIPLE__';
                     setBulkShipmentId(initialShipmentId);
                     setBulkOpen(true);
                   }}
@@ -2374,39 +2373,45 @@ export function ExpensesPage() {
         open={bulkOpen}
         onOpenChange={setBulkOpen}
         title="Bulk Expense CSV Import"
-        description="Select the destination shipment and import the 11-column Expense CSV."
+        description="Import expenses across multiple shipments via CSV or select a default target shipment."
         templateFilename="expenses_bulk_template.csv"
         onDownloadTemplate={() => expenseService.downloadBulkTemplateCsv()}
         onImport={(content) => {
-          if (!bulkShipmentId) {
-            toast.error('Please select an active target shipment before running the import.');
-            return Promise.reject(new Error('Please select an active target shipment before running the import.'));
+          if (bulkShipmentId && bulkShipmentId !== '__MULTIPLE__') {
+            const selectedShipment = shipments.find((s) => s.id === bulkShipmentId);
+            if (selectedShipment?.isFrozen) {
+              toast.error('The selected default shipment is frozen and cannot accept new expense entries.');
+              return Promise.reject(new Error('The selected default shipment is frozen and cannot accept new expense entries.'));
+            }
           }
-          const selectedShipment = shipments.find((s) => s.id === bulkShipmentId);
-          if (selectedShipment?.isFrozen) {
-            toast.error('The selected shipment is frozen and cannot accept new expense entries.');
-            return Promise.reject(new Error('The selected shipment is frozen and cannot accept new expense entries.'));
-          }
-          return expenseService.importBulkCsv(bulkShipmentId, content);
+          const targetId = bulkShipmentId === '__MULTIPLE__' ? '' : bulkShipmentId;
+          return expenseService.importBulkCsv(targetId, content);
         }}
         onCompleted={loadAll}
       >
         <div className="space-y-1.5 rounded-lg border border-border/80 bg-muted/40 p-3">
           <Label className="text-xs font-semibold flex items-center justify-between">
             <span>Target Shipment for Uploaded Expenses</span>
-            {bulkShipmentId && (
+            {bulkShipmentId && bulkShipmentId !== '__MULTIPLE__' ? (
               <span className="text-[11px] font-normal text-muted-foreground">
                 {shipments.find((s) => s.id === bulkShipmentId)?.isFrozen
                   ? '⚠️ Selected shipment is frozen (Locked)'
                   : '✓ Active shipment ready'}
               </span>
+            ) : (
+              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                ✓ Multi-Shipment Mode (Specified per CSV row)
+              </span>
             )}
           </Label>
           <Select value={bulkShipmentId} onValueChange={setBulkShipmentId}>
             <SelectTrigger className="w-full bg-background h-9 text-xs">
-              <SelectValue placeholder="Select target shipment..." />
+              <SelectValue placeholder="Select target shipment or choose Multi-Shipment..." />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="__MULTIPLE__">
+                🌐 Multiple Shipments (Specified via 'Shipment Invoice No' in CSV)
+              </SelectItem>
               {shipments.map((s) => (
                 <SelectItem key={s.id} value={s.id} disabled={s.isFrozen}>
                   {s.invoiceNumber} — {s.supplierName || 'No Supplier'} {s.isFrozen ? '(Frozen - Locked)' : ''}
@@ -2415,7 +2420,9 @@ export function ExpensesPage() {
             </SelectContent>
           </Select>
           <p className="text-[11px] text-muted-foreground">
-            All expense invoices and lines in this CSV file will be attached directly to this shipment.
+            {bulkShipmentId === '__MULTIPLE__'
+              ? 'Each row in the CSV file must specify its target shipment in the "Shipment Invoice No" column.'
+              : 'Expenses without a "Shipment Invoice No" in the CSV will be assigned to this shipment. Rows specifying their own shipment will route to their designated shipment.'}
           </p>
         </div>
       </CsvImportDialog>

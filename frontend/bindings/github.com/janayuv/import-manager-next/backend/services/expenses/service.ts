@@ -60,7 +60,7 @@ export function DeleteServiceProvider(id: string): $CancellablePromise<void> {
 }
 
 /**
- * DownloadBulkTemplateCSV returns the 11-column legacy/NextGen expense bulk CSV template.
+ * DownloadBulkTemplateCSV returns the 12-column expense bulk CSV template supporting per-row shipment allocation.
  */
 export function DownloadBulkTemplateCSV(): $CancellablePromise<string> {
     return $Call.ByID(3238319375);
@@ -77,8 +77,8 @@ export function GetExpenseInvoice(id: string): $CancellablePromise<models$0.Expe
 
 /**
  * ImportBulkCSV parses RFC 4180 CSV rows, resolves Expense Type & Service Provider case-insensitively,
- * derives integer paise + basis points cleanly, groups lines by (ServiceProviderID, InvoiceNo),
- * and creates atomic multi-line expense invoices on shipmentID.
+ * resolves Shipment by Invoice Number or ID (with fallback to default shipmentID), derives integer paise + basis points,
+ * groups lines by (TargetShipmentID, ServiceProviderID, InvoiceNo), and creates atomic multi-line expense invoices.
  */
 export function ImportBulkCSV(shipmentID: string, content: string): $CancellablePromise<models$0.CSVImportResult> {
     return $Call.ByID(3442021006, shipmentID, content).then(($result: any) => {
