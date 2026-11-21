@@ -5313,6 +5313,7 @@ export class LandedCostRow {
     "unit": string;
     "qty": number;
     "unitPrice": number;
+    "materialValue": number;
     "assessableValue": number;
     "bcdAmount": number;
     "swsAmount": number;
@@ -5349,6 +5350,9 @@ export class LandedCostRow {
         }
         if (!("unitPrice" in $$source)) {
             this["unitPrice"] = 0;
+        }
+        if (!("materialValue" in $$source)) {
+            this["materialValue"] = 0;
         }
         if (!("assessableValue" in $$source)) {
             this["assessableValue"] = 0;
@@ -5390,6 +5394,7 @@ export class LandedCostRow {
 export class LandedCostSummary {
     "totalRows": number;
     "totalQuantity": number;
+    "totalMaterialValue": number;
     "totalAssessableValue": number;
 
     /**
@@ -5408,6 +5413,9 @@ export class LandedCostSummary {
         }
         if (!("totalQuantity" in $$source)) {
             this["totalQuantity"] = 0;
+        }
+        if (!("totalMaterialValue" in $$source)) {
+            this["totalMaterialValue"] = 0;
         }
         if (!("totalAssessableValue" in $$source)) {
             this["totalAssessableValue"] = 0;
@@ -6961,6 +6969,7 @@ export class PartPeriodSummary {
     "unit": string;
     "totalForexValue": number;
     "currency": string;
+    "totalMaterialValueInr": number;
     "totalAssessableValueInr": number;
     "totalBcdAmount": number;
     "totalSwsAmount": number;
@@ -6999,6 +7008,9 @@ export class PartPeriodSummary {
         }
         if (!("currency" in $$source)) {
             this["currency"] = "";
+        }
+        if (!("totalMaterialValueInr" in $$source)) {
+            this["totalMaterialValueInr"] = 0;
         }
         if (!("totalAssessableValueInr" in $$source)) {
             this["totalAssessableValueInr"] = 0;
@@ -7192,6 +7204,7 @@ export class PartTrendPoint {
     "quantity": number;
     "unitPriceForex": number;
     "currency": string;
+    "materialValuePerUnit": number;
     "assessableValuePerUnit": number;
     "dutyPerUnit": number;
     "expensePerUnit": number;
@@ -7216,6 +7229,9 @@ export class PartTrendPoint {
         }
         if (!("currency" in $$source)) {
             this["currency"] = "";
+        }
+        if (!("materialValuePerUnit" in $$source)) {
+            this["materialValuePerUnit"] = 0;
         }
         if (!("assessableValuePerUnit" in $$source)) {
             this["assessableValuePerUnit"] = 0;

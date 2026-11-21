@@ -23,6 +23,7 @@ interface CsvImportDialogProps {
   onDownloadTemplate: () => Promise<string>;
   onImport: (csvContent: string) => Promise<CSVImportResult>;
   onCompleted: () => Promise<void>;
+  children?: React.ReactNode;
 }
 
 export function CsvImportDialog({
@@ -34,6 +35,7 @@ export function CsvImportDialog({
   onDownloadTemplate,
   onImport,
   onCompleted,
+  children,
 }: CsvImportDialogProps) {
   const [csvText, setCsvText] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
@@ -89,6 +91,7 @@ export function CsvImportDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {children}
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => void handleDownloadTemplate()}>
               <Download className="h-4 w-4" />

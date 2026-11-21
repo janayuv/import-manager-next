@@ -75,8 +75,9 @@ export function LandedCostSimulatorDialog({
       const igst = (dutyBaseForIgst * igstRatePct) / 100;
       const customsDutyTotal = bcd + sws + igst;
 
-      // Note: In standard Indian customs accounting, IGST is creditable (ITC), so Landed Cost = AV + BCD + SWS + Allocated Basic Expenses
-      const landedCostExIgst = assessableValue + bcd + sws + expenses;
+      // Note: In standard Indian customs accounting, IGST is creditable (ITC).
+      // Landed Cost = Material Value (INR) + BCD + SWS + Allocated Basic Expenses (to avoid double-counting freight in assessable value).
+      const landedCostExIgst = invoiceValInr + bcd + sws + expenses;
       const landedCostPerQty = quantity > 0 ? landedCostExIgst / quantity : 0;
 
       return {

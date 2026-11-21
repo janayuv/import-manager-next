@@ -16,6 +16,7 @@ import {
   Lock,
   PackageCheck,
   Pencil,
+  Plane,
   Plus,
   Search,
   Settings2,
@@ -209,7 +210,7 @@ export function ShipmentsPage() {
   const { session, hasPermission } = useAuth();
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
-  const canUnfreeze = hasPermission('role.write');
+  const canUnfreeze = hasPermission('role.write') || hasPermission('data.write');
 
   const { itemsPerPage: pageSize } = useModuleSettings('shipment');
   const [shipments, setShipments] = React.useState<Shipment[]>([]);
@@ -478,14 +479,18 @@ export function ShipmentsPage() {
 
   const handleToggleFreeze = async (sh: Shipment) => {
     try {
+      let updated: Shipment;
       if (sh.isFrozen) {
-        await shipmentService.unfreeze(sh.id);
+        updated = await shipmentService.unfreeze(sh.id);
         toast.success(`Unfroze shipment ${sh.id}`);
       } else {
-        await shipmentService.freeze(sh.id);
+        updated = await shipmentService.freeze(sh.id);
         toast.success(`Froze shipment ${sh.id}`);
       }
       await loadShipments();
+      if (detail && detail.shipment.id === sh.id) {
+        setDetail((prev) => (prev ? { ...prev, shipment: updated } : null));
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
@@ -606,18 +611,22 @@ export function ShipmentsPage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  title="Manage Containers & Staged Delivery"
-                  aria-label={`Manage containers for ${sh.id}`}
+                  title={sh.shipmentMode?.toLowerCase() === 'air' ? "Manage Air Delivery" : "Manage Containers & Staged Delivery"}
+                  aria-label={`Manage delivery for ${sh.id}`}
                   onClick={() => setContainerModalShipment(sh)}
                 >
-                  <Truck className="h-4 w-4 text-primary" />
+                  {sh.shipmentMode?.toLowerCase() === 'air' ? (
+                    <Plane className="h-4 w-4 text-sky-600" />
+                  ) : (
+                    <Truck className="h-4 w-4 text-primary" />
+                  )}
                 </Button>
               )}
-              {canWrite && !sh.isFrozen && sh.status !== 'delivered' && (
+              {canWrite && !sh.isFrozen && (
                 <Button
                   size="sm"
                   variant="ghost"
-                  title="Quick Delivery Date"
+                  title={sh.status === 'delivered' ? "Update Delivery Date" : "Quick Delivery Date"}
                   aria-label={`Record delivery for ${sh.id}`}
                   onClick={() => openDeliveryDialog(sh)}
                 >
@@ -633,10 +642,11 @@ export function ShipmentsPage() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  title={sh.isFrozen ? `Unfreeze shipment ${sh.id}` : `Freeze shipment ${sh.id}`}
                   aria-label={sh.isFrozen ? `Unfreeze ${sh.id}` : `Freeze ${sh.id}`}
                   onClick={() => void handleToggleFreeze(sh)}
                 >
-                  {sh.isFrozen ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                  {sh.isFrozen ? <Unlock className="h-4 w-4 text-amber-600" /> : <Lock className="h-4 w-4" />}
                 </Button>
               )}
               {canDelete && !sh.isFrozen && (
@@ -1164,13 +1174,57 @@ export function ShipmentsPage() {
       <Dialog open={Boolean(detail)} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              Shipment {detail?.shipment.id} — {detail?.shipment.invoiceNumber}
-            </DialogTitle>
-            <DialogDescription>
-              {detail?.shipment.supplierName} • {detail?.shipment.invoiceCurrency}{' '}
-              {detail?.shipment.invoiceValue.toLocaleString()} • Status: {detail?.shipment.status}
-            </DialogDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  Shipment {detail?.shipment.id} — {detail?.shipment.invoiceNumber}
+                  {detail?.shipment.shipmentMode?.toLowerCase() === 'air' && (
+                    <Badge variant="outline" className="text-xs bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 gap-1">
+                      <Plane className="h-3 w-3" /> Air Mode
+                    </Badge>
+                  )}
+                </DialogTitle>
+                <DialogDescription>
+                  {detail?.shipment.supplierName} • {detail?.shipment.invoiceCurrency}{' '}
+                  {detail?.shipment.invoiceValue.toLocaleString()} • Status: {detail?.shipment.status}
+                </DialogDescription>
+              </div>
+              {detail && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {detail.shipment.isFrozen ? (
+                    <Badge variant="destructive" className="gap-1 text-xs">
+                      <Lock className="h-3 w-3" /> Frozen (Locked)
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="gap-1 text-xs text-emerald-600 border-emerald-300">
+                      <Unlock className="h-3 w-3" /> Active
+                    </Badge>
+                  )}
+                  {((!detail.shipment.isFrozen && canWrite) || (detail.shipment.isFrozen && canUnfreeze)) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={detail.shipment.isFrozen
+                        ? "h-8 text-xs border-amber-500 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1.5"
+                        : "h-8 text-xs gap-1.5"}
+                      onClick={() => void handleToggleFreeze(detail.shipment)}
+                    >
+                      {detail.shipment.isFrozen ? (
+                        <>
+                          <Unlock className="h-3.5 w-3.5" />
+                          Unfreeze Shipment
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="h-3.5 w-3.5" />
+                          Freeze Shipment
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
           </DialogHeader>
           {detail && (
             <div className="space-y-4 text-sm">
@@ -1210,17 +1264,28 @@ export function ShipmentsPage() {
                     )}
                   </div>
                 </div>
-                {canWrite && !detail.shipment.isFrozen && (
-                  <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {canWrite && !detail.shipment.isFrozen && (
                     <Button
                       size="sm"
                       variant="default"
                       className="shrink-0"
                       onClick={() => setContainerModalShipment(detail.shipment)}
                     >
-                      <Truck className="h-3.5 w-3.5 mr-1" />
-                      Manage Containers & Staged Delivery
+                      {detail.shipment.shipmentMode?.toLowerCase() === 'air' ? (
+                        <>
+                          <Plane className="h-3.5 w-3.5 mr-1" />
+                          Manage Delivery (Air Cargo)
+                        </>
+                      ) : (
+                        <>
+                          <Truck className="h-3.5 w-3.5 mr-1" />
+                          Manage Containers & Staged Delivery
+                        </>
+                      )}
                     </Button>
+                  )}
+                  {canWrite && !detail.shipment.isFrozen && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1230,8 +1295,8 @@ export function ShipmentsPage() {
                       <PackageCheck className="h-3.5 w-3.5 mr-1 text-emerald-600" />
                       {detail.shipment.status === 'delivered' ? 'Update Delivery Date' : 'Quick Delivery'}
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Logistics Lifecycle Milestones & Delay Tracking */}

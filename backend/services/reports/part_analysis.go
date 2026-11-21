@@ -597,8 +597,14 @@ func (s *Service) buildPartTrends(
 	shipmentBOEInterestMap, shipmentAllocatedExpensesMap map[string]float64,
 ) []models.PartTrendPoint {
 	boeDutyMap := make(map[string]float64)
+	boeMaterialMap := make(map[string]float64)
+	boeRateMap := make(map[string]float64)
 	for _, b := range boeLines {
 		boeDutyMap[b.ShipmentID] += (b.BCDAmount + b.SWSAmount + b.BOEInterest)
+		boeMaterialMap[b.ShipmentID] += b.ItemValueINR
+		if b.ExchangeRate > 0 {
+			boeRateMap[b.ShipmentID] = b.ExchangeRate
+		}
 	}
 
 	var trends []models.PartTrendPoint
@@ -606,12 +612,21 @@ func (s *Service) buildPartTrends(
 		sh := shipments[i]
 		qty := sh.Quantity
 		assessable := shipmentAssessableMap[sh.ShipmentID]
+		materialVal := boeMaterialMap[sh.ShipmentID]
+		if materialVal <= 0 {
+			if rate, ok := boeRateMap[sh.ShipmentID]; ok && rate > 0 && sh.LineTotal > 0 {
+				materialVal = math.Round(sh.LineTotal*rate*100) / 100
+			} else if assessable > 0 {
+				materialVal = assessable
+			}
+		}
 		duties := boeDutyMap[sh.ShipmentID]
 		expenses := shipmentAllocatedExpensesMap[sh.ShipmentID]
-		landedCost := assessable + duties + expenses
+		landedCost := materialVal + duties + expenses
 
-		var assessPerUnit, dutyPerUnit, expPerUnit, ldcPerUnit float64
+		var materialPerUnit, assessPerUnit, dutyPerUnit, expPerUnit, ldcPerUnit float64
 		if qty > 0 {
+			materialPerUnit = math.Round((materialVal/qty)*100) / 100
 			assessPerUnit = math.Round((assessable/qty)*100) / 100
 			dutyPerUnit = math.Round((duties/qty)*100) / 100
 			expPerUnit = math.Round((expenses/qty)*100) / 100
@@ -625,6 +640,7 @@ func (s *Service) buildPartTrends(
 			Quantity:               qty,
 			UnitPriceForex:         sh.UnitPrice,
 			Currency:               sh.Currency,
+			MaterialValuePerUnit:   materialPerUnit,
 			AssessableValuePerUnit: assessPerUnit,
 			DutyPerUnit:            dutyPerUnit,
 			ExpensePerUnit:         expPerUnit,
@@ -670,6 +686,7 @@ func (s *Service) buildPartSummary(
 		if b.BENumber != "" {
 			distinctBOEs[b.BENumber] = true
 		}
+		summary.TotalMaterialValueINR += b.ItemValueINR
 		summary.TotalAssessableValueINR += b.AssessableValue
 		summary.TotalBCDAmount += b.BCDAmount
 		summary.TotalSWSAmount += b.SWSAmount
@@ -685,7 +702,11 @@ func (s *Service) buildPartSummary(
 		summary.TotalAllocatedExpensesWithGSTINR += ex.AllocatedTotalINR
 	}
 
-	summary.TotalLandedCostExIGST = summary.TotalAssessableValueINR + summary.TotalBCDAmount + summary.TotalSWSAmount + summary.TotalBOEInterest + summary.TotalAllocatedExpensesINR
+	baseCost := summary.TotalMaterialValueINR
+	if baseCost <= 0 {
+		baseCost = summary.TotalAssessableValueINR
+	}
+	summary.TotalLandedCostExIGST = baseCost + summary.TotalBCDAmount + summary.TotalSWSAmount + summary.TotalBOEInterest + summary.TotalAllocatedExpensesINR
 
 	if summary.TotalQuantity > 0 {
 		summary.AvgLandedCostPerUnit = math.Round((summary.TotalLandedCostExIGST/summary.TotalQuantity)*100) / 100

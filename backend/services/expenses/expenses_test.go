@@ -304,7 +304,7 @@ func TestExpensesIdempotencyOptimisticLockReportsAndLandedCost(t *testing.T) {
 		t.Fatalf("expected proportional allocated basic expenses sum to 9000.00, got %.4f", lc.Summary.TotalBasicExpenses)
 	}
 	for _, row := range lc.Rows {
-		expectedLDC := (row.AssessableValue + row.BCDAmount + row.SWSAmount + row.BoeInterest + row.ExpensesTotal) / row.Qty
+		expectedLDC := (row.MaterialValue + row.BCDAmount + row.SWSAmount + row.BoeInterest + row.ExpensesTotal) / row.Qty
 		if math.Abs(row.LDCPerQty-expectedLDC) > 0.01 {
 			t.Fatalf("LDCPerQty for %s includes unexpected IGST or math mismatch: got %.4f want %.4f (igst=%.2f)", row.PartNo, row.LDCPerQty, expectedLDC, row.IGSTAmount)
 		}
@@ -339,7 +339,7 @@ func TestExpensesIdempotencyOptimisticLockReportsAndLandedCost(t *testing.T) {
 		if math.Abs(row.BoeInterest-expectedInterest) > 0.02 {
 			t.Fatalf("expected BoeInterest %.2f for %s, got %.2f", expectedInterest, row.PartNo, row.BoeInterest)
 		}
-		expectedLDC := (row.AssessableValue + row.BCDAmount + row.SWSAmount + row.BoeInterest + row.ExpensesTotal) / row.Qty
+		expectedLDC := (row.MaterialValue + row.BCDAmount + row.SWSAmount + row.BoeInterest + row.ExpensesTotal) / row.Qty
 		if math.Abs(row.LDCPerQty-expectedLDC) > 0.01 {
 			t.Fatalf("LDCPerQty with interest mismatch for %s: got %.4f want %.4f", row.PartNo, row.LDCPerQty, expectedLDC)
 		}

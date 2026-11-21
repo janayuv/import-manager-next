@@ -245,7 +245,7 @@ type LandedCostFilter struct {
 	Search     string `json:"search"`
 }
 
-// LandedCostRow mirrors the 16 columns exposed by report_view (15 export columns + supplierId).
+// LandedCostRow mirrors the columns exposed by report_view (16 export columns + supplierId).
 type LandedCostRow struct {
 	Supplier        string  `json:"supplier"`
 	SupplierID      string  `json:"supplierId"`
@@ -256,6 +256,7 @@ type LandedCostRow struct {
 	Unit            string  `json:"unit"`
 	Qty             float64 `json:"qty"`
 	UnitPrice       float64 `json:"unitPrice"`
+	MaterialValue   float64 `json:"materialValue"`
 	AssessableValue float64 `json:"assessableValue"`
 	BCDAmount       float64 `json:"bcdAmount"`
 	SWSAmount       float64 `json:"swsAmount"`
@@ -269,6 +270,7 @@ type LandedCostRow struct {
 type LandedCostSummary struct {
 	TotalRows             int     `json:"totalRows"`
 	TotalQuantity         float64 `json:"totalQuantity"`
+	TotalMaterialValue    float64 `json:"totalMaterialValue"`
 	TotalAssessableValue  float64 `json:"totalAssessableValue"`
 	TotalBasicDuties      float64 `json:"totalBasicDuties"` // BCD + SWS
 	TotalIGST             float64 `json:"totalIgst"`

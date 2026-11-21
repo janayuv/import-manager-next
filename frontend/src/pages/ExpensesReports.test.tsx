@@ -448,24 +448,26 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
           unit: 'PCS',
           qty: 2,
           unitPrice: 100,
+          materialValue: 16000,
           assessableValue: 18000,
           bcdAmount: 1350,
           swsAmount: 135,
           igstAmount: 3507.3,
           boeInterest: 0,
           expensesTotal: 6000,
-          ldcPerQty: 12742.5,
+          ldcPerQty: 11742.5,
         },
       ],
       summary: {
         totalRows: 1,
         totalQuantity: 2,
+        totalMaterialValue: 16000,
         totalAssessableValue: 18000,
         totalBasicDuties: 1485,
         totalIgst: 3507.3,
         totalBoeInterest: 0,
         totalBasicExpenses: 6000,
-        totalLandedCostExIgst: 25485,
+        totalLandedCostExIgst: 23485,
       },
     });
 
@@ -478,7 +480,7 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
     );
 
     await waitFor(() => expect(screen.getByText('PN-100')).toBeInTheDocument());
-    expect(screen.getByText('12742.5000')).toBeInTheDocument();
+    expect(screen.getByText('11742.5000')).toBeInTheDocument();
     expect(screen.getAllByText('BOE Interest').length).toBeGreaterThan(0);
   });
 
