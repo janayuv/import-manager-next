@@ -99,18 +99,22 @@ type ExpenseInvoiceCalculation struct {
 
 // ExpenseInvoiceRequest creates or updates an expense invoice atomically with lines.
 type ExpenseInvoiceRequest struct {
-	ID                string             `json:"id,omitempty"`
-	ShipmentID        string             `json:"shipmentId"`
-	ServiceProviderID string             `json:"serviceProviderId"`
-	InvoiceNo         string             `json:"invoiceNo"`
-	InvoiceDate       string             `json:"invoiceDate"`
-	Currency          string             `json:"currency"`
-	Remarks           string             `json:"remarks"`
-	IdempotencyKey    string             `json:"idempotencyKey"`
-	Version           int                `json:"version"`
-	MergeDuplicates   bool               `json:"mergeDuplicates"`
-	RoundOffPaise     int64              `json:"roundOffPaise"`
-	Lines             []ExpenseLineInput `json:"lines"`
+	ID                      string             `json:"id,omitempty"`
+	ShipmentID              string             `json:"shipmentId"`
+	ServiceProviderID       string             `json:"serviceProviderId"`
+	InvoiceNo               string             `json:"invoiceNo"`
+	InvoiceDate             string             `json:"invoiceDate"`
+	Currency                string             `json:"currency"`
+	IsPaidByClearingAgent   bool               `json:"isPaidByClearingAgent"`
+	ClearingAgentID         string             `json:"clearingAgentId"`
+	CHAReimburseInvoiceNo   string             `json:"chaReimburseInvoiceNo"`
+	CHAReimburseInvoiceDate string             `json:"chaReimburseInvoiceDate"`
+	Remarks                 string             `json:"remarks"`
+	IdempotencyKey          string             `json:"idempotencyKey"`
+	Version                 int                `json:"version"`
+	MergeDuplicates         bool               `json:"mergeDuplicates"`
+	RoundOffPaise           int64              `json:"roundOffPaise"`
+	Lines                   []ExpenseLineInput `json:"lines"`
 }
 
 // ExpenseLine mirrors a persisted row in expenses joined with expense_types.
@@ -138,28 +142,33 @@ type ExpenseLine struct {
 
 // ExpenseInvoice mirrors a persisted row in expense_invoices plus lines.
 type ExpenseInvoice struct {
-	ID                  string        `json:"id"`
-	ShipmentID          string        `json:"shipmentId"`
-	ShipmentInvoiceNo   string        `json:"shipmentInvoiceNo"`
-	ServiceProviderID   string        `json:"serviceProviderId"`
-	ServiceProviderName string        `json:"serviceProviderName"`
-	InvoiceNo           string        `json:"invoiceNo"`
-	InvoiceDate         string        `json:"invoiceDate"`
-	Currency            string        `json:"currency"`
-	BaseAmountPaise     int64         `json:"baseAmountPaise"`
-	TotalCGSTPaise      int64         `json:"totalCgstPaise"`
-	TotalSGSTPaise      int64         `json:"totalSgstPaise"`
-	TotalIGSTPaise      int64         `json:"totalIgstPaise"`
-	TotalTDSPaise       int64         `json:"totalTdsPaise"`
-	TotalAmountPaise    int64         `json:"totalAmountPaise"`
-	RoundOffPaise       int64         `json:"roundOffPaise"`
-	NetAmountPaise      int64         `json:"netAmountPaise"`
-	Remarks             string        `json:"remarks"`
-	IdempotencyKey      string        `json:"idempotencyKey"`
-	Version             int           `json:"version"`
-	CreatedAt           string        `json:"createdAt"`
-	UpdatedAt           string        `json:"updatedAt"`
-	Lines               []ExpenseLine `json:"lines"`
+	ID                      string        `json:"id"`
+	ShipmentID              string        `json:"shipmentId"`
+	ShipmentInvoiceNo       string        `json:"shipmentInvoiceNo"`
+	ServiceProviderID       string        `json:"serviceProviderId"`
+	ServiceProviderName     string        `json:"serviceProviderName"`
+	InvoiceNo               string        `json:"invoiceNo"`
+	InvoiceDate             string        `json:"invoiceDate"`
+	Currency                string        `json:"currency"`
+	IsPaidByClearingAgent   bool          `json:"isPaidByClearingAgent"`
+	ClearingAgentID         string        `json:"clearingAgentId"`
+	ClearingAgentName       string        `json:"clearingAgentName"`
+	CHAReimburseInvoiceNo   string        `json:"chaReimburseInvoiceNo"`
+	CHAReimburseInvoiceDate string        `json:"chaReimburseInvoiceDate"`
+	BaseAmountPaise         int64         `json:"baseAmountPaise"`
+	TotalCGSTPaise          int64         `json:"totalCgstPaise"`
+	TotalSGSTPaise          int64         `json:"totalSgstPaise"`
+	TotalIGSTPaise          int64         `json:"totalIgstPaise"`
+	TotalTDSPaise           int64         `json:"totalTdsPaise"`
+	TotalAmountPaise        int64         `json:"totalAmountPaise"`
+	RoundOffPaise           int64         `json:"roundOffPaise"`
+	NetAmountPaise          int64         `json:"netAmountPaise"`
+	Remarks                 string        `json:"remarks"`
+	IdempotencyKey          string        `json:"idempotencyKey"`
+	Version                 int           `json:"version"`
+	CreatedAt               string        `json:"createdAt"`
+	UpdatedAt               string        `json:"updatedAt"`
+	Lines                   []ExpenseLine `json:"lines"`
 }
 
 // ExpenseAttachment mirrors a row in expense_attachments.
@@ -175,37 +184,45 @@ type ExpenseAttachment struct {
 
 // ExpenseReportFilter filters the 5 views in Expense Reports.
 type ExpenseReportFilter struct {
-	ViewMode          string `json:"viewMode"` // detailed, summary-by-type, summary-by-provider, summary-by-shipment, summary-by-month
-	StartDate         string `json:"startDate"`
-	EndDate           string `json:"endDate"`
-	ShipmentID        string `json:"shipmentId"`
-	ServiceProviderID string `json:"serviceProviderId"`
-	ExpenseTypeID     string `json:"expenseTypeId"`
-	MinAmountPaise    int64  `json:"minAmountPaise"`
-	MaxAmountPaise    int64  `json:"maxAmountPaise"`
-	Search            string `json:"search"`
+	ViewMode              string `json:"viewMode"` // detailed, summary-by-type, summary-by-provider, summary-by-shipment, summary-by-month, summary-by-clearing-agent
+	StartDate             string `json:"startDate"`
+	EndDate               string `json:"endDate"`
+	ShipmentID            string `json:"shipmentId"`
+	ServiceProviderID     string `json:"serviceProviderId"`
+	ExpenseTypeID         string `json:"expenseTypeId"`
+	ClearingAgentID       string `json:"clearingAgentId"`
+	CHAReimburseInvoiceNo string `json:"chaReimburseInvoiceNo"`
+	IsPaidByClearingAgent *bool  `json:"isPaidByClearingAgent,omitempty"`
+	MinAmountPaise        int64  `json:"minAmountPaise"`
+	MaxAmountPaise        int64  `json:"maxAmountPaise"`
+	Search                string `json:"search"`
 }
 
 // ExpenseReportDetailedRow represents a row in the 'detailed' Expense Report view.
 type ExpenseReportDetailedRow struct {
-	ExpenseID           string `json:"expenseId"`
-	ExpenseInvoiceID    string `json:"expenseInvoiceId"`
-	ShipmentID          string `json:"shipmentId"`
-	ShipmentInvoiceNo   string `json:"shipmentInvoiceNo"`
-	ServiceProviderID   string `json:"serviceProviderId"`
-	ServiceProviderName string `json:"serviceProviderName"`
-	ExpenseTypeID       string `json:"expenseTypeId"`
-	ExpenseTypeName     string `json:"expenseTypeName"`
-	InvoiceNo           string `json:"invoiceNo"`
-	InvoiceDate         string `json:"invoiceDate"`
-	AmountPaise         int64  `json:"amountPaise"`
-	CGSTPaise           int64  `json:"cgstPaise"`
-	SGSTPaise           int64  `json:"sgstPaise"`
-	IGSTPaise           int64  `json:"igstPaise"`
-	TDSPaise            int64  `json:"tdsPaise"`
-	TotalPaise          int64  `json:"totalPaise"`
-	NetPaise            int64  `json:"netPaise"`
-	Remarks             string `json:"remarks"`
+	ExpenseID               string `json:"expenseId"`
+	ExpenseInvoiceID        string `json:"expenseInvoiceId"`
+	ShipmentID              string `json:"shipmentId"`
+	ShipmentInvoiceNo       string `json:"shipmentInvoiceNo"`
+	ServiceProviderID       string `json:"serviceProviderId"`
+	ServiceProviderName     string `json:"serviceProviderName"`
+	ExpenseTypeID           string `json:"expenseTypeId"`
+	ExpenseTypeName         string `json:"expenseTypeName"`
+	InvoiceNo               string `json:"invoiceNo"`
+	InvoiceDate             string `json:"invoiceDate"`
+	IsPaidByClearingAgent   bool   `json:"isPaidByClearingAgent"`
+	ClearingAgentID         string `json:"clearingAgentId"`
+	ClearingAgentName       string `json:"clearingAgentName"`
+	CHAReimburseInvoiceNo   string `json:"chaReimburseInvoiceNo"`
+	CHAReimburseInvoiceDate string `json:"chaReimburseInvoiceDate"`
+	AmountPaise             int64  `json:"amountPaise"`
+	CGSTPaise               int64  `json:"cgstPaise"`
+	SGSTPaise               int64  `json:"sgstPaise"`
+	IGSTPaise               int64  `json:"igstPaise"`
+	TDSPaise                int64  `json:"tdsPaise"`
+	TotalPaise              int64  `json:"totalPaise"`
+	NetPaise                int64  `json:"netPaise"`
+	Remarks                 string `json:"remarks"`
 }
 
 // ExpenseReportGroup represents an aggregated bucket for the 4 summary views.

@@ -43,6 +43,11 @@ func (s *Service) GetExpenseReport(filter models.ExpenseReportFilter) (models.Ex
 	             e.service_provider_id, COALESCE(sp.name,''),
 	             e.expense_type_id, COALESCE(NULLIF(et.name,''), e.expense_type_id, 'Expense Item'),
 	             e.invoice_no, e.invoice_date,
+	             COALESCE(ei.is_paid_by_clearing_agent, 0),
+	             COALESCE(ei.clearing_agent_id, ''),
+	             COALESCE(cha.name, ''),
+	             COALESCE(ei.cha_reimburse_invoice_no, ''),
+	             COALESCE(ei.cha_reimburse_invoice_date, ''),
 	             COALESCE(NULLIF(e.amount_paise,0), CAST(ROUND(COALESCE(e.amount,0)*100) AS INTEGER), 0) AS amt_p,
 	             COALESCE(e.cgst_amount_paise, 0) AS cgst_p,
 	             COALESCE(e.sgst_amount_paise, 0) AS sgst_p,
@@ -55,6 +60,7 @@ func (s *Service) GetExpenseReport(filter models.ExpenseReportFilter) (models.Ex
 	      JOIN expense_invoices ei ON ei.id = e.expense_invoice_id AND ei.deleted_at IS NULL
 	      LEFT JOIN shipments sh ON sh.id = e.shipment_id
 	      LEFT JOIN service_providers sp ON sp.id = e.service_provider_id
+	      LEFT JOIN service_providers cha ON cha.id = ei.clearing_agent_id
 	      LEFT JOIN expense_types et ON et.id = e.expense_type_id
 	      WHERE e.deleted_at IS NULL`
 
@@ -79,6 +85,21 @@ func (s *Service) GetExpenseReport(filter models.ExpenseReportFilter) (models.Ex
 		q += ` AND e.expense_type_id = ?`
 		args = append(args, filter.ExpenseTypeID)
 	}
+	if filter.ClearingAgentID != "" {
+		q += ` AND ei.clearing_agent_id = ?`
+		args = append(args, filter.ClearingAgentID)
+	}
+	if filter.CHAReimburseInvoiceNo != "" {
+		q += ` AND ei.cha_reimburse_invoice_no = ?`
+		args = append(args, filter.CHAReimburseInvoiceNo)
+	}
+	if filter.IsPaidByClearingAgent != nil {
+		if *filter.IsPaidByClearingAgent {
+			q += ` AND ei.is_paid_by_clearing_agent = 1`
+		} else {
+			q += ` AND (ei.is_paid_by_clearing_agent = 0 OR ei.is_paid_by_clearing_agent IS NULL)`
+		}
+	}
 	if filter.MinAmountPaise > 0 {
 		q += ` AND COALESCE(NULLIF(e.amount_paise,0), CAST(ROUND(e.amount*100) AS INTEGER)) >= ?`
 		args = append(args, filter.MinAmountPaise)
@@ -89,8 +110,8 @@ func (s *Service) GetExpenseReport(filter models.ExpenseReportFilter) (models.Ex
 	}
 	if st := strings.TrimSpace(filter.Search); st != "" {
 		like := "%" + st + "%"
-		q += ` AND (e.invoice_no LIKE ? OR sp.name LIKE ? OR et.name LIKE ? OR sh.invoice_number LIKE ? OR COALESCE(e.remarks,'') LIKE ?)`
-		args = append(args, like, like, like, like, like)
+		q += ` AND (e.invoice_no LIKE ? OR sp.name LIKE ? OR et.name LIKE ? OR sh.invoice_number LIKE ? OR COALESCE(e.remarks,'') LIKE ? OR COALESCE(cha.name,'') LIKE ? OR COALESCE(ei.cha_reimburse_invoice_no,'') LIKE ?)`
+		args = append(args, like, like, like, like, like, like, like)
 	}
 	q += ` ORDER BY e.invoice_date DESC, e.invoice_no ASC`
 
@@ -111,15 +132,19 @@ func (s *Service) GetExpenseReport(filter models.ExpenseReportFilter) (models.Ex
 
 	for rows.Next() {
 		var r models.ExpenseReportDetailedRow
+		var isPaidByCA int
 		if err := rows.Scan(
 			&r.ExpenseID, &r.ExpenseInvoiceID, &r.ShipmentID, &r.ShipmentInvoiceNo,
 			&r.ServiceProviderID, &r.ServiceProviderName, &r.ExpenseTypeID, &r.ExpenseTypeName,
 			&r.InvoiceNo, &r.InvoiceDate,
+			&isPaidByCA, &r.ClearingAgentID, &r.ClearingAgentName,
+			&r.CHAReimburseInvoiceNo, &r.CHAReimburseInvoiceDate,
 			&r.AmountPaise, &r.CGSTPaise, &r.SGSTPaise, &r.IGSTPaise, &r.TDSPaise,
 			&r.TotalPaise, &r.NetPaise, &r.Remarks,
 		); err != nil {
 			return models.ExpenseReportResult{}, err
 		}
+		r.IsPaidByClearingAgent = isPaidByCA == 1
 
 		res.DetailedRows = append(res.DetailedRows, r)
 		res.TotalLines++
@@ -171,6 +196,17 @@ func groupKeyAndLabel(viewMode string, r models.ExpenseReportDetailedRow) (strin
 			month = month[:7]
 		}
 		return month, month
+	case "summary-by-clearing-agent":
+		if !r.IsPaidByClearingAgent || r.ClearingAgentID == "" {
+			return "DIRECT_OR_UNASSIGNED", "Direct Company Payment (No Clearing Agent)"
+		}
+		key := r.ClearingAgentID
+		label := r.ClearingAgentName
+		if r.CHAReimburseInvoiceNo != "" {
+			key += ":" + r.CHAReimburseInvoiceNo
+			label += " - Ref: " + r.CHAReimburseInvoiceNo
+		}
+		return key, label
 	default:
 		return "", ""
 	}

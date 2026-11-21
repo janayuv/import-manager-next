@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { BarChart3, FileDown, FileSpreadsheet, Search, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -50,6 +51,7 @@ const REPORT_VIEWS: Array<{ id: ExpenseReportFilter['viewMode']; label: string }
   { id: 'summary-by-provider', label: 'By Provider' },
   { id: 'summary-by-shipment', label: 'By Shipment' },
   { id: 'summary-by-month', label: 'By Month' },
+  { id: 'summary-by-clearing-agent', label: 'By Clearing Agent (CHA)' },
 ];
 
 export function ExpenseReportsPage() {
@@ -58,6 +60,9 @@ export function ExpenseReportsPage() {
   const [endDate, setEndDate] = React.useState('');
   const [serviceProviderId, setServiceProviderId] = React.useState('');
   const [expenseTypeId, setExpenseTypeId] = React.useState('');
+  const [clearingAgentId, setClearingAgentId] = React.useState('');
+  const [chaReimburseInvoiceNo, setChaReimburseInvoiceNo] = React.useState('');
+  const [paidByClearingAgentFilter, setPaidByClearingAgentFilter] = React.useState<string>('all');
   const [minAmountInr, setMinAmountInr] = React.useState('');
   const [maxAmountInr, setMaxAmountInr] = React.useState('');
   const [search, setSearch] = React.useState('');
@@ -90,6 +95,13 @@ export function ExpenseReportsPage() {
     try {
       const minPaise = minAmountInr ? Math.round(Number.parseFloat(minAmountInr) * 100) : 0;
       const maxPaise = maxAmountInr ? Math.round(Number.parseFloat(maxAmountInr) * 100) : 0;
+      const isPaidByCA =
+        paidByClearingAgentFilter === 'yes'
+          ? true
+          : paidByClearingAgentFilter === 'no'
+          ? false
+          : undefined;
+
       const data = await expenseReportsService.getReport({
         viewMode,
         startDate,
@@ -97,6 +109,9 @@ export function ExpenseReportsPage() {
         shipmentId: '',
         serviceProviderId,
         expenseTypeId,
+        clearingAgentId: clearingAgentId || '',
+        chaReimburseInvoiceNo: chaReimburseInvoiceNo || '',
+        isPaidByClearingAgent: isPaidByCA,
         minAmountPaise: Number.isFinite(minPaise) ? minPaise : 0,
         maxAmountPaise: Number.isFinite(maxPaise) ? maxPaise : 0,
         search,
@@ -105,7 +120,7 @@ export function ExpenseReportsPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
-  }, [viewMode, startDate, endDate, serviceProviderId, expenseTypeId, minAmountInr, maxAmountInr, search]);
+  }, [viewMode, startDate, endDate, serviceProviderId, expenseTypeId, clearingAgentId, chaReimburseInvoiceNo, paidByClearingAgentFilter, minAmountInr, maxAmountInr, search]);
 
   React.useEffect(() => {
     void loadReport();
@@ -115,7 +130,7 @@ export function ExpenseReportsPage() {
     if (!report) return;
     const header =
       viewMode === 'detailed'
-        ? 'Date,Invoice No,Shipment,Service Provider,Expense Type,Basic (INR),GST (INR),TDS (INR),Gross (INR),Net (INR)'
+        ? 'Date,Invoice No,Shipment,Service Provider,Expense Type,Paid by CHA,CHA Reimburse Ref,Basic (INR),GST (INR),TDS (INR),Gross (INR),Net (INR)'
         : 'Group,Lines,Basic (INR),CGST (INR),SGST (INR),IGST (INR),TDS (INR),Gross (INR),Net (INR)';
     const rows =
       viewMode === 'detailed'
@@ -126,6 +141,8 @@ export function ExpenseReportsPage() {
               r.shipmentInvoiceNo,
               `"${r.serviceProviderName.replaceAll('"', '""')}"`,
               `"${r.expenseTypeName.replaceAll('"', '""')}"`,
+              r.isPaidByClearingAgent ? `"${(r.clearingAgentName || 'Yes').replaceAll('"', '""')}"` : '"Direct"',
+              `"${(r.chaReimburseInvoiceNo || '').replaceAll('"', '""')}"`,
               (r.amountPaise / 100).toFixed(2),
               ((r.cgstPaise + r.sgstPaise + r.igstPaise) / 100).toFixed(2),
               (r.tdsPaise / 100).toFixed(2),
@@ -269,12 +286,55 @@ export function ExpenseReportsPage() {
             />
           </div>
           <div className="space-y-1">
+            <Label>Paid by CHA</Label>
+            <Select
+              value={paidByClearingAgentFilter}
+              onValueChange={setPaidByClearingAgentFilter}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All Payments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Payments</SelectItem>
+                <SelectItem value="yes">Paid by CHA</SelectItem>
+                <SelectItem value="no">Direct Company</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Clearing Agent (CHA)</Label>
+            <Select
+              value={clearingAgentId || 'all'}
+              onValueChange={(v) => setClearingAgentId(v === 'all' ? '' : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All Clearing Agents" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clearing Agents</SelectItem>
+                {providers.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>CHA Reimburse Inv #</Label>
+            <Input
+              placeholder="e.g. CHA-001"
+              value={chaReimburseInvoiceNo}
+              onChange={(e) => setChaReimburseInvoiceNo(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
             <Label>Search</Label>
             <div className="relative">
               <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 className="pl-8"
-                placeholder="Invoice, remarks..."
+                placeholder="Invoice, remarks, CHA..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -377,7 +437,17 @@ export function ExpenseReportsPage() {
                       <TableCell className="font-mono text-xs">{r.invoiceDate}</TableCell>
                       <TableCell className="font-medium">{r.invoiceNo}</TableCell>
                       <TableCell className="font-mono text-xs">{r.shipmentInvoiceNo}</TableCell>
-                      <TableCell>{r.serviceProviderName}</TableCell>
+                      <TableCell>
+                        <div>{r.serviceProviderName}</div>
+                        {r.isPaidByClearingAgent && (
+                          <div className="mt-0.5">
+                            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300">
+                              Paid by CHA: {r.clearingAgentName || 'Clearing Agent'}
+                              {r.chaReimburseInvoiceNo ? ` (Ref: ${r.chaReimburseInvoiceNo})` : ''}
+                            </Badge>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>{r.expenseTypeName}</TableCell>
                       <TableCell className="text-right font-mono">
                         {formatPaiseINR(r.amountPaise)}
