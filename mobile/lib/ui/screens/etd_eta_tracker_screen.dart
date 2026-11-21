@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../database/db_helper.dart';
 import '../../models/shipment.dart';
+import '../../services/company_service.dart';
 import '../widgets/shipment_detail_sheet.dart';
+import '../widgets/company_switcher_badge.dart';
 
 class EtdEtaTrackerScreen extends StatefulWidget {
   const EtdEtaTrackerScreen({super.key});
@@ -24,14 +26,22 @@ class _EtdEtaTrackerScreenState extends State<EtdEtaTrackerScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    CompanyService.instance.addListener(_onCompanyChanged);
     _loadData();
   }
 
   @override
   void dispose() {
+    CompanyService.instance.removeListener(_onCompanyChanged);
     _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onCompanyChanged() {
+    if (mounted) {
+      _loadData();
+    }
   }
 
   void _onSearchChanged(String val) {
@@ -71,6 +81,10 @@ class _EtdEtaTrackerScreenState extends State<EtdEtaTrackerScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Shipments ETD - ETA'),
+        actions: const [
+          CompanySwitcherBadge(),
+          SizedBox(width: 14),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,

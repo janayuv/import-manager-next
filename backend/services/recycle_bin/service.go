@@ -193,6 +193,11 @@ func NewService(db *sql.DB, sec *security.Service, aud *audit.Service, restoreCt
 	}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 func validateTable(name string) (tableMeta, error) {
 	key := strings.TrimSpace(name)
 	meta, ok := tableRegistry[key]

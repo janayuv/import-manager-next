@@ -97,14 +97,17 @@ export async function exportExpenseReportExcel(report: ExpenseReportResult): Pro
   triggerDownload(blob, `Expense_Report_${report.viewMode}.xlsx`);
 }
 
-export async function exportLandedCostPdf(report: LandedCostReport): Promise<void> {
+export async function exportLandedCostPdf(report: LandedCostReport, companyHeader?: string): Promise<void> {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
   ]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   doc.setFontSize(13);
-  doc.text('Import Manager Next Generation — Landed Cost Summary (Excl. IGST)', 32, 34);
+  const title = companyHeader
+    ? `${companyHeader} — Landed Cost Summary (Excl. IGST)`
+    : 'Import Manager Next Generation — Landed Cost Summary (Excl. IGST)';
+  doc.text(title, 32, 34);
   doc.setFontSize(9);
   doc.text(
     `Rows: ${report.summary.totalRows} | Assessable: INR ${report.summary.totalAssessableValue.toFixed(2)} | ` +

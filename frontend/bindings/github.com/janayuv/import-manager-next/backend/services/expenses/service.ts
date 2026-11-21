@@ -13,6 +13,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../../models/models.js";
 
 /**
@@ -152,6 +155,13 @@ export function PreviewCalculation(lines: models$0.ExpenseLineInput[]): $Cancell
  */
 export function RecordExpenseAllocation(shipmentID: string, reason: string): $CancellablePromise<string> {
     return $Call.ByID(3171470752, shipmentID, reason);
+}
+
+/**
+ * SetDB rebinds the service to an active database handle.
+ */
+export function SetDB(db: sql$0.DB | null): $CancellablePromise<void> {
+    return $Call.ByID(1657685959, db);
 }
 
 /**

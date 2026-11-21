@@ -388,6 +388,17 @@ export function ShipmentsPage() {
   };
 
   const onSubmit = async (values: ShipmentFormValues) => {
+    const isDuplicate = shipments.some(
+      (s) =>
+        s.id !== editing?.id &&
+        s.supplierId === values.supplierId &&
+        s.invoiceNumber.trim().toLowerCase() === values.invoiceNumber.trim().toLowerCase()
+    );
+    if (isDuplicate) {
+      toast.error(`Invoice "${values.invoiceNumber}" already exists for this supplier in shipment records.`);
+      return;
+    }
+
     const payload: ShipmentInput = {
       ...values,
       plannedEtd: values.plannedEtd || values.etd,

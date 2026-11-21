@@ -12,6 +12,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as audit$0 from "../audit/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -216,6 +219,13 @@ export function RequirePermission(perm: string): $CancellablePromise<$models.Ses
  */
 export function ResetAccountLockout(userID: string): $CancellablePromise<void> {
     return $Call.ByID(384763905, userID);
+}
+
+/**
+ * SetDB rebinds the service and its lockout manager to an active database handle without dropping active user sessions.
+ */
+export function SetDB(db: sql$0.DB | null): $CancellablePromise<void> {
+    return $Call.ByID(3061387972, db);
 }
 
 /**

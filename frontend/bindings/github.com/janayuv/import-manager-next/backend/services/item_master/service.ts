@@ -12,6 +12,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../../models/models.js";
 
 /**
@@ -86,6 +89,13 @@ export function List(req: models$0.ItemPageRequest): $CancellablePromise<models$
  */
 export function SaveItemPhoto(itemID: string, filename: string, data: string): $CancellablePromise<string> {
     return $Call.ByID(839609890, itemID, filename, data);
+}
+
+/**
+ * SetDB rebinds the service and its repositories to an active database handle.
+ */
+export function SetDB(db: sql$0.DB | null): $CancellablePromise<void> {
+    return $Call.ByID(3648953038, db);
 }
 
 /**

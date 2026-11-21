@@ -21,6 +21,9 @@ import * as migrations$0 from "./backend/database/migrations/models.js";
 import * as memory$0 from "./backend/memory/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as models$0 from "./backend/models/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as updater$0 from "./backend/services/updater/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -53,6 +56,22 @@ export function CheckForUpdate(): $CancellablePromise<updater$0.UpdateCheckResul
 }
 
 /**
+ * CreateCompany provisions an isolated encrypted database for a new corporate entity.
+ */
+export function CreateCompany(input: models$0.CreateCompanyInput): $CancellablePromise<models$0.Company> {
+    return $Call.ByID(3380226821, input).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
+ * DeleteCompany removes a company from the registry and archives its database file.
+ */
+export function DeleteCompany(companyID: string): $CancellablePromise<void> {
+    return $Call.ByID(2613235820, companyID);
+}
+
+/**
  * DownloadUpdate downloads the update binary/installer from GitHub.
  */
 export function DownloadUpdate(downloadURL: string, assetName: string): $CancellablePromise<string> {
@@ -60,11 +79,20 @@ export function DownloadUpdate(downloadURL: string, assetName: string): $Cancell
 }
 
 /**
+ * GetActiveCompany returns details for the currently active company database.
+ */
+export function GetActiveCompany(): $CancellablePromise<models$0.Company> {
+    return $Call.ByID(1832970423).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
  * GetBootstrapInfo returns verified startup configuration, migration version, and SQLCipher health status.
  */
 export function GetBootstrapInfo(): $CancellablePromise<$models.BootstrapInfo> {
     return $Call.ByID(2420869800).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -73,7 +101,16 @@ export function GetBootstrapInfo(): $CancellablePromise<$models.BootstrapInfo> {
  */
 export function GetMemoryStats(): $CancellablePromise<memory$0.Stats> {
     return $Call.ByID(97300464).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
+    });
+}
+
+/**
+ * ListCompanies returns all registered companies with their metadata and database paths.
+ */
+export function ListCompanies(): $CancellablePromise<models$0.Company[]> {
+    return $Call.ByID(1144895953).then(($result: any) => {
+        return $$createType5($result);
     });
 }
 
@@ -82,7 +119,7 @@ export function GetMemoryStats(): $CancellablePromise<memory$0.Stats> {
  */
 export function ListSchemaMigrations(): $CancellablePromise<migrations$0.AppliedRecord[]> {
     return $Call.ByID(2397509292).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType7($result);
     });
 }
 
@@ -94,19 +131,39 @@ export function OpenExternalURL(url: string): $CancellablePromise<void> {
 }
 
 /**
+ * SwitchCompany dynamically switches the active database context to the specified company.
+ */
+export function SwitchCompany(companyID: string): $CancellablePromise<models$0.Company> {
+    return $Call.ByID(1497649801, companyID).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
  * TrimMemory requests immediate process working set release, database cache purge, and runtime GC.
  */
 export function TrimMemory(aggressive: boolean): $CancellablePromise<memory$0.TrimResult> {
     return $Call.ByID(4055428277, aggressive).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
+    });
+}
+
+/**
+ * UpdateCompany updates corporate identity, tax registrations, or bank details.
+ */
+export function UpdateCompany(input: models$0.UpdateCompanyInput): $CancellablePromise<models$0.Company> {
+    return $Call.ByID(1031137466, input).then(($result: any) => {
+        return $$createType2($result);
     });
 }
 
 // Private type creation functions
 const $$createType0 = connection$0.HealthInfo.createFrom;
 const $$createType1 = updater$0.UpdateCheckResult.createFrom;
-const $$createType2 = $models.BootstrapInfo.createFrom;
-const $$createType3 = memory$0.Stats.createFrom;
-const $$createType4 = migrations$0.AppliedRecord.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = memory$0.TrimResult.createFrom;
+const $$createType2 = models$0.Company.createFrom;
+const $$createType3 = $models.BootstrapInfo.createFrom;
+const $$createType4 = memory$0.Stats.createFrom;
+const $$createType5 = $Create.Array($$createType2);
+const $$createType6 = migrations$0.AppliedRecord.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = memory$0.TrimResult.createFrom;

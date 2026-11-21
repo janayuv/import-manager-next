@@ -165,6 +165,95 @@ describe('Stage 5 Shipments & Invoice Wizard UI', () => {
     });
   });
 
+  it('blocks creating a shipment with duplicate supplier and invoiceNumber', async () => {
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'SHP-011',
+          supplierId: 'Sup-001',
+          supplierName: 'CNF Co LTD',
+          invoiceNumber: 'CNF-2608-06',
+          invoiceDate: '2026-08-25',
+          goodsCategory: 'Electronics',
+          invoiceValue: 57819456,
+          invoiceCurrency: 'KRW',
+          incoterm: 'EXW',
+          shipmentMode: 'Sea',
+          shipmentType: 'FCL',
+          blAwbNumber: '',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 0,
+          etd: '',
+          eta: '',
+          status: 'ready-dly',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '',
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+    });
+    vi.mocked(supplierService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'Sup-001',
+          supplierName: 'CNF Co LTD',
+          shortName: 'CNF',
+          country: 'South Korea',
+          email: '',
+          phone: '',
+          beneficiaryName: '',
+          bankName: '',
+          branch: '',
+          bankAddress: '',
+          accountNo: '',
+          swiftCode: '',
+          iban: '',
+          isActive: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ShipmentsPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('CNF-2608-06')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /New Shipment/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Create Shipment' })).toBeInTheDocument();
+    });
+
+    // Fill in the exact duplicate invoice number for the same supplier
+    fireEvent.change(screen.getByLabelText(/Invoice Number \*/i), {
+      target: { value: 'cnf-2608-06' },
+    });
+    fireEvent.change(screen.getByLabelText(/Invoice Value \*/i), {
+      target: { value: '57819456' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Shipment' }));
+
+    // Verify shipmentService.create was NOT called due to duplicate detection
+    await waitFor(() => {
+      expect(shipmentService.create).not.toHaveBeenCalled();
+    });
+  });
+
   it('walks through 3-step Invoice Wizard and disables Finalize when line sum mismatches', async () => {
     vi.mocked(invoiceService.listActiveShipments).mockResolvedValue([
       {

@@ -40,6 +40,14 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Ser
 	}
 }
 
+// SetDB rebinds the service and its repositories to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+	s.invRepo = repositories.NewInvoiceRepository(db)
+	s.shipRepo = repositories.NewShipmentRepository(db)
+	s.itemRepo = repositories.NewItemRepository(db)
+}
+
 // ParseMultiLinePaste parses clipboard text supporting \t, comma, semicolon, or pipe delimiters
 // across Format A (partNo, qty, unitPrice) and Format B (partNo, desc, unit, qty, unitPrice)
 // and resolves Item Master matches and price divergence flags.
@@ -216,9 +224,15 @@ func (s *Service) SaveInvoice(req models.SaveInvoiceRequest) (models.InvoiceDeta
 
 	invoiceID := strings.TrimSpace(req.InvoiceID)
 	if invoiceID == "" {
-		invoiceID, err = s.invRepo.NextInvoiceID()
-		if err != nil {
-			return models.InvoiceDetail{}, err
+		var existingInvoiceID string
+		qErr := s.db.QueryRow(`SELECT id FROM invoices WHERE shipment_id = ? AND deleted_at IS NULL LIMIT 1`, sh.ID).Scan(&existingInvoiceID)
+		if qErr == nil && existingInvoiceID != "" {
+			invoiceID = existingInvoiceID
+		} else {
+			invoiceID, err = s.invRepo.NextInvoiceID()
+			if err != nil {
+				return models.InvoiceDetail{}, err
+			}
 		}
 	}
 

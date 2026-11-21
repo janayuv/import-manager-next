@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"runtime"
 
 	"github.com/janayuv/import-manager-next/backend/app/bootstrap"
@@ -9,6 +10,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/database/integrity"
 	"github.com/janayuv/import-manager-next/backend/database/migrations"
 	"github.com/janayuv/import-manager-next/backend/memory"
+	"github.com/janayuv/import-manager-next/backend/models"
 	"github.com/janayuv/import-manager-next/backend/services/updater"
 	winpaths "github.com/janayuv/import-manager-next/backend/windows"
 )
@@ -26,6 +28,7 @@ type BootstrapInfo struct {
 	Database      connection.HealthInfo `json:"database"`
 	Integrity     integrity.Report      `json:"integrity"`
 	Memory        memory.Stats          `json:"memory"`
+	ActiveCompany models.Company        `json:"activeCompany"`
 }
 
 // AppService provides application metadata, runtime paths, and SQLCipher database health bindings.
@@ -49,6 +52,12 @@ func (s *AppService) GetBootstrapInfo() (BootstrapInfo, error) {
 		return BootstrapInfo{}, err
 	}
 	integ.RecoveredWrites = s.rt.Integrity.RecoveredWrites
+
+	var activeComp models.Company
+	if s.rt.Company != nil {
+		activeComp, _ = s.rt.Company.GetActiveCompany()
+	}
+
 	return BootstrapInfo{
 		AppName:       s.rt.Config.AppName,
 		AppVersion:    s.rt.Config.AppVersion,
@@ -61,6 +70,7 @@ func (s *AppService) GetBootstrapInfo() (BootstrapInfo, error) {
 		Database:      health,
 		Integrity:     integ,
 		Memory:        s.rt.MemoryMgr.GetStats(),
+		ActiveCompany: activeComp,
 	}, nil
 }
 
@@ -102,4 +112,52 @@ func (s *AppService) ApplyUpdate(installerPath string) error {
 // OpenExternalURL opens a URL in the user's default browser.
 func (s *AppService) OpenExternalURL(url string) error {
 	return s.rt.Updater.OpenURL(url)
+}
+
+// ListCompanies returns all registered companies with their metadata and database paths.
+func (s *AppService) ListCompanies() ([]models.Company, error) {
+	if s.rt.Company == nil {
+		return nil, errors.New("company service not initialized")
+	}
+	return s.rt.Company.ListCompanies()
+}
+
+// GetActiveCompany returns details for the currently active company database.
+func (s *AppService) GetActiveCompany() (models.Company, error) {
+	if s.rt.Company == nil {
+		return models.Company{}, errors.New("company service not initialized")
+	}
+	return s.rt.Company.GetActiveCompany()
+}
+
+// CreateCompany provisions an isolated encrypted database for a new corporate entity.
+func (s *AppService) CreateCompany(input models.CreateCompanyInput) (models.Company, error) {
+	if s.rt.Company == nil {
+		return models.Company{}, errors.New("company service not initialized")
+	}
+	return s.rt.Company.CreateCompany(input)
+}
+
+// UpdateCompany updates corporate identity, tax registrations, or bank details.
+func (s *AppService) UpdateCompany(input models.UpdateCompanyInput) (models.Company, error) {
+	if s.rt.Company == nil {
+		return models.Company{}, errors.New("company service not initialized")
+	}
+	return s.rt.Company.UpdateCompany(input)
+}
+
+// SwitchCompany dynamically switches the active database context to the specified company.
+func (s *AppService) SwitchCompany(companyID string) (models.Company, error) {
+	if s.rt.Company == nil {
+		return models.Company{}, errors.New("company service not initialized")
+	}
+	return s.rt.Company.SwitchCompany(companyID)
+}
+
+// DeleteCompany removes a company from the registry and archives its database file.
+func (s *AppService) DeleteCompany(companyID string) error {
+	if s.rt.Company == nil {
+		return errors.New("company service not initialized")
+	}
+	return s.rt.Company.DeleteCompany(companyID)
 }

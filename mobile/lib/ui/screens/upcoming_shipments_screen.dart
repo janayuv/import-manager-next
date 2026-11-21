@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../database/db_helper.dart';
 import '../../models/shipment.dart';
+import '../../services/company_service.dart';
 import '../widgets/shipment_card.dart';
 import '../widgets/shipment_detail_sheet.dart';
+import '../widgets/company_switcher_badge.dart';
 
 class UpcomingShipmentsScreen extends StatefulWidget {
   const UpcomingShipmentsScreen({super.key});
@@ -33,14 +35,22 @@ class _UpcomingShipmentsScreenState extends State<UpcomingShipmentsScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    CompanyService.instance.addListener(_onCompanyChanged);
     _loadShipments();
   }
 
   @override
   void dispose() {
+    CompanyService.instance.removeListener(_onCompanyChanged);
     _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onCompanyChanged() {
+    if (mounted) {
+      _loadShipments();
+    }
   }
 
   void _onSearchChanged(String val) {
@@ -83,25 +93,9 @@ class _UpcomingShipmentsScreenState extends State<UpcomingShipmentsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Upcoming Shipments'),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.blue.withAlpha(30),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.blue.withAlpha(80)),
-            ),
-            child: const Text(
-              'VIEW ONLY',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.bold,
-                color: Colors.blueAccent,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
+        actions: const [
+          CompanySwitcherBadge(),
+          SizedBox(width: 14),
         ],
       ),
       body: RefreshIndicator(

@@ -12,6 +12,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../../models/models.js";
 
 /**
@@ -171,6 +174,13 @@ export function SaveBackupSchedule(input: models$0.SaveBackupScheduleInput): $Ca
     return $Call.ByID(330389276, input).then(($result: any) => {
         return $$createType4($result);
     });
+}
+
+/**
+ * SetDB rebinds the service to an active database handle.
+ */
+export function SetDB(db: sql$0.DB | null): $CancellablePromise<void> {
+    return $Call.ByID(2129375424, db);
 }
 
 // Private type creation functions

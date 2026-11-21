@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import '../../constants/app_colors.dart';
 import '../../database/db_helper.dart';
 import '../../models/landed_cost.dart';
+import '../../services/company_service.dart';
 import '../widgets/ldc_row_card.dart';
+import '../widgets/company_switcher_badge.dart';
 
 class LdcReportScreen extends StatefulWidget {
   const LdcReportScreen({super.key});
@@ -25,14 +27,22 @@ class _LdcReportScreenState extends State<LdcReportScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    CompanyService.instance.addListener(_onCompanyChanged);
     _loadReport();
   }
 
   @override
   void dispose() {
+    CompanyService.instance.removeListener(_onCompanyChanged);
     _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onCompanyChanged() {
+    if (mounted) {
+      _loadReport();
+    }
   }
 
   void _onSearchChanged(String val) {
@@ -73,24 +83,9 @@ class _LdcReportScreenState extends State<LdcReportScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Landed Duty Cost (LDC)'),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.ldcBadge.withAlpha(25),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.ldcBadge.withAlpha(80)),
-            ),
-            child: const Text(
-              'LDC REPORT',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.bold,
-                color: AppColors.ldcBadge,
-              ),
-            ),
-          ),
+        actions: const [
+          CompanySwitcherBadge(),
+          SizedBox(width: 14),
         ],
       ),
       body: RefreshIndicator(
@@ -117,6 +112,40 @@ class _LdcReportScreenState extends State<LdcReportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Active company identity header
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            CompanyService.instance.activeCompany.shortCode,
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            CompanyService.instance.activeCompany.name,
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (CompanyService.instance.activeCompany.iecCode != null &&
+                            CompanyService.instance.activeCompany.iecCode!.isNotEmpty)
+                          Text(
+                            'IEC: ${CompanyService.instance.activeCompany.iecCode}',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    const Divider(height: 1, color: Color(0xFF334155)),
+                    const SizedBox(height: 10),
                     const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

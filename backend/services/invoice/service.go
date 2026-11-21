@@ -29,6 +29,12 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Ser
 	}
 }
 
+// SetDB rebinds the service and its repositories to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.repo = repositories.NewInvoiceRepository(db)
+	s.shipRepo = repositories.NewShipmentRepository(db)
+}
+
 // List returns invoices matching optional search & status filter.
 func (s *Service) List(search, status string) ([]models.InvoiceSummary, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {

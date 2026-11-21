@@ -12,6 +12,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../../models/models.js";
 
 /**
@@ -37,6 +40,13 @@ export function List(search: string, status: string): $CancellablePromise<models
     return $Call.ByID(2121378801, search, status).then(($result: any) => {
         return $$createType2($result);
     });
+}
+
+/**
+ * SetDB rebinds the service to an active database handle.
+ */
+export function SetDB(db: sql$0.DB | null): $CancellablePromise<void> {
+    return $Call.ByID(1792953813, db);
 }
 
 /**

@@ -78,6 +78,15 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Ser
 	}
 }
 
+// SetDB rebinds the service and its repositories to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+	s.repo = repositories.NewShipmentRepository(db)
+	s.containerRepo = repositories.NewContainerRepository(db)
+	s.itemRepo = repositories.NewItemRepository(db)
+	s.supRepo = repositories.NewSupplierRepository(db)
+}
+
 // List returns filtered, sorted, paginated active shipments.
 func (s *Service) List(req models.ShipmentPageRequest) (models.ShipmentPage, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
@@ -102,6 +111,14 @@ func (s *Service) GetDetail(id string) (models.ShipmentDetail, error) {
 	return s.repo.GetDetail(id)
 }
 
+// CheckDuplicate checks whether an active shipment already uses the supplierId and invoiceNumber.
+func (s *Service) CheckDuplicate(supplierID, invoiceNumber, excludeID string) (*models.Shipment, error) {
+	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
+		return nil, err
+	}
+	return s.repo.FindDuplicate(supplierID, invoiceNumber, excludeID)
+}
+
 // Create validates and inserts a new shipment record.
 func (s *Service) Create(in models.ShipmentInput) (models.Shipment, error) {
 	sess, err := s.sec.RequirePermission(security.PermDataWrite)
@@ -110,6 +127,11 @@ func (s *Service) Create(in models.ShipmentInput) (models.Shipment, error) {
 	}
 	if err := s.normalizeAndValidate(&in); err != nil {
 		return models.Shipment{}, err
+	}
+	if dup, err := s.repo.FindDuplicate(in.SupplierID, in.InvoiceNumber, ""); err != nil {
+		return models.Shipment{}, err
+	} else if dup != nil {
+		return models.Shipment{}, fmt.Errorf("duplicate shipment detected: invoice %q already exists for supplier %s (%s)", in.InvoiceNumber, dup.SupplierName, dup.ID)
 	}
 	created, err := s.repo.Create(in)
 	if err != nil {
@@ -134,6 +156,11 @@ func (s *Service) Update(id string, in models.ShipmentInput) (models.Shipment, e
 	}
 	if err := s.normalizeAndValidate(&in); err != nil {
 		return models.Shipment{}, err
+	}
+	if dup, err := s.repo.FindDuplicate(in.SupplierID, in.InvoiceNumber, id); err != nil {
+		return models.Shipment{}, err
+	} else if dup != nil {
+		return models.Shipment{}, fmt.Errorf("duplicate shipment detected: invoice %q already belongs to shipment %s (%s)", in.InvoiceNumber, dup.ID, dup.SupplierName)
 	}
 	updated, err := s.repo.Update(id, in)
 	if err != nil {
@@ -255,6 +282,7 @@ func (s *Service) ImportCSV(fileName, content string) (models.CSVImportResult, e
 	}
 	idx := validation.HeaderIndex(headers)
 	res := models.CSVImportResult{TotalRows: len(rows)}
+	seenInvoices := make(map[string]int, len(rows))
 
 	for i, row := range rows {
 		rowNum := i + 2
@@ -312,6 +340,30 @@ func (s *Service) ImportCSV(fileName, content string) (models.CSVImportResult, e
 			})
 			continue
 		}
+
+		pairKey := strings.ToLower(supplierID + "::" + strings.TrimSpace(invNo))
+		if firstRow, seen := seenInvoices[pairKey]; seen {
+			res.SkippedRows++
+			res.Errors = append(res.Errors, models.CSVImportRowError{
+				Row:     rowNum,
+				Message: fmt.Sprintf("duplicate invoice %q for supplier in CSV (first seen at row %d)", invNo, firstRow),
+			})
+			continue
+		}
+
+		if dup, err := s.repo.FindDuplicate(supplierID, invNo, ""); err != nil {
+			res.SkippedRows++
+			res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: err.Error()})
+			continue
+		} else if dup != nil {
+			res.SkippedRows++
+			res.Errors = append(res.Errors, models.CSVImportRowError{
+				Row:     rowNum,
+				Message: fmt.Sprintf("duplicate shipment: invoice %q already exists for supplier (%s)", invNo, dup.ID),
+			})
+			continue
+		}
+		seenInvoices[pairKey] = rowNum
 
 		grossWt, _ := strconv.ParseFloat(validation.CellByAliases(row, idx, "grossWeightKg", "gross_weight_kg"), 64)
 		category := validation.CellByAliases(row, idx, "goodsCategory", "goods_category", "category")

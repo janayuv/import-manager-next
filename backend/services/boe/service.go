@@ -50,6 +50,11 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service, atta
 	}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // List returns active BOE detail records filtered optionally by BE number, location, or challan.
 func (s *Service) List(search string) ([]models.BOEDetail, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {

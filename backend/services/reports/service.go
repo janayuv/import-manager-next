@@ -20,6 +20,11 @@ func NewService(db *sql.DB, sec *security.Service) *Service {
 	return &Service{db: db, sec: sec}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+}
+
 // GetLandedCostReport returns filtered landed cost rows from report_view plus 6 KPI metrics.
 func (s *Service) GetLandedCostReport(filter models.LandedCostFilter) (models.LandedCostReport, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {

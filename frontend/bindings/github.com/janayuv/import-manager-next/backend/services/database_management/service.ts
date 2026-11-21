@@ -13,6 +13,12 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as connection$0 from "../../database/connection/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../../models/models.js";
 
 /**
@@ -80,6 +86,13 @@ export function RunLegacyMigration(req: models$0.LegacyMigrationRequest): $Cance
     return $Call.ByID(3874689019, req).then(($result: any) => {
         return $$createType5($result);
     });
+}
+
+/**
+ * SetDB rebinds the service and connection pointers to an active database handle.
+ */
+export function SetDB(db: sql$0.DB | null, dbMgr: connection$0.Manager | null, dbPath: string): $CancellablePromise<void> {
+    return $Call.ByID(156825721, db, dbMgr, dbPath);
 }
 
 /**

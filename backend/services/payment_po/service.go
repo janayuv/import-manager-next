@@ -28,6 +28,12 @@ func NewService(db *sql.DB, sec *security.Service, auditSvc *audit.Service) *Ser
 	}
 }
 
+// SetDB rebinds the service and its repositories to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.db = db
+	s.repo = repositories.NewPaymentPORepository(db)
+}
+
 // CreatePurchaseOrder validates, creates a PO with line items and milestones, and logs an audit record.
 func (s *Service) CreatePurchaseOrder(input models.PurchaseOrderInput) (models.PurchaseOrder, error) {
 	sess, err := s.sec.RequirePermission(security.PermDataWrite)

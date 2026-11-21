@@ -2036,6 +2036,242 @@ export class CanaryStatus {
 }
 
 /**
+ * Company represents a distinct corporate/legal entity with its own independent encrypted database.
+ */
+export class Company {
+    "id": string;
+
+    /**
+     * Legal / Trade Name
+     */
+    "name": string;
+
+    /**
+     * Short uppercase code (e.g. "ACME", "APEX")
+     */
+    "shortCode": string;
+
+    /**
+     * 10-digit Import Export Code
+     */
+    "iecCode": string;
+
+    /**
+     * 15-char GSTIN
+     */
+    "gstin": string;
+
+    /**
+     * 10-char PAN
+     */
+    "pan": string;
+
+    /**
+     * Street address line 1
+     */
+    "addressLine1": string;
+
+    /**
+     * Street address line 2
+     */
+    "addressLine2": string;
+    "city": string;
+    "state": string;
+
+    /**
+     * PIN / ZIP
+     */
+    "postalCode": string;
+
+    /**
+     * Default: India
+     */
+    "country": string;
+    "phone": string;
+    "email": string;
+    "website": string;
+
+    /**
+     * Bank Beneficiary Name
+     */
+    "beneficiaryName": string;
+
+    /**
+     * Bank Name
+     */
+    "bankName": string;
+
+    /**
+     * Bank Account Number
+     */
+    "accountNumber": string;
+
+    /**
+     * IFSC / Sort Code
+     */
+    "ifscCode": string;
+
+    /**
+     * SWIFT / BIC Code
+     */
+    "swiftCode": string;
+
+    /**
+     * Bank Branch Name
+     */
+    "bankBranch": string;
+
+    /**
+     * Bank Branch Address
+     */
+    "bankAddress": string;
+
+    /**
+     * Base64 data URI or image URL
+     */
+    "logoData": string;
+
+    /**
+     * Default currency, e.g. "INR", "USD"
+     */
+    "baseCurrency": string;
+
+    /**
+     * Default "04-01" (MM-DD)
+     */
+    "financialYearFrom": string;
+
+    /**
+     * Default "03-31" (MM-DD)
+     */
+    "financialYearTo": string;
+
+    /**
+     * Path to company SQLite DB file
+     */
+    "databasePath": string;
+
+    /**
+     * True for the primary default company
+     */
+    "isDefault": boolean;
+
+    /**
+     * True if currently active
+     */
+    "isActive": boolean;
+    "createdAt": string;
+    "updatedAt": string;
+
+    /** Creates a new Company instance. */
+    constructor($$source: Partial<Company> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("shortCode" in $$source)) {
+            this["shortCode"] = "";
+        }
+        if (!("iecCode" in $$source)) {
+            this["iecCode"] = "";
+        }
+        if (!("gstin" in $$source)) {
+            this["gstin"] = "";
+        }
+        if (!("pan" in $$source)) {
+            this["pan"] = "";
+        }
+        if (!("addressLine1" in $$source)) {
+            this["addressLine1"] = "";
+        }
+        if (!("addressLine2" in $$source)) {
+            this["addressLine2"] = "";
+        }
+        if (!("city" in $$source)) {
+            this["city"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("postalCode" in $$source)) {
+            this["postalCode"] = "";
+        }
+        if (!("country" in $$source)) {
+            this["country"] = "";
+        }
+        if (!("phone" in $$source)) {
+            this["phone"] = "";
+        }
+        if (!("email" in $$source)) {
+            this["email"] = "";
+        }
+        if (!("website" in $$source)) {
+            this["website"] = "";
+        }
+        if (!("beneficiaryName" in $$source)) {
+            this["beneficiaryName"] = "";
+        }
+        if (!("bankName" in $$source)) {
+            this["bankName"] = "";
+        }
+        if (!("accountNumber" in $$source)) {
+            this["accountNumber"] = "";
+        }
+        if (!("ifscCode" in $$source)) {
+            this["ifscCode"] = "";
+        }
+        if (!("swiftCode" in $$source)) {
+            this["swiftCode"] = "";
+        }
+        if (!("bankBranch" in $$source)) {
+            this["bankBranch"] = "";
+        }
+        if (!("bankAddress" in $$source)) {
+            this["bankAddress"] = "";
+        }
+        if (!("logoData" in $$source)) {
+            this["logoData"] = "";
+        }
+        if (!("baseCurrency" in $$source)) {
+            this["baseCurrency"] = "";
+        }
+        if (!("financialYearFrom" in $$source)) {
+            this["financialYearFrom"] = "";
+        }
+        if (!("financialYearTo" in $$source)) {
+            this["financialYearTo"] = "";
+        }
+        if (!("databasePath" in $$source)) {
+            this["databasePath"] = "";
+        }
+        if (!("isDefault" in $$source)) {
+            this["isDefault"] = false;
+        }
+        if (!("isActive" in $$source)) {
+            this["isActive"] = false;
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Company instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Company {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Company($$parsedSource as Partial<Company>);
+    }
+}
+
+/**
  * ContainerMovementAction represents a batch or single operational action:
  * "DIRECT_DELIVER", "MOVE_TO_WAREHOUSE", or "DISPATCH_FROM_WAREHOUSE".
  */
@@ -2111,6 +2347,134 @@ export class CreateBackupRequest {
     static createFrom($$source: any = {}): CreateBackupRequest {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new CreateBackupRequest($$parsedSource as Partial<CreateBackupRequest>);
+    }
+}
+
+/**
+ * CreateCompanyInput holds validated payload required to provision a brand-new company database.
+ */
+export class CreateCompanyInput {
+    "name": string;
+    "shortCode": string;
+    "iecCode": string;
+    "gstin": string;
+    "pan": string;
+    "addressLine1": string;
+    "addressLine2": string;
+    "city": string;
+    "state": string;
+    "postalCode": string;
+    "country": string;
+    "phone": string;
+    "email": string;
+    "website": string;
+    "beneficiaryName": string;
+    "bankName": string;
+    "accountNumber": string;
+    "ifscCode": string;
+    "swiftCode": string;
+    "bankBranch": string;
+    "bankAddress": string;
+    "logoData": string;
+    "baseCurrency": string;
+    "financialYearFrom": string;
+    "financialYearTo": string;
+
+    /**
+     * If true, switches active company immediately
+     */
+    "switchImmediately": boolean;
+
+    /** Creates a new CreateCompanyInput instance. */
+    constructor($$source: Partial<CreateCompanyInput> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("shortCode" in $$source)) {
+            this["shortCode"] = "";
+        }
+        if (!("iecCode" in $$source)) {
+            this["iecCode"] = "";
+        }
+        if (!("gstin" in $$source)) {
+            this["gstin"] = "";
+        }
+        if (!("pan" in $$source)) {
+            this["pan"] = "";
+        }
+        if (!("addressLine1" in $$source)) {
+            this["addressLine1"] = "";
+        }
+        if (!("addressLine2" in $$source)) {
+            this["addressLine2"] = "";
+        }
+        if (!("city" in $$source)) {
+            this["city"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("postalCode" in $$source)) {
+            this["postalCode"] = "";
+        }
+        if (!("country" in $$source)) {
+            this["country"] = "";
+        }
+        if (!("phone" in $$source)) {
+            this["phone"] = "";
+        }
+        if (!("email" in $$source)) {
+            this["email"] = "";
+        }
+        if (!("website" in $$source)) {
+            this["website"] = "";
+        }
+        if (!("beneficiaryName" in $$source)) {
+            this["beneficiaryName"] = "";
+        }
+        if (!("bankName" in $$source)) {
+            this["bankName"] = "";
+        }
+        if (!("accountNumber" in $$source)) {
+            this["accountNumber"] = "";
+        }
+        if (!("ifscCode" in $$source)) {
+            this["ifscCode"] = "";
+        }
+        if (!("swiftCode" in $$source)) {
+            this["swiftCode"] = "";
+        }
+        if (!("bankBranch" in $$source)) {
+            this["bankBranch"] = "";
+        }
+        if (!("bankAddress" in $$source)) {
+            this["bankAddress"] = "";
+        }
+        if (!("logoData" in $$source)) {
+            this["logoData"] = "";
+        }
+        if (!("baseCurrency" in $$source)) {
+            this["baseCurrency"] = "";
+        }
+        if (!("financialYearFrom" in $$source)) {
+            this["financialYearFrom"] = "";
+        }
+        if (!("financialYearTo" in $$source)) {
+            this["financialYearTo"] = "";
+        }
+        if (!("switchImmediately" in $$source)) {
+            this["switchImmediately"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CreateCompanyInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CreateCompanyInput {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CreateCompanyInput($$parsedSource as Partial<CreateCompanyInput>);
     }
 }
 
@@ -9789,6 +10153,130 @@ export class TransitStatusCount {
     static createFrom($$source: any = {}): TransitStatusCount {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new TransitStatusCount($$parsedSource as Partial<TransitStatusCount>);
+    }
+}
+
+/**
+ * UpdateCompanyInput specifies mutable profile fields for an existing company entity.
+ */
+export class UpdateCompanyInput {
+    "id": string;
+    "name": string;
+    "shortCode": string;
+    "iecCode": string;
+    "gstin": string;
+    "pan": string;
+    "addressLine1": string;
+    "addressLine2": string;
+    "city": string;
+    "state": string;
+    "postalCode": string;
+    "country": string;
+    "phone": string;
+    "email": string;
+    "website": string;
+    "beneficiaryName": string;
+    "bankName": string;
+    "accountNumber": string;
+    "ifscCode": string;
+    "swiftCode": string;
+    "bankBranch": string;
+    "bankAddress": string;
+    "logoData": string;
+    "baseCurrency": string;
+    "financialYearFrom": string;
+    "financialYearTo": string;
+
+    /** Creates a new UpdateCompanyInput instance. */
+    constructor($$source: Partial<UpdateCompanyInput> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("shortCode" in $$source)) {
+            this["shortCode"] = "";
+        }
+        if (!("iecCode" in $$source)) {
+            this["iecCode"] = "";
+        }
+        if (!("gstin" in $$source)) {
+            this["gstin"] = "";
+        }
+        if (!("pan" in $$source)) {
+            this["pan"] = "";
+        }
+        if (!("addressLine1" in $$source)) {
+            this["addressLine1"] = "";
+        }
+        if (!("addressLine2" in $$source)) {
+            this["addressLine2"] = "";
+        }
+        if (!("city" in $$source)) {
+            this["city"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("postalCode" in $$source)) {
+            this["postalCode"] = "";
+        }
+        if (!("country" in $$source)) {
+            this["country"] = "";
+        }
+        if (!("phone" in $$source)) {
+            this["phone"] = "";
+        }
+        if (!("email" in $$source)) {
+            this["email"] = "";
+        }
+        if (!("website" in $$source)) {
+            this["website"] = "";
+        }
+        if (!("beneficiaryName" in $$source)) {
+            this["beneficiaryName"] = "";
+        }
+        if (!("bankName" in $$source)) {
+            this["bankName"] = "";
+        }
+        if (!("accountNumber" in $$source)) {
+            this["accountNumber"] = "";
+        }
+        if (!("ifscCode" in $$source)) {
+            this["ifscCode"] = "";
+        }
+        if (!("swiftCode" in $$source)) {
+            this["swiftCode"] = "";
+        }
+        if (!("bankBranch" in $$source)) {
+            this["bankBranch"] = "";
+        }
+        if (!("bankAddress" in $$source)) {
+            this["bankAddress"] = "";
+        }
+        if (!("logoData" in $$source)) {
+            this["logoData"] = "";
+        }
+        if (!("baseCurrency" in $$source)) {
+            this["baseCurrency"] = "";
+        }
+        if (!("financialYearFrom" in $$source)) {
+            this["financialYearFrom"] = "";
+        }
+        if (!("financialYearTo" in $$source)) {
+            this["financialYearTo"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateCompanyInput instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateCompanyInput {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateCompanyInput($$parsedSource as Partial<UpdateCompanyInput>);
     }
 }
 

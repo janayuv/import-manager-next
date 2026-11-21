@@ -137,6 +137,15 @@ func (r *ContainerRepository) Create(in models.ShipmentContainerInput) (models.S
 		}
 	}
 
+	var contExists int
+	_ = r.db.QueryRow(`
+		SELECT COUNT(*) FROM shipment_containers
+		WHERE shipment_id = ? AND LOWER(TRIM(container_number)) = LOWER(TRIM(?)) AND deleted_at IS NULL`,
+		strings.TrimSpace(in.ShipmentID), strings.TrimSpace(in.ContainerNumber)).Scan(&contExists)
+	if contExists > 0 {
+		return models.ShipmentContainer{}, fmt.Errorf("container number %q already exists on shipment %s", in.ContainerNumber, in.ShipmentID)
+	}
+
 	_, err := r.db.Exec(`
 		INSERT INTO shipment_containers (
 			id, shipment_id, container_number, container_size_type,
@@ -193,6 +202,15 @@ func (r *ContainerRepository) Update(id string, in models.ShipmentContainerInput
 		} else {
 			status = "PENDING"
 		}
+	}
+
+	var contExists int
+	_ = r.db.QueryRow(`
+		SELECT COUNT(*) FROM shipment_containers
+		WHERE shipment_id = ? AND LOWER(TRIM(container_number)) = LOWER(TRIM(?)) AND id <> ? AND deleted_at IS NULL`,
+		strings.TrimSpace(in.ShipmentID), strings.TrimSpace(in.ContainerNumber), strings.TrimSpace(id)).Scan(&contExists)
+	if contExists > 0 {
+		return models.ShipmentContainer{}, fmt.Errorf("container number %q already exists on shipment %s", in.ContainerNumber, in.ShipmentID)
 	}
 
 	res, err := r.db.Exec(`

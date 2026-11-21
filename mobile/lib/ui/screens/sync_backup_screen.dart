@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../models/sync_status.dart';
 import '../../services/sync_service.dart';
+import '../../services/company_service.dart';
+import '../widgets/company_switcher_badge.dart';
 
 class SyncBackupScreen extends StatefulWidget {
   const SyncBackupScreen({super.key});
@@ -16,20 +18,26 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
   bool _syncing = false;
 
   final TextEditingController _passphraseCtrl = TextEditingController();
-  final TextEditingController _tokenCtrl = TextEditingController();
   bool _obscurePassphrase = true;
 
   @override
   void initState() {
     super.initState();
+    CompanyService.instance.addListener(_onCompanyChanged);
     _loadState();
   }
 
   @override
   void dispose() {
+    CompanyService.instance.removeListener(_onCompanyChanged);
     _passphraseCtrl.dispose();
-    _tokenCtrl.dispose();
     super.dispose();
+  }
+
+  void _onCompanyChanged() {
+    if (mounted) {
+      _loadState();
+    }
   }
 
   Future<void> _loadState() async {
@@ -98,8 +106,8 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
       if (mounted) {
         setState(() => _status = updatedStatus);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✓ Live data synced from Google Drive!'),
+          SnackBar(
+            content: Text('✓ Live data synced from Google Drive (${updatedStatus.lastBackupFileName})!'),
             backgroundColor: AppColors.delivered,
           ),
         );
@@ -110,6 +118,12 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
           SnackBar(
             content: Text('Drive sync error: ${e.toString().replaceAll('Exception: ', '')}'),
             backgroundColor: AppColors.delayed,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Settings',
+              textColor: Colors.white,
+              onPressed: _showDriveConfigDialog,
+            ),
           ),
         );
       }
@@ -119,86 +133,219 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
   }
 
   void _showDriveConfigDialog() {
+    final gdrive = SyncService.instance.gdrive;
+    final rTokenCtrl = TextEditingController(text: gdrive.effectiveRefreshToken);
+    final cIdCtrl = TextEditingController(text: gdrive.effectiveClientId);
+    final cSecCtrl = TextEditingController(text: gdrive.effectiveClientSecret);
+    final emailCtrl = TextEditingController(text: gdrive.effectiveAccountEmail);
+    final manualTokenCtrl = TextEditingController();
+    bool showAdvanced = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Google Drive Connection'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.sync_outlined, size: 18),
-              label: const Text('Auto-Connect Desktop Account'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onPressed: () async {
-                try {
-                  await SyncService.instance.gdrive.refreshAccessToken();
-                  await _loadState();
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('✓ Connected to Google Drive with auto-refresh!'),
-                        backgroundColor: AppColors.delivered,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Connection failed: $e'), backgroundColor: AppColors.delayed),
-                    );
-                  }
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            const Row(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) {
+          return AlertDialog(
+            backgroundColor: AppColors.darkCard,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
               children: [
-                Expanded(child: Divider(color: AppColors.darkBorder)),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('OR PASTE TOKEN', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-                ),
-                Expanded(child: Divider(color: AppColors.darkBorder)),
+                Icon(Icons.cloud_sync, color: AppColors.accent, size: 22),
+                SizedBox(width: 8),
+                Text('Google Drive Sync Settings', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _tokenCtrl,
-              decoration: const InputDecoration(
-                hintText: 'ya29.a0...',
-                labelText: 'Drive Access Token',
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.darkSurface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.darkBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.check_circle, color: AppColors.delivered, size: 16),
+                            SizedBox(width: 6),
+                            Text(
+                              'Desktop Account Connected',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.delivered),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Account: ${gdrive.effectiveAccountEmail}',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFFCBD5E1)),
+                        ),
+                        const SizedBox(height: 3),
+                        const Text(
+                          'OAuth Mode: Auto-Refresh Enabled (Silent & Unlimited)',
+                          style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Test & Force Token Refresh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () async {
+                      try {
+                        await gdrive.refreshAccessToken();
+                        await _loadState();
+                        if (ctx.mounted && mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('✓ Google Drive token refreshed successfully!'),
+                              backgroundColor: AppColors.delivered,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (ctx.mounted && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Refresh error: $e'),
+                              backgroundColor: AppColors.delayed,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.restore, size: 18),
+                    label: const Text('Reset to Desktop Account Defaults'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFCBD5E1),
+                      side: const BorderSide(color: AppColors.darkBorder),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () async {
+                      await gdrive.resetToDefaultCredentials();
+                      await _loadState();
+                      if (ctx.mounted && mounted) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✓ Reset to default environment credentials'),
+                            backgroundColor: AppColors.delivered,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    icon: Icon(showAdvanced ? Icons.expand_less : Icons.expand_more, size: 18),
+                    label: Text(
+                      showAdvanced ? 'Hide Advanced Credentials' : 'Show Advanced / Custom OAuth',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    onPressed: () => setDlgState(() => showAdvanced = !showAdvanced),
+                  ),
+                  if (showAdvanced) ...[
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: emailCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Account Email',
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: rTokenCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'OAuth Refresh Token',
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: cIdCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'OAuth Client ID',
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: cSecCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'OAuth Client Secret',
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: manualTokenCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Manual Access Token (Optional fallback)',
+                        hintText: 'ya29.a0...',
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: Colors.black,
+                      ),
+                      onPressed: () async {
+                        if (manualTokenCtrl.text.trim().isNotEmpty) {
+                          await gdrive.setAccessToken(manualTokenCtrl.text.trim());
+                        }
+                        if (rTokenCtrl.text.trim().isNotEmpty) {
+                          await gdrive.setRefreshToken(rTokenCtrl.text.trim());
+                        }
+                        await gdrive.setClientCredentials(
+                          clientId: cIdCtrl.text.trim(),
+                          clientSecret: cSecCtrl.text.trim(),
+                          email: emailCtrl.text.trim(),
+                        );
+                        await _loadState();
+                        if (ctx.mounted && mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('✓ Custom OAuth credentials saved'),
+                              backgroundColor: AppColors.delivered,
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('Save Custom Credentials'),
+                    ),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            const Text(
-              'Tip: You can also tap "Pick Backup File" to choose .imbk2 directly from your phone or Google Drive app with zero token required!',
-              style: TextStyle(fontSize: 11, color: Colors.blueAccent),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_tokenCtrl.text.trim().isNotEmpty) {
-                await SyncService.instance.gdrive.setAccessToken(_tokenCtrl.text.trim());
-                await _loadState();
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Save Token'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -207,7 +354,15 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Google Drive Sync & Backup'),
+        title: const Text('Sync & Backup'),
+        actions: [
+          const CompanySwitcherBadge(),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Drive Connection Settings',
+            onPressed: _showDriveConfigDialog,
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -216,6 +371,56 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Active Company Target Banner
+                  AnimatedBuilder(
+                    animation: CompanyService.instance,
+                    builder: (context, _) {
+                      final comp = CompanyService.instance.activeCompany;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withAlpha(25),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withAlpha(70)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                comp.shortCode,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    comp.name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Active Database: ${comp.dbFileName}',
+                                    style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+
                   // Sync Status Card
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -270,6 +475,11 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
                         const Divider(height: 1, color: Color(0xFF334155)),
                         const SizedBox(height: 12),
 
+                        _buildInfoRow(
+                          'Account',
+                          _status.accountEmail.isNotEmpty ? _status.accountEmail : 'Desktop Backup Account',
+                        ),
+                        _buildInfoRow('Cloud Sync Mode', 'Auto-Refresh (No token needed)'),
                         _buildInfoRow('Last Updated From Desktop', _status.lastSyncTime),
                         _buildInfoRow('Last Backup File', _status.lastBackupFileName),
 
@@ -352,11 +562,15 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
                     height: 50,
                     child: OutlinedButton.icon(
                       onPressed: _syncing ? null : _handleSyncFromDrive,
-                      icon: const Icon(Icons.add_to_drive, size: 20, color: AppColors.accent),
+                      icon: _syncing
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
+                          : const Icon(Icons.add_to_drive, size: 20, color: AppColors.accent),
                       label: Text(
-                        _status.isConnectedToDrive
-                            ? 'Sync Latest from Google Drive'
-                            : 'Configure Google Drive Token',
+                        _syncing
+                            ? 'Syncing from Google Drive...'
+                            : (_status.isConnectedToDrive
+                                ? 'Sync Latest from Google Drive'
+                                : 'Connect Google Drive'),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       style: OutlinedButton.styleFrom(
@@ -391,7 +605,7 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
                         ),
                         const SizedBox(height: 8),
                         _buildStep('1', 'On Desktop, create a backup or configure automatic Google Drive sync to "ImportManagerBackups".'),
-                        _buildStep('2', 'On your OnePlus 11, tap "Pick Backup File" or "Sync from Google Drive" to download the latest snapshot.'),
+                        _buildStep('2', 'On your OnePlus 11, tap "Sync Latest from Google Drive" — the app auto-refreshes security tokens silently.'),
                         _buildStep('3', 'The app decrypts the AES-256 IMBK2 file and updates your offline database instantly.'),
                         _buildStep('4', 'All 5 views (Upcoming Shipments, ETD-ETA, Parts, Invoices, LDC) immediately reflect the fresh live data!'),
                       ],

@@ -56,6 +56,13 @@ func NewService(
 	}
 }
 
+// SetDB rebinds the service to an active database handle.
+func (s *Service) SetDB(db *sql.DB) {
+	s.execMu.Lock()
+	defer s.execMu.Unlock()
+	s.db = db
+}
+
 func (s *Service) resolvePassphrase(supplied string) (string, error) {
 	if trimmed := strings.TrimSpace(supplied); trimmed != "" {
 		return trimmed, nil

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../database/db_helper.dart';
 import '../../models/invoice.dart';
+import '../../services/company_service.dart';
 import '../widgets/invoice_card.dart';
 import '../widgets/invoice_detail_sheet.dart';
+import '../widgets/company_switcher_badge.dart';
 
 class InvoiceSearchScreen extends StatefulWidget {
   const InvoiceSearchScreen({super.key});
@@ -27,14 +29,22 @@ class _InvoiceSearchScreenState extends State<InvoiceSearchScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    CompanyService.instance.addListener(_onCompanyChanged);
     _loadInvoices();
   }
 
   @override
   void dispose() {
+    CompanyService.instance.removeListener(_onCompanyChanged);
     _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onCompanyChanged() {
+    if (mounted) {
+      _loadInvoices();
+    }
   }
 
   void _onSearchChanged(String val) {
@@ -74,6 +84,10 @@ class _InvoiceSearchScreenState extends State<InvoiceSearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Invoice Search'),
+        actions: const [
+          CompanySwitcherBadge(),
+          SizedBox(width: 14),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadInvoices,

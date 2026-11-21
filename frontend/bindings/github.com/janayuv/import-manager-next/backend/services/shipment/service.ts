@@ -12,7 +12,19 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as sql$0 from "../../../../../../database/sql/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../../models/models.js";
+
+/**
+ * CheckDuplicate checks whether an active shipment already uses the supplierId and invoiceNumber.
+ */
+export function CheckDuplicate(supplierID: string, invoiceNumber: string, excludeID: string): $CancellablePromise<models$0.Shipment | null> {
+    return $Call.ByID(1411705067, supplierID, invoiceNumber, excludeID).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
 
 /**
  * CheckReadyForDelivery runs the 7-day BOE ready-for-delivery transition check and returns rows updated.
@@ -35,7 +47,7 @@ export function Create($in: models$0.ShipmentInput): $CancellablePromise<models$
  */
 export function CreateContainer($in: models$0.ShipmentContainerInput): $CancellablePromise<models$0.ShipmentContainer> {
     return $Call.ByID(2573877309, $in).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -90,7 +102,7 @@ export function GetByID(id: string): $CancellablePromise<models$0.Shipment> {
  */
 export function GetDetail(id: string): $CancellablePromise<models$0.ShipmentDetail> {
     return $Call.ByID(3651247927, id).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -99,7 +111,7 @@ export function GetDetail(id: string): $CancellablePromise<models$0.ShipmentDeta
  */
 export function GetTransitShipmentReport(filter: models$0.TransitShipmentFilter): $CancellablePromise<models$0.TransitShipmentReport> {
     return $Call.ByID(3647159997, filter).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -108,7 +120,7 @@ export function GetTransitShipmentReport(filter: models$0.TransitShipmentFilter)
  */
 export function GetWarehouseDwellReport(filter: string): $CancellablePromise<models$0.WarehouseDwellSummary[]> {
     return $Call.ByID(220437733, filter).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -117,7 +129,7 @@ export function GetWarehouseDwellReport(filter: string): $CancellablePromise<mod
  */
 export function ImportCSV(fileName: string, content: string): $CancellablePromise<models$0.CSVImportResult> {
     return $Call.ByID(3552864897, fileName, content).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType7($result);
     });
 }
 
@@ -126,7 +138,7 @@ export function ImportCSV(fileName: string, content: string): $CancellablePromis
  */
 export function List(req: models$0.ShipmentPageRequest): $CancellablePromise<models$0.ShipmentPage> {
     return $Call.ByID(6331702, req).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType8($result);
     });
 }
 
@@ -135,7 +147,7 @@ export function List(req: models$0.ShipmentPageRequest): $CancellablePromise<mod
  */
 export function ListContainers(shipmentID: string): $CancellablePromise<models$0.ShipmentContainer[]> {
     return $Call.ByID(2297243410, shipmentID).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType9($result);
     });
 }
 
@@ -144,6 +156,13 @@ export function ListContainers(shipmentID: string): $CancellablePromise<models$0
  */
 export function ProcessContainerMovement(action: models$0.ContainerMovementAction): $CancellablePromise<void> {
     return $Call.ByID(1940042355, action);
+}
+
+/**
+ * SetDB rebinds the service and its repositories to an active database handle.
+ */
+export function SetDB(db: sql$0.DB | null): $CancellablePromise<void> {
+    return $Call.ByID(1268377256, db);
 }
 
 /**
@@ -169,17 +188,18 @@ export function Update(id: string, $in: models$0.ShipmentInput): $CancellablePro
  */
 export function UpdateContainer(id: string, $in: models$0.ShipmentContainerInput): $CancellablePromise<models$0.ShipmentContainer> {
     return $Call.ByID(3039643966, id, $in).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
 // Private type creation functions
 const $$createType0 = models$0.Shipment.createFrom;
-const $$createType1 = models$0.ShipmentContainer.createFrom;
-const $$createType2 = models$0.ShipmentDetail.createFrom;
-const $$createType3 = models$0.TransitShipmentReport.createFrom;
-const $$createType4 = models$0.WarehouseDwellSummary.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = models$0.CSVImportResult.createFrom;
-const $$createType7 = models$0.ShipmentPage.createFrom;
-const $$createType8 = $Create.Array($$createType1);
+const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = models$0.ShipmentContainer.createFrom;
+const $$createType3 = models$0.ShipmentDetail.createFrom;
+const $$createType4 = models$0.TransitShipmentReport.createFrom;
+const $$createType5 = models$0.WarehouseDwellSummary.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = models$0.CSVImportResult.createFrom;
+const $$createType8 = models$0.ShipmentPage.createFrom;
+const $$createType9 = $Create.Array($$createType2);

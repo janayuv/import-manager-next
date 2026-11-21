@@ -1,0 +1,91 @@
+export interface Company {
+  id: string;
+  name: string;
+  shortCode: string;
+  iecCode: string;
+  gstin: string;
+  pan: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  phone: string;
+  email: string;
+  website: string;
+  beneficiaryName: string;
+  bankName: string;
+  accountNumber: string;
+  ifscCode: string;
+  swiftCode: string;
+  bankBranch: string;
+  bankAddress: string;
+  logoData: string;
+  baseCurrency: string;
+  financialYearFrom: string;
+  financialYearTo: string;
+  databasePath?: string;
+  isDefault?: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateCompanyInput {
+  name: string;
+  shortCode?: string;
+  iecCode?: string;
+  gstin?: string;
+  pan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  beneficiaryName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  swiftCode?: string;
+  bankBranch?: string;
+  bankAddress?: string;
+  logoData?: string;
+  baseCurrency?: string;
+  financialYearFrom?: string;
+  financialYearTo?: string;
+  switchImmediately?: boolean;
+}
+
+export interface UpdateCompanyInput {
+  id?: string;
+  name: string;
+  shortCode?: string;
+  iecCode?: string;
+  gstin?: string;
+  pan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  beneficiaryName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  swiftCode?: string;
+  bankBranch?: string;
+  bankAddress?: string;
+  logoData?: string;
+  baseCurrency?: string;
+  financialYearFrom?: string;
+  financialYearTo?: string;
+}
