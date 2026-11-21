@@ -132,6 +132,7 @@ class DBHelper {
             unit TEXT,
             qty REAL,
             unit_price REAL,
+            material_value REAL,
             assessable_value REAL,
             bcd_amount REAL,
             sws_amount REAL,
@@ -142,6 +143,13 @@ class DBHelper {
           )
         ''');
       }
+
+      try {
+        await db.execute('ALTER TABLE shipments ADD COLUMN is_frozen BOOLEAN NOT NULL DEFAULT 0;');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ldc_cached_report ADD COLUMN material_value REAL;');
+      } catch (_) {}
 
       // Ensure company_profile table
       await db.execute('''
@@ -334,6 +342,7 @@ class DBHelper {
         unit TEXT,
         qty REAL,
         unit_price REAL,
+        material_value REAL,
         assessable_value REAL,
         bcd_amount REAL,
         sws_amount REAL,

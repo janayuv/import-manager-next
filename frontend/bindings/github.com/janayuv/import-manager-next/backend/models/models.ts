@@ -5301,7 +5301,7 @@ export class LandedCostReport {
 }
 
 /**
- * LandedCostRow mirrors the 16 columns exposed by report_view (15 export columns + supplierId).
+ * LandedCostRow mirrors the columns exposed by report_view (16 export columns + supplierId).
  */
 export class LandedCostRow {
     "supplier": string;

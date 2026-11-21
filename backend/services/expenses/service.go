@@ -982,37 +982,68 @@ func (s *Service) DeleteAttachment(id string) error {
 
 // --- Bulk CSV Import ---
 
-// DownloadBulkTemplateCSV returns the 11-column legacy/NextGen expense bulk CSV template.
+// DownloadBulkTemplateCSV returns the 12-column expense bulk CSV template supporting per-row shipment allocation.
 func (s *Service) DownloadBulkTemplateCSV() (string, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataRead); err != nil {
 		return "", err
 	}
 	headers := []string{
-		"Expense Type", "Service Provider", "Invoice No", "Invoice Date",
+		"Shipment Invoice No", "Expense Type", "Service Provider", "Invoice No", "Invoice Date",
 		"Amount", "CGST Amount", "SGST Amount", "IGST Amount", "TDS Amount", "Total Amount", "Remarks",
 	}
-	sample := []string{
-		"Custom Clearance", "DHL Express India", "DHL-2026-001", "2026-04-15",
+	sample1 := []string{
+		"INV-2026-001", "Custom Clearance", "DHL Express India", "DHL-2026-001", "2026-04-15",
 		"15000.00", "1350.00", "1350.00", "0.00", "300.00", "17700.00", "Bill of entry clearance charges",
 	}
-	return validation.EncodeCSV(headers, [][]string{sample})
+	sample2 := []string{
+		"INV-2026-002", "Freight Charges", "Maersk Logistics", "MSK-9901", "2026-04-16",
+		"25000.00", "0.00", "0.00", "4500.00", "500.00", "29500.00", "Ocean freight charges",
+	}
+	return validation.EncodeCSV(headers, [][]string{sample1, sample2})
 }
 
 // ImportBulkCSV parses RFC 4180 CSV rows, resolves Expense Type & Service Provider case-insensitively,
-// derives integer paise + basis points cleanly, groups lines by (ServiceProviderID, InvoiceNo),
-// and creates atomic multi-line expense invoices on shipmentID.
+// resolves Shipment by Invoice Number or ID (with fallback to default shipmentID), derives integer paise + basis points,
+// groups lines by (TargetShipmentID, ServiceProviderID, InvoiceNo), and creates atomic multi-line expense invoices.
 func (s *Service) ImportBulkCSV(shipmentID, content string) (models.CSVImportResult, error) {
 	if _, err := s.sec.RequirePermission(security.PermDataWrite); err != nil {
 		return models.CSVImportResult{}, err
-	}
-	if strings.TrimSpace(shipmentID) == "" {
-		return models.CSVImportResult{}, errors.New("target shipmentId is required for bulk expense import")
 	}
 	headers, rows, err := validation.ParseCSV(content, true)
 	if err != nil {
 		return models.CSVImportResult{}, err
 	}
 	idx := validation.HeaderIndex(headers)
+
+	// Fetch active shipments for resolving per-row shipments and checking frozen status.
+	shipmentRows, err := s.db.Query(`
+		SELECT id, invoice_number, COALESCE(is_frozen, 0)
+		FROM shipments
+		WHERE deleted_at IS NULL
+	`)
+	if err != nil {
+		return models.CSVImportResult{}, err
+	}
+	defer shipmentRows.Close()
+
+	type shipmentMeta struct {
+		id       string
+		invNo    string
+		isFrozen bool
+	}
+	shipmentsByInvNo := make(map[string]shipmentMeta)
+	shipmentsByID := make(map[string]shipmentMeta)
+	for shipmentRows.Next() {
+		var sm shipmentMeta
+		if err := shipmentRows.Scan(&sm.id, &sm.invNo, &sm.isFrozen); err != nil {
+			return models.CSVImportResult{}, err
+		}
+		shipmentsByInvNo[strings.ToLower(strings.TrimSpace(sm.invNo))] = sm
+		shipmentsByID[strings.ToLower(strings.TrimSpace(sm.id))] = sm
+	}
+	if err := shipmentRows.Err(); err != nil {
+		return models.CSVImportResult{}, err
+	}
 
 	providers, err := s.ListServiceProviders("")
 	if err != nil {
@@ -1033,12 +1064,13 @@ func (s *Service) ImportBulkCSV(shipmentID, content string) (models.CSVImportRes
 	}
 
 	type groupedInvoice struct {
-		spID      string
-		invNo     string
-		invDate   string
-		remarks   string
-		lines     []models.ExpenseLineInput
-		rowNums   []int
+		shipmentID string
+		spID       string
+		invNo      string
+		invDate    string
+		remarks    string
+		lines      []models.ExpenseLineInput
+		rowNums    []int
 	}
 	groups := make(map[string]*groupedInvoice)
 	var groupOrder []string
@@ -1046,6 +1078,7 @@ func (s *Service) ImportBulkCSV(shipmentID, content string) (models.CSVImportRes
 	res := models.CSVImportResult{}
 	for i, row := range rows {
 		rowNum := i + 2
+		shpRef := validation.CellByAliases(row, idx, "Shipment Invoice No", "Shipment No", "Shipment", "Shipment ID", "shipment_invoice_no", "shipment_no")
 		etName := validation.CellByAliases(row, idx, "Expense Type", "expense_type")
 		spName := validation.CellByAliases(row, idx, "Service Provider", "service_provider")
 		invNo := validation.CellByAliases(row, idx, "Invoice No", "invoice_no", "invoiceNumber")
@@ -1056,6 +1089,56 @@ func (s *Service) ImportBulkCSV(shipmentID, content string) (models.CSVImportRes
 		igstStr := validation.CellByAliases(row, idx, "IGST Amount", "igst_amount")
 		tdsStr := validation.CellByAliases(row, idx, "TDS Amount", "tds_amount")
 		remarks := validation.CellByAliases(row, idx, "Remarks", "remarks")
+
+		// 1. Resolve target shipment for this row
+		var rowShipmentID string
+		if strings.TrimSpace(shpRef) != "" {
+			refKey := strings.ToLower(strings.TrimSpace(shpRef))
+			if sm, ok := shipmentsByInvNo[refKey]; ok {
+				if sm.isFrozen {
+					res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: fmt.Sprintf("shipment %q is frozen and cannot accept new expense entries", shpRef)})
+					res.SkippedRows++
+					continue
+				}
+				rowShipmentID = sm.id
+			} else if sm, ok := shipmentsByID[refKey]; ok {
+				if sm.isFrozen {
+					res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: fmt.Sprintf("shipment %q is frozen and cannot accept new expense entries", shpRef)})
+					res.SkippedRows++
+					continue
+				}
+				rowShipmentID = sm.id
+			} else {
+				res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: fmt.Sprintf("unknown Shipment %q", shpRef)})
+				res.SkippedRows++
+				continue
+			}
+		} else if strings.TrimSpace(shipmentID) != "" {
+			defKey := strings.ToLower(strings.TrimSpace(shipmentID))
+			if sm, ok := shipmentsByID[defKey]; ok {
+				if sm.isFrozen {
+					res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: fmt.Sprintf("target shipment %q is frozen and cannot accept new expense entries", sm.invNo)})
+					res.SkippedRows++
+					continue
+				}
+				rowShipmentID = sm.id
+			} else if sm, ok := shipmentsByInvNo[defKey]; ok {
+				if sm.isFrozen {
+					res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: fmt.Sprintf("target shipment %q is frozen and cannot accept new expense entries", sm.invNo)})
+					res.SkippedRows++
+					continue
+				}
+				rowShipmentID = sm.id
+			} else {
+				res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: fmt.Sprintf("target shipment %q not found", shipmentID)})
+				res.SkippedRows++
+				continue
+			}
+		} else {
+			res.Errors = append(res.Errors, models.CSVImportRowError{Row: rowNum, Message: "Shipment Invoice No is required when no default target shipment is selected"})
+			res.SkippedRows++
+			continue
+		}
 
 		et, ok := etByName[strings.ToLower(strings.TrimSpace(etName))]
 		if !ok {
@@ -1111,14 +1194,15 @@ func (s *Service) ImportBulkCSV(shipmentID, content string) (models.CSVImportRes
 			continue
 		}
 
-		gKey := sp.ID + "|" + strings.ToLower(strings.TrimSpace(invNo))
+		gKey := rowShipmentID + "|" + sp.ID + "|" + strings.ToLower(strings.TrimSpace(invNo))
 		g, exists := groups[gKey]
 		if !exists {
 			g = &groupedInvoice{
-				spID:    sp.ID,
-				invNo:   strings.TrimSpace(invNo),
-				invDate: normDate,
-				remarks: remarks,
+				shipmentID: rowShipmentID,
+				spID:       sp.ID,
+				invNo:      strings.TrimSpace(invNo),
+				invDate:    normDate,
+				remarks:    remarks,
 			}
 			groups[gKey] = g
 			groupOrder = append(groupOrder, gKey)
@@ -1138,7 +1222,7 @@ func (s *Service) ImportBulkCSV(shipmentID, content string) (models.CSVImportRes
 	for _, gKey := range groupOrder {
 		g := groups[gKey]
 		_, err := s.CreateExpenseInvoice(models.ExpenseInvoiceRequest{
-			ShipmentID:        shipmentID,
+			ShipmentID:        g.shipmentID,
 			ServiceProviderID: g.spID,
 			InvoiceNo:         g.invNo,
 			InvoiceDate:       g.invDate,

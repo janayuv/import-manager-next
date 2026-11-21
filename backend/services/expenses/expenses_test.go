@@ -645,3 +645,163 @@ func TestRecreateSoftDeletedExpenseInvoiceAndRoundOff(t *testing.T) {
 		t.Fatalf("fetched roundoff mismatch: %+v", fetched)
 	}
 }
+
+func TestBulkCSVImportMultipleShipments(t *testing.T) {
+	rt := setupExpenseEnv(t)
+
+	sup, err := rt.Suppliers.Create(models.SupplierInput{
+		SupplierName: "Global Auto Parts",
+		ShortName:    "GAP",
+		Country:      "Japan",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("create supplier: %v", err)
+	}
+
+	shA, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "SHP-MULTI-A",
+		InvoiceDate:     "2026-05-01",
+		GoodsCategory:   "Auto Components",
+		InvoiceValue:    50000,
+		InvoiceCurrency: "USD",
+		Incoterm:        "FOB",
+	})
+	if err != nil {
+		t.Fatalf("create shipment A: %v", err)
+	}
+
+	shB, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "SHP-MULTI-B",
+		InvoiceDate:     "2026-05-02",
+		GoodsCategory:   "Auto Components",
+		InvoiceValue:    75000,
+		InvoiceCurrency: "USD",
+		Incoterm:        "CIF",
+	})
+	if err != nil {
+		t.Fatalf("create shipment B: %v", err)
+	}
+
+	shFrozen, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "SHP-MULTI-FROZEN",
+		InvoiceDate:     "2026-05-03",
+		GoodsCategory:   "Auto Components",
+		InvoiceValue:    20000,
+		InvoiceCurrency: "USD",
+		Incoterm:        "FOB",
+	})
+	if err != nil {
+		t.Fatalf("create shipment frozen: %v", err)
+	}
+	if _, err := rt.Shipments.Freeze(shFrozen.ID); err != nil {
+		t.Fatalf("freeze shipment: %v", err)
+	}
+
+	_, err = rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name: "Speedy Logistics Hub",
+	})
+	if err != nil {
+		t.Fatalf("create service provider: %v", err)
+	}
+
+	_, err = rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Customs Clearance Multi",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		DefaultIGSTRateBP: 0,
+		DefaultTDSRateBP:  200,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("create expense type 1: %v", err)
+	}
+
+	_, err = rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Freight Ocean Multi",
+		DefaultCGSTRateBP: 0,
+		DefaultSGSTRateBP: 0,
+		DefaultIGSTRateBP: 1800,
+		DefaultTDSRateBP:  200,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("create expense type 2: %v", err)
+	}
+
+	// Multi-shipment CSV containing:
+	// - 2 lines for SHP-MULTI-A under the same invoice EXP-A100 (atomic multi-line invoice)
+	// - 1 line for SHP-MULTI-B under invoice EXP-B200
+	// - 1 line for SHP-MULTI-FROZEN (should be rejected/skipped with frozen message)
+	// - 1 line for an unknown shipment SHP-UNKNOWN (should be rejected/skipped with unknown message)
+	multiCSV := "Shipment Invoice No,Expense Type,Service Provider,Invoice No,Invoice Date,Amount,CGST Amount,SGST Amount,IGST Amount,TDS Amount,Total Amount,Remarks\n" +
+		"SHP-MULTI-A,Customs Clearance Multi,Speedy Logistics Hub,EXP-A100,2026-05-10,10000.00,900.00,900.00,0,200.00,11800.00,Line 1 on Shipment A\n" +
+		"SHP-MULTI-A,Freight Ocean Multi,Speedy Logistics Hub,EXP-A100,2026-05-10,5000.00,0,0,900.00,100.00,5900.00,Line 2 on Shipment A\n" +
+		"SHP-MULTI-B,Customs Clearance Multi,Speedy Logistics Hub,EXP-B200,2026-05-11,8000.00,720.00,720.00,0,160.00,9440.00,Line 1 on Shipment B\n" +
+		"SHP-MULTI-FROZEN,Customs Clearance Multi,Speedy Logistics Hub,EXP-F300,2026-05-12,3000.00,270.00,270.00,0,60.00,3540.00,Should fail frozen\n" +
+		"SHP-UNKNOWN,Customs Clearance Multi,Speedy Logistics Hub,EXP-U400,2026-05-12,4000.00,360.00,360.00,0,80.00,4720.00,Should fail unknown\n"
+
+	// Notice: shipmentID argument is passed empty "", so all rows rely on the "Shipment Invoice No" column
+	res, err := rt.Expenses.ImportBulkCSV("", multiCSV)
+	if err != nil {
+		t.Fatalf("ImportBulkCSV failed: %v", err)
+	}
+
+	if res.TotalRows != 5 {
+		t.Errorf("expected 5 total rows, got %d", res.TotalRows)
+	}
+	if res.ImportedRows != 3 {
+		t.Errorf("expected 3 imported rows, got %d", res.ImportedRows)
+	}
+	if res.SkippedRows != 2 {
+		t.Errorf("expected 2 skipped rows, got %d", res.SkippedRows)
+	}
+	if len(res.Errors) != 2 {
+		t.Errorf("expected 2 errors, got %d: %+v", len(res.Errors), res.Errors)
+	}
+
+	// Verify Shipment A has the 2-line invoice
+	invoicesA, err := rt.Expenses.ListExpenseInvoices(shA.ID, "")
+	if err != nil {
+		t.Fatalf("ListExpenseInvoices for shA failed: %v", err)
+	}
+	if len(invoicesA) != 1 {
+		t.Fatalf("expected 1 invoice on shA, got %d", len(invoicesA))
+	}
+	if invoicesA[0].InvoiceNo != "EXP-A100" {
+		t.Errorf("expected invoice EXP-A100 on shA, got %s", invoicesA[0].InvoiceNo)
+	}
+	if invoicesA[0].BaseAmountPaise != 1500000 { // ₹15,000.00 = 1500000 paise
+		t.Errorf("expected 1500000 paise base on shA, got %d", invoicesA[0].BaseAmountPaise)
+	}
+	if len(invoicesA[0].Lines) != 2 {
+		t.Errorf("expected 2 lines on shA invoice, got %d", len(invoicesA[0].Lines))
+	}
+
+	// Verify Shipment B has its invoice
+	invoicesB, err := rt.Expenses.ListExpenseInvoices(shB.ID, "")
+	if err != nil {
+		t.Fatalf("ListExpenseInvoices for shB failed: %v", err)
+	}
+	if len(invoicesB) != 1 {
+		t.Fatalf("expected 1 invoice on shB, got %d", len(invoicesB))
+	}
+	if invoicesB[0].InvoiceNo != "EXP-B200" {
+		t.Errorf("expected invoice EXP-B200 on shB, got %s", invoicesB[0].InvoiceNo)
+	}
+	if invoicesB[0].BaseAmountPaise != 800000 {
+		t.Errorf("expected 800000 paise base on shB, got %d", invoicesB[0].BaseAmountPaise)
+	}
+
+	// Verify Shipment Frozen has NO invoices
+	invoicesF, err := rt.Expenses.ListExpenseInvoices(shFrozen.ID, "")
+	if err != nil {
+		t.Fatalf("ListExpenseInvoices for shFrozen failed: %v", err)
+	}
+	if len(invoicesF) != 0 {
+		t.Errorf("expected 0 invoices on frozen shipment, got %d", len(invoicesF))
+	}
+}
