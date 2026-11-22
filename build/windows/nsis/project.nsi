@@ -34,7 +34,7 @@ Unicode true
 ## Include the wails tools
 ####
 !define INFO_COMPANYNAME "Janayuv"
-!define INFO_PRODUCTVERSION "1.9.3"
+!define INFO_PRODUCTVERSION "1.9.4"
 !define INFO_COPYRIGHT "(c) 2026 Janayuv"
 !include "wails_tools.nsh"
 

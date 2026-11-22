@@ -440,6 +440,8 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
     );
 
     await waitFor(() => expect(screen.getByText('DHL-101')).toBeInTheDocument());
+    expect(screen.getByText('Invoice Total')).toBeInTheDocument();
+    expect(screen.getByText('INR 1,180')).toBeInTheDocument();
 
     const byTypeTab = screen.getByRole('tab', { name: /By Expense Type/i });
     fireEvent.mouseDown(byTypeTab);
@@ -1025,7 +1027,29 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
         version: 1,
         createdAt: '2026-11-20T00:00:00Z',
         updatedAt: '2026-11-20T00:00:00Z',
-        lines: [],
+        lines: [
+          {
+            id: 'line-liner-1',
+            expenseInvoiceId: 'EINV-CHA-1',
+            shipmentId: 'SH-1',
+            serviceProviderId: 'SP-LINER',
+            expenseTypeId: 'ET-LINER',
+            expenseTypeName: 'Liner Charges',
+            amountPaise: 2500000,
+            cgstRateBp: 900,
+            sgstRateBp: 900,
+            igstRateBp: 0,
+            tdsRateBp: 0,
+            cgstPaise: 225000,
+            sgstPaise: 225000,
+            igstPaise: 0,
+            tdsPaise: 0,
+            totalPaise: 2950000,
+            netPaise: 2950000,
+            remarks: 'Liner charges',
+            isManualGst: false,
+          },
+        ],
       },
     ]);
 
@@ -1040,8 +1064,19 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
     // Verify invoice MSK-9901 and Clearing Agent badge appear
     await waitFor(() => {
       expect(screen.getByText('MSK-9901')).toBeInTheDocument();
-      expect(screen.getByText(/Paid by CHA: Express Clearing & Forwarding/i)).toBeInTheDocument();
-      expect(screen.getByText(/Ref: CHA-REIMB-0088/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Paid by CHA: Express Clearing & Forwarding/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/CHA-REIMB-0088/i).length).toBeGreaterThan(0);
+      expect(screen.getByText('CHA Reimbursement Bill')).toBeInTheDocument();
+    });
+
+    // Switch to Itemized Expense Details tab
+    const itemizedTab = screen.getByRole('tab', { name: /Itemized Expense Details/i });
+    fireEvent.click(itemizedTab);
+
+    // Verify line item and CHA reimbursement badge are present
+    await waitFor(() => {
+      expect(screen.getByText('Liner Charges')).toBeInTheDocument();
+      expect(screen.getAllByText(/Paid by CHA: Express Clearing & Forwarding/i).length).toBeGreaterThan(0);
     });
   });
 });

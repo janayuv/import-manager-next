@@ -344,7 +344,7 @@ export function ExpenseReportsPage() {
       </Card>
 
       {report && (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Basic Spend</CardDescription>
@@ -355,6 +355,14 @@ export function ExpenseReportsPage() {
             <CardHeader className="pb-2">
               <CardDescription>Total GST Taxes</CardDescription>
               <CardTitle className="text-xl">INR {formatPaiseINR(report.totalTaxPaise)}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Invoice Total</CardDescription>
+              <CardTitle className="text-xl">
+                INR {formatPaiseINR(report.totalGrossPaise || (report.totalBasePaise + report.totalTaxPaise))}
+              </CardTitle>
             </CardHeader>
           </Card>
           <Card>

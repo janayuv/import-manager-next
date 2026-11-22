@@ -969,4 +969,16 @@ func TestClearingAgentReimbursementAndReports(t *testing.T) {
 	if updatedInv.CHAReimburseInvoiceNo != "CHA-REIMB-0089" {
 		t.Errorf("expected updated CHAReimburseInvoiceNo CHA-REIMB-0089, got %q", updatedInv.CHAReimburseInvoiceNo)
 	}
+
+	// 9. Filtering by ServiceProviderID=cha.ID in Expense Reports includes CHA-reimbursed bills
+	chaReport, err := rt.ExpenseReports.GetExpenseReport(models.ExpenseReportFilter{
+		ViewMode:          "detailed",
+		ServiceProviderID: cha.ID,
+	})
+	if err != nil {
+		t.Fatalf("GetExpenseReport for CHA: %v", err)
+	}
+	if chaReport.TotalLines != 1 || chaReport.TotalBasePaise != 2500000 {
+		t.Errorf("expected 1 line with 2500000 paise for CHA, got %d lines with %d paise", chaReport.TotalLines, chaReport.TotalBasePaise)
+	}
 }

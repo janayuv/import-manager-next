@@ -78,16 +78,20 @@ func (s *Service) GetExpenseReport(filter models.ExpenseReportFilter) (models.Ex
 		args = append(args, filter.ShipmentID)
 	}
 	if filter.ServiceProviderID != "" {
-		q += ` AND e.service_provider_id = ?`
-		args = append(args, filter.ServiceProviderID)
+		if filter.ClearingAgentID != "" {
+			q += ` AND (e.service_provider_id = ? AND ei.clearing_agent_id = ?)`
+			args = append(args, filter.ServiceProviderID, filter.ClearingAgentID)
+		} else {
+			q += ` AND (e.service_provider_id = ? OR (ei.is_paid_by_clearing_agent = 1 AND ei.clearing_agent_id = ?))`
+			args = append(args, filter.ServiceProviderID, filter.ServiceProviderID)
+		}
+	} else if filter.ClearingAgentID != "" {
+		q += ` AND ei.clearing_agent_id = ?`
+		args = append(args, filter.ClearingAgentID)
 	}
 	if filter.ExpenseTypeID != "" {
 		q += ` AND e.expense_type_id = ?`
 		args = append(args, filter.ExpenseTypeID)
-	}
-	if filter.ClearingAgentID != "" {
-		q += ` AND ei.clearing_agent_id = ?`
-		args = append(args, filter.ClearingAgentID)
 	}
 	if filter.CHAReimburseInvoiceNo != "" {
 		q += ` AND ei.cha_reimburse_invoice_no = ?`

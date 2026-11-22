@@ -281,6 +281,56 @@ export function ExpensesPage() {
     );
   }, [editingInv, invoiceNo, serviceProviderId, invoices]);
 
+  interface DisplayExpenseInvoice extends ExpenseInvoice {
+    isVirtualReimbursement?: boolean;
+    parentInvoice?: ExpenseInvoice;
+    directNetPayablePaise: number;
+  }
+
+  const displayInvoices = React.useMemo(() => {
+    const list: DisplayExpenseInvoice[] = [];
+    for (const inv of invoices) {
+      if (inv.isPaidByClearingAgent && inv.clearingAgentId) {
+        // 1. Original CFS / Warehouse invoice:
+        // Direct payable to this provider is ₹0 because CHA settled it upfront (Tally Agst Ref Debit)
+        list.push({
+          ...inv,
+          directNetPayablePaise: 0,
+        });
+
+        // 2. Transferred CHA Reimbursement bill under Clearing Agent:
+        // (Mirrors Tally Voucher No. 630 Credit to CHA under New Ref 439A / 438A)
+        const reimbNo = inv.chaReimburseInvoiceNo?.trim() || `REIMB-${inv.invoiceNo}`;
+        list.push({
+          ...inv,
+          id: `reimb-${inv.id}`,
+          isVirtualReimbursement: true,
+          parentInvoice: inv,
+          serviceProviderId: inv.clearingAgentId,
+          serviceProviderName: inv.clearingAgentName || 'Clearing Agent',
+          invoiceNo: reimbNo,
+          invoiceDate: inv.chaReimburseInvoiceDate || inv.invoiceDate,
+          baseAmountPaise: inv.netAmountPaise,
+          totalCgstPaise: 0,
+          totalSgstPaise: 0,
+          totalIgstPaise: 0,
+          totalTdsPaise: 0,
+          totalAmountPaise: inv.netAmountPaise,
+          netAmountPaise: inv.netAmountPaise,
+          directNetPayablePaise: inv.netAmountPaise,
+          isPaidByClearingAgent: false,
+          remarks: `CHA Reimbursement (Agst ${inv.serviceProviderName} Ref: ${inv.invoiceNo})`,
+        });
+      } else {
+        list.push({
+          ...inv,
+          directNetPayablePaise: inv.netAmountPaise,
+        });
+      }
+    }
+    return list;
+  }, [invoices]);
+
   const toggleInvoiceExpand = (id: string) => {
     setExpandedInvoices((prev) => {
       const next = new Set(prev);
@@ -294,13 +344,13 @@ export function ExpensesPage() {
   };
 
   const allInvoicesExpanded =
-    invoices.length > 0 && invoices.every((inv) => expandedInvoices.has(inv.id));
+    displayInvoices.length > 0 && displayInvoices.every((inv) => expandedInvoices.has(inv.id));
 
   const toggleAllInvoicesExpand = () => {
     if (allInvoicesExpanded) {
       setExpandedInvoices(new Set());
     } else {
-      setExpandedInvoices(new Set(invoices.map((inv) => inv.id)));
+      setExpandedInvoices(new Set(displayInvoices.map((inv) => inv.id)));
     }
   };
 
@@ -382,7 +432,11 @@ export function ExpensesPage() {
       if (itemizedTypeFilter !== 'all' && l.expenseTypeId !== itemizedTypeFilter) {
         return false;
       }
-      if (itemizedProviderFilter !== 'all' && l.serviceProviderId !== itemizedProviderFilter) {
+      if (
+        itemizedProviderFilter !== 'all' &&
+        l.serviceProviderId !== itemizedProviderFilter &&
+        (!l.isPaidByClearingAgent || l.clearingAgentId !== itemizedProviderFilter)
+      ) {
         return false;
       }
       if (itemizedShipmentFilter !== 'all' && l.shipmentId !== itemizedShipmentFilter) {
@@ -439,12 +493,73 @@ export function ExpensesPage() {
     setItemizedPage(1);
   }, [expensePageSize, itemizedSearch, itemizedTypeFilter, itemizedProviderFilter, itemizedShipmentFilter]);
 
-  const totalInvoicePages = Math.max(1, Math.ceil(invoices.length / expensePageSize));
+  const totalInvoicePages = Math.max(1, Math.ceil(displayInvoices.length / expensePageSize));
   const currentInvoicePage = Math.min(invoicePage, totalInvoicePages);
   const pagedInvoices = React.useMemo(() => {
     const start = (currentInvoicePage - 1) * expensePageSize;
-    return invoices.slice(start, start + expensePageSize);
-  }, [invoices, currentInvoicePage, expensePageSize]);
+    return displayInvoices.slice(start, start + expensePageSize);
+  }, [displayInvoices, currentInvoicePage, expensePageSize]);
+
+  const clearingAgentSummaries = React.useMemo(() => {
+    const chaMap = new Map<
+      string,
+      {
+        agentId: string;
+        agentName: string;
+        directCount: number;
+        directNetPaise: number;
+        reimbCount: number;
+        reimbNetPaise: number;
+        totalNetPaise: number;
+        refList: string[];
+      }
+    >();
+
+    for (const item of displayInvoices) {
+      if (item.isVirtualReimbursement) {
+        const agentId = item.serviceProviderId;
+        const agentName = item.serviceProviderName;
+        const cur = chaMap.get(agentId) || {
+          agentId,
+          agentName,
+          directCount: 0,
+          directNetPaise: 0,
+          reimbCount: 0,
+          reimbNetPaise: 0,
+          totalNetPaise: 0,
+          refList: [],
+        };
+        cur.reimbCount += 1;
+        cur.reimbNetPaise += item.directNetPayablePaise;
+        cur.totalNetPaise += item.directNetPayablePaise;
+        if (item.invoiceNo && !cur.refList.includes(item.invoiceNo)) {
+          cur.refList.push(item.invoiceNo);
+        }
+        chaMap.set(agentId, cur);
+      } else if (!item.isPaidByClearingAgent && item.directNetPayablePaise > 0) {
+        const isAgentForAny = invoices.some((i) => i.clearingAgentId === item.serviceProviderId);
+        if (isAgentForAny) {
+          const agentId = item.serviceProviderId;
+          const agentName = item.serviceProviderName;
+          const cur = chaMap.get(agentId) || {
+            agentId,
+            agentName,
+            directCount: 0,
+            directNetPaise: 0,
+            reimbCount: 0,
+            reimbNetPaise: 0,
+            totalNetPaise: 0,
+            refList: [],
+          };
+          cur.directCount += 1;
+          cur.directNetPaise += item.directNetPayablePaise;
+          cur.totalNetPaise += item.directNetPayablePaise;
+          chaMap.set(agentId, cur);
+        }
+      }
+    }
+    return Array.from(chaMap.values()).filter((cha) => cha.totalNetPaise > 0);
+  }, [displayInvoices, invoices]);
 
   const totalItemizedPages = Math.max(1, Math.ceil(filteredItemizedLines.length / expensePageSize));
   const currentItemizedPage = Math.min(itemizedPage, totalItemizedPages);
@@ -618,6 +733,50 @@ export function ExpensesPage() {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingInv(false);
+    }
+  };
+
+  const handleUnlinkReimbursement = async (parentInv: ExpenseInvoice) => {
+    if (!window.confirm(`Unlink CHA reimbursement bill ${parentInv.chaReimburseInvoiceNo || ''} from ${parentInv.serviceProviderName}? Direct liability will be restored to ${parentInv.serviceProviderName}.`)) {
+      return;
+    }
+    try {
+      const lineInputs = (parentInv.lines || []).map((l) => ({
+        expenseTypeId: l.expenseTypeId,
+        amountPaise: l.amountPaise,
+        isManualGst: Boolean(l.isManualGst),
+        cgstPaise: l.cgstPaise,
+        sgstPaise: l.sgstPaise,
+        igstPaise: l.igstPaise,
+        cgstRateBp: l.cgstRateBp,
+        sgstRateBp: l.sgstRateBp,
+        igstRateBp: l.igstRateBp,
+        tdsRateBp: l.tdsRateBp,
+        remarks: l.remarks,
+        roundOff: true,
+      }));
+      await expenseService.updateExpenseInvoice({
+        id: parentInv.id,
+        shipmentId: parentInv.shipmentId,
+        serviceProviderId: parentInv.serviceProviderId,
+        invoiceNo: parentInv.invoiceNo,
+        invoiceDate: parentInv.invoiceDate,
+        currency: parentInv.currency,
+        isPaidByClearingAgent: false,
+        clearingAgentId: '',
+        chaReimburseInvoiceNo: '',
+        chaReimburseInvoiceDate: '',
+        remarks: parentInv.remarks,
+        idempotencyKey: parentInv.idempotencyKey || `unlink-${Date.now()}`,
+        version: parentInv.version,
+        mergeDuplicates: false,
+        roundOffPaise: parentInv.roundOffPaise ?? 0,
+        lines: lineInputs,
+      });
+      toast.success('CHA reimbursement unlinked; direct liability restored');
+      await loadAll();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -1377,7 +1536,7 @@ export function ExpensesPage() {
         <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full sm:w-auto h-auto">
           <TabsTrigger value="invoices" className="gap-2" onClick={() => setActiveTab('invoices')}>
             <Layers className="h-4 w-4" />
-            <span>Expense Invoices ({invoices.length})</span>
+            <span>Expense Invoices ({displayInvoices.length})</span>
           </TabsTrigger>
           <TabsTrigger value="itemized" className="gap-2" onClick={() => setActiveTab('itemized')}>
             <Receipt className="h-4 w-4" />
@@ -1421,7 +1580,7 @@ export function ExpensesPage() {
               </Select>
             </div>
 
-            {invoices.length > 0 && (
+            {displayInvoices.length > 0 && (
               <Button
                 variant="outline"
                 size="sm"
@@ -1442,6 +1601,43 @@ export function ExpensesPage() {
               </Button>
             )}
           </div>
+
+          {clearingAgentSummaries.length > 0 && (
+            <div className="space-y-2">
+              {clearingAgentSummaries.map((cha) => (
+                <div
+                  key={cha.agentId}
+                  className="rounded-lg border border-purple-200/90 bg-purple-50/60 p-3.5 dark:border-purple-900/60 dark:bg-purple-950/30 flex flex-wrap items-center justify-between gap-3 shadow-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                      CHA
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm flex items-center gap-2">
+                        <span>{cha.agentName} Total Payable:</span>
+                        <span className="font-mono text-base font-bold text-purple-700 dark:text-purple-300">
+                          {formatPaiseINR(cha.totalNetPaise)}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 pt-0.5">
+                        <span>
+                          Direct Services: {formatPaiseINR(cha.directNetPaise)} ({cha.directCount} invoice{cha.directCount === 1 ? '' : 's'})
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Reimbursed CFS/Warehouse: {formatPaiseINR(cha.reimbNetPaise)} ({cha.refList.map((r) => `Ref: ${r}`).join(', ')})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="border-purple-300 text-purple-700 bg-purple-100/60 dark:border-purple-700 dark:text-purple-300 dark:bg-purple-900/40 text-xs px-2.5 py-1 font-mono font-medium">
+                    Tally Ledger Match: {formatPaiseINR(cha.totalNetPaise)}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
 
           <Card>
             <CardContent className="pt-6">
@@ -1485,7 +1681,7 @@ export function ExpensesPage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ) : invoices.length === 0 ? (
+                  ) : displayInvoices.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         No expense invoices recorded yet.
@@ -1518,21 +1714,32 @@ export function ExpensesPage() {
                             <TableCell>
                               <div className="font-medium flex items-center gap-1.5">
                                 <span>{inv.invoiceNo}</span>
+                                {inv.isVirtualReimbursement && (
+                                  <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300">
+                                    CHA Reimbursement Bill
+                                  </Badge>
+                                )}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {inv.invoiceDate} · v{inv.version}
+                                {inv.invoiceDate} {inv.isVirtualReimbursement ? '· Reimbursement' : `· v${inv.version}`}
                               </div>
                             </TableCell>
                             <TableCell>
                               <div className="font-medium">{inv.serviceProviderName || '—'}</div>
-                              {inv.isPaidByClearingAgent && (
+                              {inv.isVirtualReimbursement && inv.parentInvoice ? (
+                                <div className="mt-1">
+                                  <Badge variant="outline" className="text-[10px] bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300">
+                                    Agst Ref: {inv.parentInvoice.invoiceNo} ({inv.parentInvoice.serviceProviderName})
+                                  </Badge>
+                                </div>
+                              ) : inv.isPaidByClearingAgent ? (
                                 <div className="mt-1">
                                   <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300">
                                     Paid by CHA: {inv.clearingAgentName || 'Clearing Agent'}
                                     {inv.chaReimburseInvoiceNo ? ` (Ref: ${inv.chaReimburseInvoiceNo})` : ''}
                                   </Badge>
                                 </div>
-                              )}
+                              ) : null}
                             </TableCell>
                             <TableCell className="font-mono text-xs">{inv.shipmentInvoiceNo || '—'}</TableCell>
                             <TableCell>
@@ -1558,7 +1765,14 @@ export function ExpensesPage() {
                               {formatPaiseINR(inv.baseAmountPaise)}
                             </TableCell>
                             <TableCell className="text-right font-mono">
-                              {formatPaiseINR(gstPaise)}
+                              {inv.isVirtualReimbursement ? (
+                                <div>
+                                  <span className="text-muted-foreground">₹0.00</span>
+                                  <div className="text-[10px] text-muted-foreground">ITC on CFS</div>
+                                </div>
+                              ) : (
+                                formatPaiseINR(gstPaise)
+                              )}
                             </TableCell>
                             <TableCell className="text-right font-mono font-medium">
                               <div>
@@ -1569,13 +1783,48 @@ export function ExpensesPage() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
-                              {inv.totalTdsPaise > 0 ? `-${formatPaiseINR(inv.totalTdsPaise)}` : '0.00'}
+                              {inv.isVirtualReimbursement ? (
+                                <div>
+                                  <span className="text-muted-foreground">0.00</span>
+                                  <div className="text-[10px] text-muted-foreground">On CFS bill</div>
+                                </div>
+                              ) : inv.totalTdsPaise > 0 ? (
+                                `-${formatPaiseINR(inv.totalTdsPaise)}`
+                              ) : (
+                                '0.00'
+                              )}
                             </TableCell>
                             <TableCell className="text-right font-mono font-semibold">
-                              {formatPaiseINR(inv.netAmountPaise)}
-                              {Boolean(inv.roundOffPaise) && (
-                                <div className="text-[10px] text-muted-foreground font-normal">
-                                  (Round off: {(inv.roundOffPaise ?? 0) > 0 ? '+' : ''}{formatPaiseINR(inv.roundOffPaise ?? 0)})
+                              {inv.isVirtualReimbursement ? (
+                                <div>
+                                  <div className="text-purple-600 dark:text-purple-400 font-bold">
+                                    {formatPaiseINR(inv.directNetPayablePaise)}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground font-normal">
+                                    Payable to CHA
+                                  </div>
+                                </div>
+                              ) : inv.isPaidByClearingAgent ? (
+                                <div>
+                                  <div className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                    ₹0.00
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground line-through">
+                                    Orig: {formatPaiseINR(inv.netAmountPaise)}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground font-normal">
+                                    Transferred to {inv.clearingAgentName || 'CHA'}
+                                    {inv.chaReimburseInvoiceNo ? ` (Ref: ${inv.chaReimburseInvoiceNo})` : ''}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div>{formatPaiseINR(inv.netAmountPaise)}</div>
+                                  {Boolean(inv.roundOffPaise) && (
+                                    <div className="text-[10px] text-muted-foreground font-normal">
+                                      (Round off: {(inv.roundOffPaise ?? 0) > 0 ? '+' : ''}{formatPaiseINR(inv.roundOffPaise ?? 0)})
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </TableCell>
@@ -1586,7 +1835,14 @@ export function ExpensesPage() {
                                     size="sm"
                                     variant="ghost"
                                     aria-label={`Edit ${inv.invoiceNo}`}
-                                    onClick={() => openEditInvoice(inv)}
+                                    title={inv.isVirtualReimbursement ? `Edit parent invoice ${inv.parentInvoice?.invoiceNo}` : `Edit ${inv.invoiceNo}`}
+                                    onClick={() => {
+                                      if (inv.isVirtualReimbursement && inv.parentInvoice) {
+                                        openEditInvoice(inv.parentInvoice);
+                                      } else {
+                                        openEditInvoice(inv);
+                                      }
+                                    }}
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
@@ -1596,13 +1852,18 @@ export function ExpensesPage() {
                                     size="sm"
                                     variant="ghost"
                                     aria-label={`Delete ${inv.invoiceNo}`}
-                                    onClick={() =>
-                                      void expenseService
-                                        .deleteExpenseInvoice(inv.id)
-                                        .then(loadAll)
-                                        .then(() => toast.success('Expense invoice moved to Recycle Bin'))
-                                        .catch((err) => toast.error(String(err)))
-                                    }
+                                    title={inv.isVirtualReimbursement ? `Unlink reimbursement ref ${inv.invoiceNo}` : `Delete ${inv.invoiceNo}`}
+                                    onClick={() => {
+                                      if (inv.isVirtualReimbursement && inv.parentInvoice) {
+                                        void handleUnlinkReimbursement(inv.parentInvoice);
+                                      } else {
+                                        void expenseService
+                                          .deleteExpenseInvoice(inv.id)
+                                          .then(loadAll)
+                                          .then(() => toast.success('Expense invoice moved to Recycle Bin'))
+                                          .catch((err) => toast.error(String(err)));
+                                      }
+                                    }}
                                   >
                                     <Trash2 className="h-4 w-4 text-destructive" />
                                   </Button>
@@ -1620,7 +1881,9 @@ export function ExpensesPage() {
                                     <div className="flex items-center gap-2 font-medium text-foreground">
                                       <Receipt className="h-4 w-4 text-primary" />
                                       <span className="font-semibold">
-                                        Expense Line Details for Invoice {inv.invoiceNo}
+                                        {inv.isVirtualReimbursement
+                                          ? `Reimbursed CFS/Warehouse Details for ${inv.parentInvoice?.serviceProviderName} (${inv.parentInvoice?.invoiceNo})`
+                                          : `Expense Line Details for Invoice ${inv.invoiceNo}`}
                                       </span>
                                       <Badge variant="outline" className="text-[11px]">
                                         {lineCount} line item{lineCount === 1 ? '' : 's'}
@@ -1923,6 +2186,11 @@ export function ExpensesPage() {
                           <TableCell>
                             <div className="font-medium">{line.invoiceNo}</div>
                             <div className="text-xs text-muted-foreground">{line.invoiceDate}</div>
+                            {line.isPaidByClearingAgent && line.chaReimburseInvoiceNo && (
+                              <div className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">
+                                CHA Bill: {line.chaReimburseInvoiceNo}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div>{line.serviceProviderName}</div>
