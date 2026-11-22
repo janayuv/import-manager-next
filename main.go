@@ -59,6 +59,7 @@ func main() {
 			application.NewService(rt.Workflow),
 			application.NewService(rt.Updater),
 			application.NewService(rt.Company),
+			application.NewService(rt.MobileSync),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

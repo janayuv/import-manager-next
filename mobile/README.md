@@ -6,12 +6,13 @@ A high-performance Android companion application designed specifically for impor
 
 ## 🚀 Key Features (View-Only Mobile Companion)
 
-### 1. ☁️ Google Drive Backup & Live Restore
+### 1. 🔄 Live Data Sync & Backup Restore
 - **Sync Live Data from Desktop**: Seamlessly update your mobile database with the latest entries from the desktop Import Manager.
 - **AES-256-GCM Decryption (IMBK2)**: Direct in-app hardware-accelerated decryption matching the desktop security format (`IMBK2` / `IMBK1` PBKDF2 with 600,000 iterations).
-- **Two Sync Modes**:
-  1. **Direct Google Drive Cloud Sync**: Connect with your Google Drive access token to automatically fetch the latest `.imbk2` snapshot from the `ImportManagerBackups` folder.
-  2. **Native File Picker**: Pick any `.imbk2`, `.db`, or `.sqlite` file directly from Google Drive app, Downloads, or local storage.
+- **Three Sync Modes**:
+  1. **Direct Wi-Fi Sync (Email & Password Connect)**: Connect directly to your desktop companion server over local Wi-Fi using your desktop email/username and password or backup passphrase. Fast, private, and 100% reliable without cloud quotas or Google OAuth errors.
+  2. **Google Drive Cloud Sync**: Connect with Google Drive OAuth to automatically fetch the latest `.imbk2` snapshot from the `ImportManagerBackups` folder. (Requires Google Drive API enabled in Google Cloud Console).
+  3. **Native File Picker**: Pick any `.imbk2`, `.db`, or `.sqlite` file directly from Google Drive app, Downloads, or WhatsApp.
 - **Offline First**: Restored data is loaded into the device's high-speed local SQLite database so you can look up shipments and duties anywhere, even without internet.
 
 ### 2. 🚢 Upcoming Shipments View

@@ -1,5 +1,7 @@
 class SyncStatus {
   final bool isConnectedToDrive;
+  final String syncMode; // 'direct' (Email/Password), 'gdrive', or 'none'
+  final String serverUrl;
   final String accountEmail;
   final String lastSyncTime;
   final String lastBackupFileName;
@@ -12,6 +14,8 @@ class SyncStatus {
 
   SyncStatus({
     this.isConnectedToDrive = false,
+    this.syncMode = 'none',
+    this.serverUrl = '',
     this.accountEmail = '',
     this.lastSyncTime = '',
     this.lastBackupFileName = '',
@@ -23,8 +27,13 @@ class SyncStatus {
     this.syncMessage = 'Idle',
   });
 
+  bool get isConnected =>
+      isConnectedToDrive || (syncMode == 'direct' && accountEmail.isNotEmpty);
+
   SyncStatus copyWith({
     bool? isConnectedToDrive,
+    String? syncMode,
+    String? serverUrl,
     String? accountEmail,
     String? lastSyncTime,
     String? lastBackupFileName,
@@ -37,6 +46,8 @@ class SyncStatus {
   }) {
     return SyncStatus(
       isConnectedToDrive: isConnectedToDrive ?? this.isConnectedToDrive,
+      syncMode: syncMode ?? this.syncMode,
+      serverUrl: serverUrl ?? this.serverUrl,
       accountEmail: accountEmail ?? this.accountEmail,
       lastSyncTime: lastSyncTime ?? this.lastSyncTime,
       lastBackupFileName: lastBackupFileName ?? this.lastBackupFileName,

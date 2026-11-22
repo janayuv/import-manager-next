@@ -4,6 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -23,6 +30,19 @@ export function WorkspaceOverviewPage() {
   const [migrations, setMigrations] = React.useState<MigrationRecord[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [pageSize, setPageSize] = React.useState(5);
+  const [currentPage, setCurrentPage] = React.useState(1);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(migrations.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedMigrations = React.useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return migrations.slice(start, start + pageSize);
+  }, [migrations, safePage, pageSize]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -162,7 +182,7 @@ export function WorkspaceOverviewPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                migrations.map((m) => (
+                pagedMigrations.map((m) => (
                   <TableRow key={m.version}>
                     <TableCell className="font-mono">#{m.version}</TableCell>
                     <TableCell className="font-medium">{m.name}</TableCell>
@@ -178,6 +198,55 @@ export function WorkspaceOverviewPage() {
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(val) => {
+                  setPageSize(Number(val));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[72px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+              <span>
+                Showing {migrations.length === 0 ? 0 : (safePage - 1) * pageSize + 1} to{' '}
+                {Math.min(safePage * pageSize, migrations.length)} of {migrations.length} migrations
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs font-medium">
+                Page {safePage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

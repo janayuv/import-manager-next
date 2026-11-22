@@ -33,6 +33,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/invoice_wizard"
 	"github.com/janayuv/import-manager-next/backend/services/item_master"
 	memService "github.com/janayuv/import-manager-next/backend/services/memory"
+	"github.com/janayuv/import-manager-next/backend/services/mobile_sync"
 	"github.com/janayuv/import-manager-next/backend/services/options"
 	"github.com/janayuv/import-manager-next/backend/services/payment_po"
 	"github.com/janayuv/import-manager-next/backend/services/recycle_bin"
@@ -82,6 +83,7 @@ type Runtime struct {
 	MemoryMgr          *memory.Manager
 	Memory             *memService.Service
 	Company            *company.Service
+	MobileSync         *mobile_sync.Service
 	DBKey              string
 }
 
@@ -260,6 +262,12 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 	}
 	rt.Company = companySvc
 
+	mobileSyncSvc := mobile_sync.NewService(securitySvc, backupSvc, companySvc, auditSvc, keyStore, cfg.Paths.BackupsDir, cfg.AppVersion, logger)
+	if !cfg.RecoveryMode {
+		_ = mobileSyncSvc.Start(mobile_sync.DefaultMobileSyncPort)
+	}
+	rt.MobileSync = mobileSyncSvc
+
 	return rt, nil
 }
 
@@ -418,6 +426,9 @@ func (r *Runtime) SwitchCompany(compID string) (models.Company, error) {
 // Shutdown flushes and closes open database and log handles cleanly.
 func (r *Runtime) Shutdown() error {
 	var firstErr error
+	if r.MobileSync != nil {
+		_ = r.MobileSync.Stop()
+	}
 	if r.MemoryMgr != nil {
 		_ = r.MemoryMgr.Close()
 	}

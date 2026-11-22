@@ -28,6 +28,8 @@ export function ActivityLogPage() {
   const [actionFilter, setActionFilter] = React.useState('ALL');
   const [entries, setEntries] = React.useState<AuditEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [pageSize, setPageSize] = React.useState(5);
+  const [currentPage, setCurrentPage] = React.useState(1);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -45,6 +47,17 @@ export function ActivityLogPage() {
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [tableFilter, actionFilter, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedEntries = React.useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return entries.slice(start, start + pageSize);
+  }, [entries, safePage, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -116,7 +129,7 @@ export function ActivityLogPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                entries.map((entry) => (
+                pagedEntries.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell className="font-mono text-xs">{entry.createdAt}</TableCell>
                     <TableCell className="font-mono text-xs">{entry.tableName}</TableCell>
@@ -133,6 +146,56 @@ export function ActivityLogPage() {
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(val) => {
+                  setPageSize(Number(val));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[72px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span>
+                Showing {entries.length === 0 ? 0 : (safePage - 1) * pageSize + 1} to{' '}
+                {Math.min(safePage * pageSize, entries.length)} of {entries.length} entries
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs font-medium">
+                Page {safePage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -13,6 +13,7 @@ import {
   RefreshCw,
   RotateCcw,
   ShieldAlert,
+  Smartphone,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -993,6 +994,51 @@ export function DatabaseBackupsPage() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Smartphone className="h-4 w-4 text-emerald-400" /> Mobile Companion Sync Server (Email &amp; Password Connect)
+              </CardTitle>
+              <CardDescription>
+                Direct Wi-Fi synchronization for your Android companion app on port 8766. No Google Drive required.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-semibold text-emerald-300">
+                    <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Companion Sync Server Active: <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-200">http://&lt;desktop-ip&gt;:8766</code>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Connect on your OnePlus 11 using your <strong>Desktop Username / Email</strong> and <strong>Password</strong> (or Backup Passphrase).
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
+                  onClick={() => {
+                    navigator.clipboard.writeText('http://192.168.1.100:8766');
+                    toast.success('Default sync address copied (replace with your local IP if different)');
+                  }}
+                >
+                  <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy Sync URL
+                </Button>
+              </div>
+
+              <div className="rounded-md border p-3 text-xs text-muted-foreground space-y-1 bg-muted/20">
+                <p className="font-medium text-foreground">How to sync with Android without Google Drive:</p>
+                <ol className="list-decimal pl-4 space-y-0.5">
+                  <li>Ensure your PC and phone are on the same Wi-Fi network.</li>
+                  <li>In the Android app, select <strong>&quot;Email &amp; Password&quot;</strong> in Sync &amp; Backup settings.</li>
+                  <li>Enter your PC&apos;s IP address (e.g. <code>http://192.168.1.X:8766</code>), your username/email, and password.</li>
+                  <li>Tap <strong>&quot;Connect &amp; Sync Live Data&quot;</strong> — your phone updates in seconds!</li>
+                </ol>
+              </div>
             </CardContent>
           </Card>
 
