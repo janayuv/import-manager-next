@@ -251,8 +251,14 @@ class GDriveService {
       );
     }
 
+    if (res.statusCode == 403) {
+      throw Exception(
+        'Google Drive Error 403 (Permission Denied): Google Drive API is not enabled in Google Cloud Console for project 874914396315. '
+        'Please switch to the "Email & Password Connect" option to sync directly with Desktop, or enable Google Drive API in Google Cloud Console.',
+      );
+    }
     if (res.statusCode == 401) {
-      throw Exception('Google Drive authorization expired (401). Please verify credentials.');
+      throw Exception('Google Drive authorization expired (401). Please verify credentials or switch to Email & Password connect.');
     }
     if (res.statusCode != 200) {
       throw Exception('Failed to list Drive files: ${res.statusCode} ${res.body}');

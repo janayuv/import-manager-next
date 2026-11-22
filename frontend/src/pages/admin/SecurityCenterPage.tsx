@@ -11,6 +11,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -64,8 +71,21 @@ export function SecurityCenterPage() {
   const [sessions, setSessions] = React.useState<SessionInfo[]>([]);
   const [lockout, setLockout] = React.useState<LockoutStatus | null>(null);
   const [events, setEvents] = React.useState<UserActivityEntry[]>([]);
+  const [eventsPageSize, setEventsPageSize] = React.useState(5);
+  const [eventsCurrentPage, setEventsCurrentPage] = React.useState(1);
   const [policyVersion, setPolicyVersion] = React.useState<number>(1);
   const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    setEventsCurrentPage(1);
+  }, [eventsPageSize]);
+
+  const totalEventsPages = Math.max(1, Math.ceil(events.length / eventsPageSize));
+  const safeEventsPage = Math.min(eventsCurrentPage, totalEventsPages);
+  const pagedEvents = React.useMemo(() => {
+    const start = (safeEventsPage - 1) * eventsPageSize;
+    return events.slice(start, start + eventsPageSize);
+  }, [events, safeEventsPage, eventsPageSize]);
 
   const policyForm = useForm<PolicyFormValues>({
     resolver: zodResolver(policySchema),
@@ -93,7 +113,7 @@ export function SecurityCenterPage() {
         securityService.getSecuritySettings(),
         securityService.getActiveSessions(),
         securityService.getLockoutStatus(targetUser),
-        securityService.getRecentAuthEvents(20),
+        securityService.getRecentAuthEvents(50),
       ]);
       setMetrics(m);
       setTrends(t);
@@ -412,7 +432,7 @@ export function SecurityCenterPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                events.map((ev) => (
+                pagedEvents.map((ev) => (
                   <TableRow key={ev.id}>
                     <TableCell className="font-mono text-xs">{ev.timestamp}</TableCell>
                     <TableCell>
@@ -428,6 +448,55 @@ export function SecurityCenterPage() {
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <Select
+                value={String(eventsPageSize)}
+                onValueChange={(val) => {
+                  setEventsPageSize(Number(val));
+                  setEventsCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[72px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+              <span>
+                Showing {events.length === 0 ? 0 : (safeEventsPage - 1) * eventsPageSize + 1} to{' '}
+                {Math.min(safeEventsPage * eventsPageSize, events.length)} of {events.length} events
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safeEventsPage <= 1}
+                onClick={() => setEventsCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs font-medium">
+                Page {safeEventsPage} of {totalEventsPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safeEventsPage >= totalEventsPages}
+                onClick={() => setEventsCurrentPage((p) => Math.min(totalEventsPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

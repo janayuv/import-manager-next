@@ -9,19 +9,23 @@ import '../crypto/imbk_decryptor.dart';
 import '../database/db_helper.dart';
 import '../models/sync_status.dart';
 import 'gdrive_service.dart';
+import 'mobile_sync_service.dart';
 
 class SyncService {
   static final SyncService instance = SyncService._init();
   final GDriveService gdrive = GDriveService();
+  final MobileSyncService mobileSync = MobileSyncService();
 
   SyncService._init();
 
   static const String _prefLastSyncTime = 'last_sync_time';
   static const String _prefLastFileName = 'last_sync_file';
   static const String _prefSavedPassphrase = 'saved_backup_passphrase';
+  static const String _prefSyncMode = 'sync_active_mode'; // 'direct' or 'gdrive'
 
   Future<void> init() async {
     await gdrive.init();
+    await mobileSync.init();
   }
 
   Future<String?> getSavedPassphrase() async {
@@ -34,15 +38,38 @@ class SyncService {
     await prefs.setString(_prefSavedPassphrase, passphrase);
   }
 
+  Future<String> getActiveSyncMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_prefSyncMode);
+    if (saved != null && saved.isNotEmpty) {
+      return saved;
+    }
+    if (mobileSync.isAuthenticated) return 'direct';
+    if (gdrive.isAuthenticated) return 'gdrive';
+    return 'direct'; // Default to Email & Password direct connect
+  }
+
+  Future<void> setActiveSyncMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefSyncMode, mode);
+  }
+
   Future<SyncStatus> getStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final counts = await DBHelper.instance.getRecordCounts();
     final lastTime = prefs.getString(_prefLastSyncTime) ?? 'Never';
     final lastFile = prefs.getString(_prefLastFileName) ?? 'None';
+    final mode = await getActiveSyncMode();
+
+    final account = mode == 'direct'
+        ? (mobileSync.effectiveEmail.isNotEmpty ? mobileSync.effectiveEmail : 'Direct Desktop Sync')
+        : (gdrive.effectiveAccountEmail.isNotEmpty ? gdrive.effectiveAccountEmail : 'Google Drive Account');
 
     return SyncStatus(
       isConnectedToDrive: gdrive.isAuthenticated,
-      accountEmail: gdrive.effectiveAccountEmail,
+      syncMode: mode,
+      serverUrl: mobileSync.effectiveServerUrl,
+      accountEmail: account,
       lastSyncTime: lastTime,
       lastBackupFileName: lastFile,
       shipmentCount: counts['shipments'] ?? 0,
@@ -50,6 +77,23 @@ class SyncService {
       itemCount: counts['items'] ?? 0,
       ldcRowCount: counts['shipments'] ?? 0,
     );
+  }
+
+  /// Syncs the latest live backup directly from Desktop companion server using Email & Password
+  Future<SyncStatus> syncFromMobileServer({
+    String? serverUrl,
+    String? email,
+    String? password,
+    String? passphrase,
+  }) async {
+    final result = await mobileSync.fetchLatestBackup(
+      serverUrl: serverUrl,
+      email: email,
+      password: password,
+    );
+
+    await setActiveSyncMode('direct');
+    return await restoreFromBytes(result.bytes, result.filename, passphrase: passphrase);
   }
 
   /// Restores directly from a selected local file or Google Drive shared file
@@ -63,6 +107,7 @@ class SyncService {
     }
 
     final fileBytes = await picked.readAsBytes();
+    await setActiveSyncMode('file');
     return await restoreFromBytes(fileBytes, picked.name, passphrase: passphrase);
   }
 
@@ -77,12 +122,13 @@ class SyncService {
     ).toList();
 
     if (backupFiles.isEmpty) {
-      throw Exception('No backup files (.imbk2 or .db) found in Google Drive');
+      throw Exception('No backup files (.imbk2 or .db) found in Google Drive folder');
     }
 
     final latest = backupFiles.first;
     final bytes = await gdrive.downloadBackupFile(latest.id);
 
+    await setActiveSyncMode('gdrive');
     return await restoreFromBytes(bytes, latest.name, passphrase: passphrase);
   }
 
