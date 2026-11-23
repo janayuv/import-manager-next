@@ -18,16 +18,18 @@ const (
 
 // ItemLandedCostInput represents line inputs for expense allocation and landed cost calculation.
 type ItemLandedCostInput struct {
-	ItemID                 string         `json:"itemId"`
-	PartNumber             string         `json:"partNumber"`
-	Quantity               float64        `json:"quantity"`
-	BasisValue             float64        `json:"basisValue"`             // Assessable Value, Invoice Value, or Weight
-	AssessableValue        float64        `json:"assessableValue"`        // INR
-	BCDAmount              float64        `json:"bcdAmount"`              // INR
-	SWSAmount              float64        `json:"swsAmount"`              // INR
-	IGSTAmount             float64        `json:"igstAmount"`             // INR
-	OtherDutiesAmount      float64        `json:"otherDutiesAmount"`      // Anti-dumping / safeguard duties
-	ITCEligibility         ITCEligibility `json:"itcEligibility"`         // ITC_ELIGIBLE | ITC_INELIGIBLE_17_5 | ITCCapitalGoods
+	ItemID               string         `json:"itemId"`
+	PartNumber           string         `json:"partNumber"`
+	Quantity             float64        `json:"quantity"`
+	BasisValue           float64        `json:"basisValue"`           // Assessable Value, Invoice Value, or Weight
+	AssessableValue      float64        `json:"assessableValue"`      // INR
+	BCDAmount            float64        `json:"bcdAmount"`            // INR
+	SWSAmount            float64        `json:"swsAmount"`            // INR
+	IGSTAmount           float64        `json:"igstAmount"`           // INR
+	OtherDutiesAmount    float64        `json:"otherDutiesAmount"`    // Anti-dumping / safeguard duties
+	ITCEligibility       ITCEligibility `json:"itcEligibility"`       // ITC_ELIGIBLE | ITC_CAPITAL_GOODS_ELIGIBLE | ...
+	IneligibleRatio      float64        `json:"ineligibleRatio"`      // 0.0 to 1.0 (for partial eligibility under 17(1)/17(2))
+	NonRecoverableTaxINR float64        `json:"nonRecoverableTaxInr"` // Explicit non-recoverable tax if provided
 }
 
 // ExpenseItemInput represents a basic expense to be allocated.
@@ -47,6 +49,7 @@ type LineLandedCostResult struct {
 	SWSAmount             float64 `json:"swsAmount"`
 	IGSTAmount            float64 `json:"igstAmount"`
 	IGSTIncludedInCost    bool    `json:"igstIncludedInCost"`
+	NonRecoverableIGST    float64 `json:"nonRecoverableIgst"`
 	AllocatedExpensePaise int64   `json:"allocatedExpensePaise"`
 	AllocatedExpenseINR   float64 `json:"allocatedExpenseInr"`
 	TotalInventoryCostINR float64 `json:"totalInventoryCostInr"`
@@ -122,11 +125,20 @@ func ComputeLandedCost(items []ItemLandedCostInput, expenses []ExpenseItemInput,
 		itemExpenseINR := float64(itemPaise) / 100.0
 		summary.TotalAllocatedPaise += itemPaise
 
-		// Landed Cost Formula: AV + BCD + SWS + OtherDuties + AllocatedExpenses (+ NonRecoverableIGST if ineligible)
+		// Landed Cost Formula: AV + BCD + SWS + OtherDuties + AllocatedExpenses (+ NonRecoverableIGST if ineligible/partially eligible)
 		igstInCost := ShouldIncludeInLandedCost(it.ITCEligibility)
 		nonRecoverableIGST := 0.0
 		if igstInCost {
 			nonRecoverableIGST = it.IGSTAmount
+		} else if it.ITCEligibility == ITCPartiallyEligible {
+			if it.NonRecoverableTaxINR > 0 {
+				nonRecoverableIGST = roundTo2(it.NonRecoverableTaxINR)
+			} else if it.IneligibleRatio > 0 {
+				nonRecoverableIGST = roundTo2(it.IGSTAmount * it.IneligibleRatio)
+			}
+			if nonRecoverableIGST > 0 {
+				igstInCost = true
+			}
 		}
 
 		totalCost := it.AssessableValue + it.BCDAmount + it.SWSAmount + it.OtherDutiesAmount + itemExpenseINR + nonRecoverableIGST
@@ -148,6 +160,7 @@ func ComputeLandedCost(items []ItemLandedCostInput, expenses []ExpenseItemInput,
 			SWSAmount:             it.SWSAmount,
 			IGSTAmount:            it.IGSTAmount,
 			IGSTIncludedInCost:    igstInCost,
+			NonRecoverableIGST:    nonRecoverableIGST,
 			AllocatedExpensePaise: itemPaise,
 			AllocatedExpenseINR:   itemExpenseINR,
 			TotalInventoryCostINR: totalCost,

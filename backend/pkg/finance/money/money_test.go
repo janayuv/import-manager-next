@@ -74,6 +74,8 @@ func TestSymmetricRoundingPolicies(t *testing.T) {
 		{-140, -100},
 		{-150, -200},
 		{-160, -200},
+		{math.MinInt64, -9223372036854775800},
+		{math.MaxInt64, 9223372036854775800},
 	}
 	for _, tc := range testsRupee {
 		got := RoundNearestRupee(tc.input)
@@ -92,6 +94,8 @@ func TestSymmetricRoundingPolicies(t *testing.T) {
 		{129, 130},
 		{-124, -120},
 		{-125, -130},
+		{math.MinInt64, -9223372036854775800},
+		{math.MaxInt64, 9223372036854775800},
 	}
 	for _, tc := range testsCustoms {
 		got := RoundCustomsOneDecimal(tc.input)

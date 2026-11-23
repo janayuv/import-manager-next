@@ -164,19 +164,20 @@ func (s *Service) Start(preferredPort int) error {
 
 	handler := s.corsMiddleware(mux)
 
-	s.server = &http.Server{
+	srv := &http.Server{
 		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 	}
+	s.server = srv
 
-	go func() {
-		if serveErr := s.server.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+	go func(srv *http.Server, ln net.Listener) {
+		if serveErr := srv.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			if s.logger != nil {
 				s.logger.Warn("mobile sync server terminated", "error", serveErr)
 			}
 		}
-	}()
+	}(srv, ln)
 
 	if s.logger != nil {
 		s.logger.Info("mobile sync server started", "port", chosenPort, "addresses", s.addresses)

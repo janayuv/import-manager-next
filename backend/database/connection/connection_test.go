@@ -111,3 +111,57 @@ func TestShrinkMemoryAndCheckpointWAL(t *testing.T) {
 		t.Fatalf("ShrinkMemory failed: %v", err)
 	}
 }
+
+func TestOpenEncryptedRejectsPlaintextDatabaseAndValidatesHeader(t *testing.T) {
+	tempDir := t.TempDir()
+	plainPath := filepath.Join(tempDir, "plain_sample.db")
+
+	// 1. Create a plain unencrypted SQLite database
+	plainDB, err := sql.Open("sqlite3", plainPath)
+	if err != nil {
+		t.Fatalf("failed to create plain db: %v", err)
+	}
+	if _, err := plainDB.Exec("CREATE TABLE sample (id INT);"); err != nil {
+		t.Fatalf("failed to write table: %v", err)
+	}
+	_ = plainDB.Close()
+
+	// 2. VerifyDiskHeaderEncrypted detects plaintext
+	isEncrypted, err := connection.VerifyDiskHeaderEncrypted(plainPath)
+	if err != nil {
+		t.Fatalf("VerifyDiskHeaderEncrypted returned error: %v", err)
+	}
+	if isEncrypted {
+		t.Fatalf("expected plaintext database to be detected as unencrypted")
+	}
+
+	// 3. OpenEncrypted with key must reject the plaintext file
+	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	_, openErr := connection.OpenEncrypted(plainPath, key)
+	if openErr == nil {
+		t.Fatalf("expected OpenEncrypted to reject plaintext SQLite database")
+	}
+
+	// 4. Create real encrypted database
+	encPath := filepath.Join(tempDir, "real_enc.db")
+	mgr, err := connection.OpenEncrypted(encPath, key)
+	if err != nil {
+		t.Fatalf("OpenEncrypted failed: %v", err)
+	}
+	defer mgr.Close()
+
+	// Ensure at least 1 page is committed to disk so header is present
+	if _, err := mgr.DB().Exec("CREATE TABLE test_tab (id INT);"); err != nil {
+		t.Fatalf("create table failed: %v", err)
+	}
+
+	fkActive, err := connection.VerifyForeignKeysActive(mgr.DB())
+	if err != nil || !fkActive {
+		t.Fatalf("expected foreign keys active, got %v err=%v", fkActive, err)
+	}
+
+	isEncrypted, err = connection.VerifyDiskHeaderEncrypted(encPath)
+	if err != nil || !isEncrypted {
+		t.Fatalf("expected real_enc.db to be verified encrypted, got %v err=%v", isEncrypted, err)
+	}
+}

@@ -8,11 +8,14 @@ import (
 type ValuationRuleApplied string
 
 const (
-	ValuationRuleActual                 ValuationRuleApplied = "ACTUAL_INSURANCE"                       // Actual ascertainable policy
-	ValuationRule10_2_FOBDeemed         ValuationRuleApplied = "RULE_10_2_FOB_DEEMED"                  // 1.125% of FOB
-	ValuationRule10_2_FOBPlusTransport  ValuationRuleApplied = "RULE_10_2_FOB_PLUS_TRANSPORT_DEEMED"   // 1.125% of (FOB + Transport)
-	ValuationRuleIncluded               ValuationRuleApplied = "INCLUDED_IN_TRANSACTION_VALUE"         // CIF / CIP / DAP included
-	ValuationRuleOpenCoverMarine        ValuationRuleApplied = "OPEN_COVER_MARINE_RATE"                // Contractual open cover rate (e.g. 0.015%)
+	ValuationRuleActual                         ValuationRuleApplied = "ACTUAL_INSURANCE"                       // Actual ascertainable policy
+	ValuationRule10_2_FOBDeemed                 ValuationRuleApplied = "RULE_10_2_FOB_DEEMED"                  // 1.125% of FOB
+	ValuationRule10_2_FOBPlusTransport          ValuationRuleApplied = "RULE_10_2_FOB_PLUS_TRANSPORT_DEEMED"   // 1.125% of (FOB + Transport)
+	ValuationRule10_2_TransportFOBDeemed         ValuationRuleApplied = "RULE_10_2_TRANSPORT_FOB_DEEMED"       // 20% of FOB
+	ValuationRule10_2_TransportFOBPlusInsurance ValuationRuleApplied = "RULE_10_2_TRANSPORT_FOB_PLUS_INSURANCE" // 20% of (FOB + Insurance)
+	ValuationRule10_2_AirFreightCapped          ValuationRuleApplied = "RULE_10_2_AIR_FREIGHT_CAPPED"          // Air freight capped at 20% of FOB / (FOB + Insurance)
+	ValuationRuleIncluded                       ValuationRuleApplied = "INCLUDED_IN_TRANSACTION_VALUE"         // CIF / CIP / DAP included
+	ValuationRuleOpenCoverMarine                ValuationRuleApplied = "OPEN_COVER_MARINE_RATE"                // Contractual open cover rate (e.g. 0.015%)
 )
 
 // ValuationLineInput represents one invoice line for valuation.
@@ -38,11 +41,20 @@ type ValuationParams struct {
 	// Freight inputs
 	FreightCost            float64           `json:"freightCost"`            // INR
 	FreightIncluded        bool              `json:"freightIncluded"`        // true if invoice already includes freight
+	FreightMode            string            `json:"freightMode"`            // "actual" | "unascertainable" | "deemed_20" | "included"
 
 	// Insurance inputs
 	ActualInsurance        float64           `json:"actualInsurance"`        // INR
 	InsuranceRate          money.DecimalRate `json:"insuranceRate"`          // optional percentage rate (e.g. 0.015%)
-	InsuranceMode          string            `json:"insuranceMode"`          // "included" | "actual" | "rate" | "deemed_1.125" | "open_cover"
+	InsuranceMode          string            `json:"insuranceMode"`          // "included" | "actual" | "rate" | "deemed_1.125" | "open_cover" | "unascertainable"
+
+	// Rule 10(2) Fallbacks when FOB is unascertainable
+	FOBUnascertainable            bool    `json:"fobUnascertainable"`            // triggers proviso (ii) for transport or insurance
+	FOBPlusInsuranceAscertainable float64 `json:"fobPlusInsuranceAscertainable"` // sum of (FOB + Insurance) for 20% transport fallback
+	FOBPlusTransportAscertainable float64 `json:"fobPlusTransportAscertainable"` // sum of (FOB + Transport) for 1.125% insurance fallback
+
+	// Rule 10(2) Explanation 2 Transshipment Exclusions
+	PostImportTransshipment float64 `json:"postImportTransshipment"` // transport/transshipment incurred after arrival at place of importation (excluded from AV)
 
 	// Rule 10(1) Origin Charges
 	OriginInlandFreight    float64           `json:"originInlandFreight"`    // INR
@@ -73,15 +85,17 @@ type LineValuationResult struct {
 
 // ValuationResult represents the header aggregate valuation result.
 type ValuationResult struct {
-	Items                  []LineValuationResult `json:"items"`
-	TotalInvoiceForex      float64               `json:"totalInvoiceForex"`
-	TotalValueINR          float64               `json:"totalValueInr"`
-	TotalFreightINR        float64               `json:"totalFreightInr"`
-	TotalOriginChargesINR  float64               `json:"totalOriginChargesInr"`
-	TotalFOBValueINR       float64               `json:"totalFobValueInr"`
-	TotalInsuranceINR      float64               `json:"totalInsuranceInr"`
-	TotalAssessableValue   float64               `json:"totalAssessableValue"` // ICEGATE header total
-	ValuationRuleApplied   ValuationRuleApplied  `json:"valuationRuleApplied"`
-	AirFreightCapped       bool                  `json:"airFreightCapped"`
-	IncotermRule           IncotermRule          `json:"incotermRule"`
+	Items                       []LineValuationResult `json:"items"`
+	TotalInvoiceForex           float64               `json:"totalInvoiceForex"`
+	TotalValueINR               float64               `json:"totalValueInr"`
+	TotalFreightINR             float64               `json:"totalFreightInr"`
+	TotalOriginChargesINR       float64               `json:"totalOriginChargesInr"`
+	TotalFOBValueINR            float64               `json:"totalFobValueInr"`
+	TotalInsuranceINR           float64               `json:"totalInsuranceInr"`
+	TotalAssessableValue        float64               `json:"totalAssessableValue"` // ICEGATE header total
+	ValuationRuleApplied        ValuationRuleApplied  `json:"valuationRuleApplied"`
+	AirFreightCapped            bool                  `json:"airFreightCapped"`
+	ExcludedTransshipmentINR    float64               `json:"excludedTransshipmentInr"` // Rule 10(2) Explanation 2 excluded transshipment charges
+	DuplicateAdditionsPrevented bool                  `json:"duplicateAdditionsPrevented"`
+	IncotermRule                IncotermRule          `json:"incotermRule"`
 }

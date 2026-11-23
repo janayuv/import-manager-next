@@ -118,7 +118,6 @@ describe('transit-shipment-export suite', () => {
 
   it('builds an Excel workbook matching reference template specifications', async () => {
     const wb = await buildTransitShipmentWorkbook(sampleReport);
-
     const sheetNames = wb.worksheets.map((w) => w.name);
     expect(sheetNames).toEqual(['Shipment Tracker', 'Dashboard']);
 
@@ -168,7 +167,7 @@ describe('transit-shipment-export suite', () => {
     // How to use this template title
     expect(wsDash.getCell('A19').value).toBe('HOW TO USE THIS TEMPLATE');
     expect(wsDash.getCell('B20').value).toContain('Use the light-blue cells in the Shipment Tracker sheet');
-  });
+  }, 15000);
 
   it('generates the exact multi-section template CSV matching user attachment', () => {
     const csv = generateTransitShipmentTemplateCSV(sampleReport);

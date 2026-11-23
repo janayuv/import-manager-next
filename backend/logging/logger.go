@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -45,7 +46,19 @@ func New(logsDir string) (*Logger, error) {
 	}
 
 	mw := resilientLogWriter{file: f, stderr: os.Stderr}
-	handler := slog.NewJSONHandler(mw, &slog.HandlerOptions{Level: slog.LevelInfo})
+	opts := &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			lowerKey := strings.ToLower(a.Key)
+			for _, sens := range []string{"password", "secret", "token", "auth_token", "sqlcipher_key", "db_key", "encryption_key", "client_secret", "api_key", "credential"} {
+				if strings.Contains(lowerKey, sens) {
+					return slog.Attr{Key: a.Key, Value: slog.StringValue("[REDACTED]")}
+				}
+			}
+			return a
+		},
+	}
+	handler := slog.NewJSONHandler(mw, opts)
 	return &Logger{
 		Logger: slog.New(handler),
 		file:   f,

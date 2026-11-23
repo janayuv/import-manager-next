@@ -1,5 +1,9 @@
 package money
 
+import (
+	"math"
+)
+
 // RoundingPolicy identifies explicit calculation rounding modes.
 type RoundingPolicy string
 
@@ -12,17 +16,23 @@ const (
 )
 
 // RoundNearestRupee rounds paise to the nearest whole Rupee (multiple of 100 paise).
-// Correctly handles negative adjustments symmetrically:
+// Correctly handles negative adjustments symmetrically and guards against integer overflow boundaries:
 // e.g. -140 paise -> -100 paise; -160 paise -> -200 paise; +140 -> +100; +160 -> +200.
 func RoundNearestRupee(paise int64) int64 {
 	if paise == 0 {
 		return 0
+	}
+	if paise == math.MinInt64 {
+		return -9223372036854775800
 	}
 	sign := int64(1)
 	val := paise
 	if val < 0 {
 		sign = -1
 		val = -val
+	}
+	if val > math.MaxInt64-50 {
+		val = math.MaxInt64 - 50
 	}
 	rounded := ((val + 50) / 100) * 100
 	return sign * rounded
@@ -34,11 +44,17 @@ func RoundCustomsOneDecimal(paise int64) int64 {
 	if paise == 0 {
 		return 0
 	}
+	if paise == math.MinInt64 {
+		return -9223372036854775800
+	}
 	sign := int64(1)
 	val := paise
 	if val < 0 {
 		sign = -1
 		val = -val
+	}
+	if val > math.MaxInt64-5 {
+		val = math.MaxInt64 - 5
 	}
 	rounded := ((val + 5) / 10) * 10
 	return sign * rounded
