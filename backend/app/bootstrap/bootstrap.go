@@ -29,6 +29,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/expense_reports"
 	"github.com/janayuv/import-manager-next/backend/services/expenses"
 	"github.com/janayuv/import-manager-next/backend/services/google_drive"
+	"github.com/janayuv/import-manager-next/backend/services/health"
 	"github.com/janayuv/import-manager-next/backend/services/invoice"
 	"github.com/janayuv/import-manager-next/backend/services/invoice_wizard"
 	"github.com/janayuv/import-manager-next/backend/services/item_master"
@@ -84,6 +85,7 @@ type Runtime struct {
 	Memory             *memService.Service
 	Company            *company.Service
 	MobileSync         *mobile_sync.Service
+	HealthService      *health.Service
 	DBKey              string
 }
 
@@ -147,7 +149,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		return cleanupOnErr(fmt.Errorf("database integrity check failed: %v", integRep.IntegrityMessages))
 	}
 
-	health, err := dbMgr.Health()
+	dbHealth, err := dbMgr.Health()
 	if err != nil {
 		return cleanupOnErr(fmt.Errorf("verify database health: %w", err))
 	}
@@ -196,9 +198,9 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		"app", cfg.AppName,
 		"version", cfg.AppVersion,
 		"recoveryMode", cfg.RecoveryMode,
-		"cipherVersion", health.CipherVersion,
-		"journalMode", health.JournalMode,
-		"foreignKeysOn", health.ForeignKeysOn,
+		"cipherVersion", dbHealth.CipherVersion,
+		"journalMode", dbHealth.JournalMode,
+		"foreignKeysOn", dbHealth.ForeignKeysOn,
 		"schemaVersion", migRes.CurrentVersion,
 		"migrationsApplied", migRes.AppliedCount,
 		"tables", integRep.TableCount,
@@ -212,7 +214,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		Logger:             logger,
 		DB:                 dbMgr,
 		RestoreControl:     restoreCtrl,
-		Health:             health,
+		Health:             dbHealth,
 		MigrationResult:    migRes,
 		Integrity:          integRep,
 		Audit:              auditSvc,
@@ -267,6 +269,19 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		_ = mobileSyncSvc.Start(mobile_sync.DefaultMobileSyncPort)
 	}
 	rt.MobileSync = mobileSyncSvc
+
+	healthSvc := health.NewService(
+		dbMgr.DB(),
+		dbMgr,
+		cfg.Paths.DatabasePath,
+		securitySvc,
+		backupSvc,
+		workflowSvc,
+		mobileSyncSvc,
+		gdriveSvc,
+		cfg.Paths,
+	)
+	rt.HealthService = healthSvc
 
 	return rt, nil
 }
@@ -412,6 +427,9 @@ func (r *Runtime) RebindServices(newDB *sql.DB, newMgr *connection.Manager, newP
 	}
 	if r.MemoryMgr != nil {
 		r.MemoryMgr.SetDB(newMgr)
+	}
+	if r.HealthService != nil {
+		r.HealthService.SetDB(newDB, newMgr, newPath)
 	}
 }
 

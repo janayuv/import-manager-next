@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/janayuv/import-manager-next/backend/models"
+	"github.com/janayuv/import-manager-next/backend/pkg/finance/customs/valuation"
 )
 
 const (
@@ -130,20 +131,16 @@ var IncotermRules = map[string]models.IncotermRule{
 }
 
 // GetIncotermRule returns statutory inclusion rules for any of the 11 Incoterms.
-// Defaults to FOB if unspecified or unrecognized.
+// Delegates to the pure finance valuation package for verified Incoterms 2020 definitions.
 func GetIncotermRule(incoterm string) models.IncotermRule {
-	code := strings.ToUpper(strings.TrimSpace(incoterm))
-	if rule, exists := IncotermRules[code]; exists {
-		return rule
-	}
-	// Fallback for unknown or legacy values
+	rule := valuation.GetIncotermRule(incoterm)
 	return models.IncotermRule{
-		Code:                  code,
-		Name:                  code,
-		FreightIncluded:       false,
-		InsuranceIncluded:     false,
-		OriginChargesExpected: false,
-		Description:           "Standard Incoterm valuation rules apply.",
+		Code:                  rule.Code,
+		Name:                  rule.Name,
+		FreightIncluded:       rule.FreightIncluded,
+		InsuranceIncluded:     rule.InsuranceIncluded,
+		OriginChargesExpected: rule.OriginChargesExpected,
+		Description:           rule.Description,
 	}
 }
 

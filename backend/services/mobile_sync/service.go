@@ -71,6 +71,11 @@ type tokenRecord struct {
 	ExpiresAt time.Time
 }
 
+type failedLoginRecord struct {
+	Count        int
+	LockoutUntil time.Time
+}
+
 // Service provides a local HTTP server allowing the Android mobile companion app
 // to authenticate with Email/Username and Password, and download the latest .imbk2 backup.
 type Service struct {
@@ -89,6 +94,7 @@ type Service struct {
 	backupsDir   string
 	appVersion   string
 	activeTokens map[string]tokenRecord
+	failedLogins map[string]failedLoginRecord
 }
 
 // NewService instantiates the mobile sync companion service.
@@ -112,6 +118,7 @@ func NewService(
 		appVersion:   appVersion,
 		logger:       logger,
 		activeTokens: make(map[string]tokenRecord),
+		failedLogins: make(map[string]failedLoginRecord),
 	}
 	return svc
 }
@@ -209,6 +216,20 @@ func (s *Service) GetServerInfo() (ServerInfo, error) {
 	}, nil
 }
 
+// GetActiveDeviceCount returns the number of active, unexpired mobile companion session tokens.
+func (s *Service) GetActiveDeviceCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now()
+	count := 0
+	for _, tok := range s.activeTokens {
+		if now.Before(tok.ExpiresAt) {
+			count++
+		}
+	}
+	return count
+}
+
 func (s *Service) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -281,6 +302,23 @@ func (s *Service) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	remoteIP := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		remoteIP = host
+	}
+
+	s.mu.Lock()
+	if rec, exists := s.failedLogins[remoteIP]; exists {
+		if time.Now().Before(rec.LockoutUntil) {
+			s.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Too many failed login attempts. Please try again later."})
+			return
+		}
+	}
+	s.mu.Unlock()
+
 	// 1. Try standard user authentication
 	authenticated := false
 	var username, userID, role string
@@ -307,11 +345,24 @@ func (s *Service) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !authenticated {
+		s.mu.Lock()
+		rec := s.failedLogins[remoteIP]
+		rec.Count++
+		if rec.Count >= 5 {
+			rec.LockoutUntil = time.Now().Add(15 * time.Minute)
+		}
+		s.failedLogins[remoteIP] = rec
+		s.mu.Unlock()
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid email, username, or password"})
 		return
 	}
+
+	s.mu.Lock()
+	delete(s.failedLogins, remoteIP)
+	s.mu.Unlock()
 
 	token := uuid.NewString()
 	expiresAt := time.Now().Add(SessionTTLHours * time.Hour)

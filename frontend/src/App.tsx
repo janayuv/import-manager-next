@@ -38,6 +38,7 @@ const AutomationCenterPage = lazy(() => import('@/pages/admin/AutomationCenterPa
 const OperationsCenterPage = lazy(() => import('@/pages/admin/OperationsCenterPage').then((m) => ({ default: m.OperationsCenterPage })));
 const ErrorCenterPage = lazy(() => import('@/pages/admin/ErrorCenterPage').then((m) => ({ default: m.ErrorCenterPage })));
 const SystemToolsPage = lazy(() => import('@/pages/admin/SystemToolsPage').then((m) => ({ default: m.SystemToolsPage })));
+const SystemHealthPage = lazy(() => import('@/pages/admin/SystemHealthPage').then((m) => ({ default: m.SystemHealthPage })));
 
 function PageFallback() {
   return (
@@ -257,6 +258,14 @@ function AuthenticatedRoutes() {
           />
           <Route
             path="admin/system-health"
+            element={
+              <RequirePermission permission="admin.system_health">
+                <SystemHealthPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="admin/workspace-overview"
             element={
               <RequirePermission permission="admin.system_health">
                 <WorkspaceOverviewPage />

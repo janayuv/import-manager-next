@@ -1,10 +1,12 @@
 package connection
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"sync"
 
 	_ "github.com/mutecomm/go-sqlcipher/v4"
@@ -169,4 +171,45 @@ func (m *Manager) Close() error {
 	err := m.db.Close()
 	m.db = nil
 	return err
+}
+
+// StandardSQLiteMagic is the canonical 16-byte header for unencrypted SQLite databases.
+var StandardSQLiteMagic = []byte("SQLite format 3\x00")
+
+// VerifyDiskHeaderEncrypted checks the raw 16-byte file header on disk.
+// Standard unencrypted SQLite databases start with "SQLite format 3\x00".
+// An encrypted SQLCipher database will have high-entropy random ciphertext in the first 16 bytes.
+// Returns true if the file exists and is encrypted (does NOT match standard SQLite header).
+func VerifyDiskHeaderEncrypted(dbPath string) (bool, error) {
+	f, err := os.Open(dbPath)
+	if err != nil {
+		return false, fmt.Errorf("open db file for header check: %w", err)
+	}
+	defer f.Close()
+
+	header := make([]byte, 16)
+	n, err := f.Read(header)
+	if err != nil {
+		return false, fmt.Errorf("read db header: %w", err)
+	}
+	if n < 16 {
+		return false, errors.New("file too short to be a valid SQLite/SQLCipher database")
+	}
+
+	if bytes.Equal(header, StandardSQLiteMagic) {
+		return false, nil // Unencrypted plain SQLite!
+	}
+	return true, nil // Encrypted SQLCipher!
+}
+
+// VerifyForeignKeysActive checks PRAGMA foreign_keys directly on the active connection.
+func VerifyForeignKeysActive(db *sql.DB) (bool, error) {
+	if db == nil {
+		return false, errors.New("nil database handle")
+	}
+	var fk int
+	if err := db.QueryRow("PRAGMA foreign_keys;").Scan(&fk); err != nil {
+		return false, fmt.Errorf("query foreign_keys: %w", err)
+	}
+	return fk == 1, nil
 }
