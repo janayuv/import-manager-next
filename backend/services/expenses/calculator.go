@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/janayuv/import-manager-next/backend/models"
+	"github.com/janayuv/import-manager-next/backend/pkg/finance/money"
 )
 
 const BasisPointsScale = 10000
@@ -39,9 +40,9 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 		sgst = in.SGSTPaise
 		igst = in.IGSTPaise
 		if in.RoundOff {
-			cgst = int64(math.Round(float64(cgst)/100.0)) * 100
-			sgst = int64(math.Round(float64(sgst)/100.0)) * 100
-			igst = int64(math.Round(float64(igst)/100.0)) * 100
+			cgst = money.RoundNearestRupee(cgst)
+			sgst = money.RoundNearestRupee(sgst)
+			igst = money.RoundNearestRupee(igst)
 		}
 
 		// If nominal rates weren't explicitly supplied, derive effective basis points from amount
@@ -62,9 +63,9 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 			return models.ExpenseLineCalculation{}, errors.New("tax and TDS rates cannot exceed 100% (10000 bp)")
 		}
 		if in.RoundOff {
-			cgst = int64(math.Round(float64(in.AmountPaise*in.CGSTRateBP)/1_000_000.0)) * 100
-			sgst = int64(math.Round(float64(in.AmountPaise*in.SGSTRateBP)/1_000_000.0)) * 100
-			igst = int64(math.Round(float64(in.AmountPaise*in.IGSTRateBP)/1_000_000.0)) * 100
+			cgst = money.RoundNearestRupee((in.AmountPaise * in.CGSTRateBP) / BasisPointsScale)
+			sgst = money.RoundNearestRupee((in.AmountPaise * in.SGSTRateBP) / BasisPointsScale)
+			igst = money.RoundNearestRupee((in.AmountPaise * in.IGSTRateBP) / BasisPointsScale)
 		} else {
 			cgst = (in.AmountPaise * in.CGSTRateBP) / BasisPointsScale
 			sgst = (in.AmountPaise * in.SGSTRateBP) / BasisPointsScale
@@ -74,7 +75,7 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 
 	var tds int64
 	if in.RoundOff {
-		tds = int64(math.Round(float64(in.AmountPaise*in.TDSRateBP)/1_000_000.0)) * 100
+		tds = money.RoundNearestRupee((in.AmountPaise * in.TDSRateBP) / BasisPointsScale)
 	} else {
 		tds = (in.AmountPaise * in.TDSRateBP) / BasisPointsScale
 	}

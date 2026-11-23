@@ -2,6 +2,8 @@ package updater
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -304,7 +306,38 @@ func (s *Service) DownloadUpdate(ctx context.Context, downloadURL, assetName str
 	return destPath, nil
 }
 
-// ApplyUpdate launches the downloaded installer executable in background.
+// ComputeSHA256 calculates the hexadecimal SHA-256 checksum of a file.
+func ComputeSHA256(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("open file for checksum: %w", err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", fmt.Errorf("read file for checksum: %w", err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// VerifySHA256 verifies that the file at filePath matches expectedHex (case-insensitive).
+func VerifySHA256(filePath, expectedHex string) error {
+	cleanExpected := strings.ToLower(strings.TrimSpace(expectedHex))
+	if cleanExpected == "" {
+		return errors.New("expected checksum is empty")
+	}
+	actual, err := ComputeSHA256(filePath)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(actual, cleanExpected) {
+		return fmt.Errorf("checksum mismatch: expected %s, got %s", cleanExpected, actual)
+	}
+	return nil
+}
+
+// ApplyUpdate launches the downloaded installer executable in background after verifying file safety.
 func (s *Service) ApplyUpdate(installerPath string) error {
 	if s.sec != nil {
 		if _, err := s.sec.RequireAnyPermission(security.PermAdminSystemTools, security.PermDataWrite); err != nil {
@@ -313,8 +346,17 @@ func (s *Service) ApplyUpdate(installerPath string) error {
 	}
 
 	cleanPath := filepath.Clean(installerPath)
-	if _, err := os.Stat(cleanPath); err != nil {
+	info, err := os.Stat(cleanPath)
+	if err != nil {
 		return fmt.Errorf("installer file not found: %w", err)
+	}
+	if info.Size() == 0 {
+		return errors.New("installer file is empty")
+	}
+
+	ext := strings.ToLower(filepath.Ext(cleanPath))
+	if ext != ".exe" && ext != ".msi" {
+		return fmt.Errorf("invalid installer file extension %q (expected .exe or .msi)", ext)
 	}
 
 	var cmd *exec.Cmd
@@ -331,6 +373,7 @@ func (s *Service) ApplyUpdate(installerPath string) error {
 	if s.audit != nil {
 		_ = s.audit.RecordUserActivity("system", "system.update_launched", "update", filepath.Base(cleanPath), "success", "INFO", map[string]any{
 			"installerPath": cleanPath,
+			"fileSize":      info.Size(),
 		})
 	}
 

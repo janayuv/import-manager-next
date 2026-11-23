@@ -60,6 +60,7 @@ func main() {
 			application.NewService(rt.Updater),
 			application.NewService(rt.Company),
 			application.NewService(rt.MobileSync),
+			application.NewService(rt.HealthService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

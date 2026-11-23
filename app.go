@@ -11,6 +11,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/database/migrations"
 	"github.com/janayuv/import-manager-next/backend/memory"
 	"github.com/janayuv/import-manager-next/backend/models"
+	"github.com/janayuv/import-manager-next/backend/services/health"
 	"github.com/janayuv/import-manager-next/backend/services/updater"
 	winpaths "github.com/janayuv/import-manager-next/backend/windows"
 )
@@ -160,4 +161,36 @@ func (s *AppService) DeleteCompany(companyID string) error {
 		return errors.New("company service not initialized")
 	}
 	return s.rt.Company.DeleteCompany(companyID)
+}
+
+// GetSystemHealthSummary returns the aggregated 12-indicator health status.
+func (s *AppService) GetSystemHealthSummary() (health.SystemHealthSummary, error) {
+	if s.rt.HealthService == nil {
+		return health.SystemHealthSummary{}, errors.New("health service not initialized")
+	}
+	return s.rt.HealthService.GetHealthSummary(context.Background())
+}
+
+// RunManualIntegrityCheck executes a PRAGMA integrity_check.
+func (s *AppService) RunManualIntegrityCheck() (string, error) {
+	if s.rt.HealthService == nil {
+		return "", errors.New("health service not initialized")
+	}
+	return s.rt.HealthService.RunManualIntegrityCheck(context.Background())
+}
+
+// RunVerifiedBackup triggers an immediate on-demand verified backup.
+func (s *AppService) RunVerifiedBackup() (models.BackupRecord, error) {
+	if s.rt.HealthService == nil {
+		return models.BackupRecord{}, errors.New("health service not initialized")
+	}
+	return s.rt.HealthService.RunVerifiedBackup(context.Background())
+}
+
+// RunIdempotentJobRecovery recovers a stuck background job.
+func (s *AppService) RunIdempotentJobRecovery(jobID string) error {
+	if s.rt.HealthService == nil {
+		return errors.New("health service not initialized")
+	}
+	return s.rt.HealthService.RunIdempotentJobRecovery(context.Background(), jobID)
 }
