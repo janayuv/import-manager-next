@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
-import { Calculator, Eye, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { Award, Calculator, Eye, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,7 @@ import {
   DeleteReconciledBoeDialog,
   type DeleteReconciledBoeTarget,
 } from '@/components/boe/DeleteReconciledBoeDialog';
+import { RoDTEPAllocationDrawer } from '@/components/boe/RoDTEPAllocationDrawer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModuleSettings } from '@/contexts/ThemeContext';
 import {
@@ -96,6 +97,9 @@ export function BOERegistryPage() {
   const summaryPageSize = boePageSize;
   const [summaryPage, setSummaryPage] = React.useState(1);
   const [boePage, setBoePage] = React.useState(1);
+
+  const [rodtepBoeId, setRodtepBoeId] = React.useState('');
+  const [rodtepDrawerOpen, setRodtepDrawerOpen] = React.useState(false);
 
   const [details, setDetails] = React.useState<BOEDetail[]>([]);
   const [summaries, setSummaries] = React.useState<BOECalculationSummary[]>([]);
@@ -448,6 +452,18 @@ export function BOERegistryPage() {
                         <TableCell className="font-mono text-xs">{b.challanNumber || '-'}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="RoDTEP Duty Settlement"
+                              onClick={() => {
+                                setRodtepBoeId(b.id);
+                                setRodtepDrawerOpen(true);
+                              }}
+                              className="text-primary hover:text-primary/80"
+                            >
+                              <Award className="h-4 w-4" />
+                            </Button>
                             {canWrite && (
                               <Button size="sm" variant="ghost" onClick={() => openEdit(b)}>
                                 <Pencil className="h-4 w-4" />
@@ -588,6 +604,13 @@ export function BOERegistryPage() {
         open={deleteCalcOpen}
         onOpenChange={setDeleteCalcOpen}
         onDeleted={() => void loadAll()}
+      />
+      {/* RoDTEP Duty Settlement Drawer */}
+      <RoDTEPAllocationDrawer
+        boeId={rodtepBoeId}
+        open={rodtepDrawerOpen}
+        onOpenChange={setRodtepDrawerOpen}
+        onSuccess={() => void loadAll()}
       />
     </div>
   );

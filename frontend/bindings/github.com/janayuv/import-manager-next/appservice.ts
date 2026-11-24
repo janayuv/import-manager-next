@@ -24,6 +24,9 @@ import * as memory$0 from "./backend/memory/models.js";
 import * as models$0 from "./backend/models/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as health$0 from "./backend/services/health/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as updater$0 from "./backend/services/updater/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -106,11 +109,20 @@ export function GetMemoryStats(): $CancellablePromise<memory$0.Stats> {
 }
 
 /**
+ * GetSystemHealthSummary returns the aggregated 12-indicator health status.
+ */
+export function GetSystemHealthSummary(): $CancellablePromise<health$0.SystemHealthSummary> {
+    return $Call.ByID(3921546895).then(($result: any) => {
+        return $$createType5($result);
+    });
+}
+
+/**
  * ListCompanies returns all registered companies with their metadata and database paths.
  */
 export function ListCompanies(): $CancellablePromise<models$0.Company[]> {
     return $Call.ByID(1144895953).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -119,7 +131,7 @@ export function ListCompanies(): $CancellablePromise<models$0.Company[]> {
  */
 export function ListSchemaMigrations(): $CancellablePromise<migrations$0.AppliedRecord[]> {
     return $Call.ByID(2397509292).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType8($result);
     });
 }
 
@@ -128,6 +140,29 @@ export function ListSchemaMigrations(): $CancellablePromise<migrations$0.Applied
  */
 export function OpenExternalURL(url: string): $CancellablePromise<void> {
     return $Call.ByID(1691046826, url);
+}
+
+/**
+ * RunIdempotentJobRecovery recovers a stuck background job.
+ */
+export function RunIdempotentJobRecovery(jobID: string): $CancellablePromise<void> {
+    return $Call.ByID(1987304628, jobID);
+}
+
+/**
+ * RunManualIntegrityCheck executes a PRAGMA integrity_check.
+ */
+export function RunManualIntegrityCheck(): $CancellablePromise<string> {
+    return $Call.ByID(2565370828);
+}
+
+/**
+ * RunVerifiedBackup triggers an immediate on-demand verified backup.
+ */
+export function RunVerifiedBackup(): $CancellablePromise<models$0.BackupRecord> {
+    return $Call.ByID(2634269213).then(($result: any) => {
+        return $$createType9($result);
+    });
 }
 
 /**
@@ -144,7 +179,7 @@ export function SwitchCompany(companyID: string): $CancellablePromise<models$0.C
  */
 export function TrimMemory(aggressive: boolean): $CancellablePromise<memory$0.TrimResult> {
     return $Call.ByID(4055428277, aggressive).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType10($result);
     });
 }
 
@@ -163,7 +198,9 @@ const $$createType1 = updater$0.UpdateCheckResult.createFrom;
 const $$createType2 = models$0.Company.createFrom;
 const $$createType3 = $models.BootstrapInfo.createFrom;
 const $$createType4 = memory$0.Stats.createFrom;
-const $$createType5 = $Create.Array($$createType2);
-const $$createType6 = migrations$0.AppliedRecord.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = memory$0.TrimResult.createFrom;
+const $$createType5 = health$0.SystemHealthSummary.createFrom;
+const $$createType6 = $Create.Array($$createType2);
+const $$createType7 = migrations$0.AppliedRecord.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = models$0.BackupRecord.createFrom;
+const $$createType10 = memory$0.TrimResult.createFrom;

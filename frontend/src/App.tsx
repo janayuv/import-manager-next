@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AppShell } from '@/components/layout/AppShell';
+import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CompanyProvider } from '@/contexts/CompanyContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -21,6 +22,7 @@ const BOERegistryPage = lazy(() => import('@/pages/BOERegistryPage').then((m) =>
 const BOEEntryPage = lazy(() => import('@/pages/BOEEntryPage').then((m) => ({ default: m.BOEEntryPage })));
 const ReconciledBOEPage = lazy(() => import('@/pages/ReconciledBOEPage').then((m) => ({ default: m.ReconciledBOEPage })));
 const CBICRatesPage = lazy(() => import('@/pages/CBICRatesPage').then((m) => ({ default: m.CBICRatesPage })));
+const RoDTEPScripsPage = lazy(() => import('@/pages/RoDTEPScripsPage').then((m) => ({ default: m.RoDTEPScripsPage })));
 const ExpensesPage = lazy(() => import('@/pages/ExpensesPage').then((m) => ({ default: m.ExpensesPage })));
 const ExpenseReportsPage = lazy(() => import('@/pages/ExpenseReportsPage').then((m) => ({ default: m.ExpenseReportsPage })));
 const LandedCostReportPage = lazy(() => import('@/pages/LandedCostReportPage').then((m) => ({ default: m.LandedCostReportPage })));
@@ -68,8 +70,9 @@ function AuthenticatedRoutes() {
 
   return (
     <HashRouter>
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
+      <ErrorBoundary fallbackTitle="Module Render Error">
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
           <Route element={<AppShell />}>
             <Route index element={<DashboardPage />} />
 
@@ -139,6 +142,14 @@ function AuthenticatedRoutes() {
             element={
               <RequirePermission permission="data.read">
                 <CBICRatesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="rodtep"
+            element={
+              <RequirePermission permission="data.read">
+                <RoDTEPScripsPage />
               </RequirePermission>
             }
           />
@@ -292,6 +303,7 @@ function AuthenticatedRoutes() {
         </Route>
       </Routes>
     </Suspense>
+  </ErrorBoundary>
   </HashRouter>
 );
 }

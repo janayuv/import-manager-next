@@ -50,6 +50,7 @@ func main() {
 			application.NewService(rt.Expenses),
 			application.NewService(rt.ExpenseReports),
 			application.NewService(rt.Reports),
+			application.NewService(rt.RoDTEP),
 			application.NewService(rt.Dashboard),
 			application.NewService(rt.Settings),
 			application.NewService(rt.Backup),

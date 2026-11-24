@@ -298,4 +298,33 @@ describe('TransitShipmentsPage Component UI', () => {
 
     expect(screen.getAllByText('Arrived').length).toBeGreaterThanOrEqual(1);
   });
+
+  it('renders status breakdown percentages and values in the top KPI blocks', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText('Transit Shipment Tracker')).toBeInTheDocument();
+    });
+
+    // Verify 100% badge for Total Shipments
+    expect(screen.getByText('100%')).toBeInTheDocument();
+
+    // Verify breakdown percentage badges for the statuses (25% in mock data)
+    const pctBadges = screen.getAllByText('25%');
+    expect(pctBadges.length).toBeGreaterThanOrEqual(4);
+
+    // Verify clicking an overview status card toggles the status filter
+    const inTransitCard = screen.getByTitle('Click to filter In Transit shipments');
+    fireEvent.click(inTransitCard);
+
+    await waitFor(() => {
+      expect(inTransitCard).toHaveClass('ring-2');
+    });
+
+    // Clicking again resets back to all
+    fireEvent.click(inTransitCard);
+    await waitFor(() => {
+      expect(inTransitCard).not.toHaveClass('ring-2');
+    });
+  });
 });

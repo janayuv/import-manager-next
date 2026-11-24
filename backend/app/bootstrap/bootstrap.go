@@ -39,6 +39,7 @@ import (
 	"github.com/janayuv/import-manager-next/backend/services/payment_po"
 	"github.com/janayuv/import-manager-next/backend/services/recycle_bin"
 	"github.com/janayuv/import-manager-next/backend/services/reports"
+	"github.com/janayuv/import-manager-next/backend/services/rodtep"
 	"github.com/janayuv/import-manager-next/backend/services/security"
 	"github.com/janayuv/import-manager-next/backend/services/settings"
 	"github.com/janayuv/import-manager-next/backend/services/shipment"
@@ -72,6 +73,7 @@ type Runtime struct {
 	Expenses           *expenses.Service
 	ExpenseReports     *expense_reports.Service
 	Reports            *reports.Service
+	RoDTEP             *rodtep.Service
 	Dashboard          *dashboard.Service
 	Settings           *settings.Service
 	Backup             *backup.Service
@@ -173,6 +175,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 	expSvc := expenses.NewService(dbMgr.DB(), securitySvc, auditSvc, cfg.Paths.AttachmentsDir)
 	expRepSvc := expense_reports.NewService(dbMgr.DB(), securitySvc)
 	repSvc := reports.NewService(dbMgr.DB(), securitySvc)
+	rodtepSvc := rodtep.NewService(dbMgr.DB(), securitySvc, auditSvc)
 	dashSvc := dashboard.NewService(dbMgr.DB(), securitySvc, auditSvc)
 	settingsSvc := settings.NewService(dbMgr.DB(), securitySvc, auditSvc)
 	restoreCtrl := connection.NewRestoreControl()
@@ -233,6 +236,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 		Expenses:           expSvc,
 		ExpenseReports:     expRepSvc,
 		Reports:            repSvc,
+		RoDTEP:             rodtepSvc,
 		Dashboard:          dashSvc,
 		Settings:           settingsSvc,
 		Backup:             backupSvc,
@@ -403,6 +407,9 @@ func (r *Runtime) RebindServices(newDB *sql.DB, newMgr *connection.Manager, newP
 	}
 	if r.Reports != nil {
 		r.Reports.SetDB(newDB)
+	}
+	if r.RoDTEP != nil {
+		r.RoDTEP.SetDB(newDB)
 	}
 	if r.Dashboard != nil {
 		r.Dashboard.SetDB(newDB)

@@ -441,6 +441,29 @@ export function TransitShipmentsPage() {
 
   const hasActiveFilters = search !== '' || supplierId !== 'all' || statusFilter !== 'all' || startDate !== '' || endDate !== '';
 
+  // Quick lookup for breakdown status percentages
+  const breakdownMap = React.useMemo(() => {
+    const map = new Map<string, { count: number; pct: number }>();
+    (report.breakdown || []).forEach((b) => {
+      map.set(b.status.toLowerCase(), { count: b.count, pct: b.pct });
+    });
+    return map;
+  }, [report.breakdown]);
+
+  const total = report.summary.totalShipments || 0;
+  const inTransitPct =
+    breakdownMap.get('in transit')?.pct ??
+    (total > 0 ? Math.round((report.summary.inTransit / total) * 1000) / 10 : 0);
+  const arrivedPct =
+    breakdownMap.get('arrived')?.pct ??
+    (total > 0 ? Math.round((report.summary.arrived / total) * 1000) / 10 : 0);
+  const delayedPct =
+    breakdownMap.get('delayed')?.pct ??
+    (total > 0 ? Math.round((report.summary.delayed / total) * 1000) / 10 : 0);
+  const pendingPct =
+    breakdownMap.get('pending')?.pct ??
+    (total > 0 ? Math.round((report.summary.pending / total) * 1000) / 10 : 0);
+
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -457,6 +480,17 @@ export function TransitShipmentsPage() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowGuide((g) => !g)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+            title="Toggle reference guide instructions"
+          >
+            <Info className="h-4 w-4 mr-1.5 text-primary" />
+            {showGuide ? 'Hide Template Rules' : 'How To Use This Template'}
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -502,194 +536,289 @@ export function TransitShipmentsPage() {
         </div>
       </div>
 
-      {/* Overview KPI Cards */}
+      {/* Overview KPI Cards with Shipment Status Breakdown Value and % */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <Card className="border-border/60 shadow-xs">
+        {/* Total Shipments */}
+        <Card
+          onClick={() => setStatusFilter('all')}
+          className={`border-border/60 shadow-xs cursor-pointer transition-all hover:border-foreground/30 ${
+            statusFilter === 'all' ? 'ring-2 ring-primary/40' : ''
+          }`}
+          title="Click to view all consignments"
+        >
           <CardHeader className="p-4 pb-2">
             <CardDescription className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Total Shipments
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardDescription>
-            <CardTitle className="text-2xl font-bold text-foreground">
-              {report.summary.totalShipments}
-            </CardTitle>
+            <div className="flex items-baseline justify-between gap-1 pt-1">
+              <CardTitle className="text-2xl font-bold text-foreground">
+                {report.summary.totalShipments}
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="border-border/80 bg-muted/50 font-mono text-xs font-semibold text-muted-foreground"
+              >
+                100%
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
-            Active tracked consignments
+          <CardContent className="p-4 pt-0">
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary/70 transition-all duration-300"
+                style={{ width: total > 0 ? '100%' : '0%' }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground truncate">
+              Active tracked consignments
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-blue-200/80 bg-blue-50/30 dark:border-blue-900/40 dark:bg-blue-950/20 shadow-xs">
+        {/* In Transit */}
+        <Card
+          onClick={() => setStatusFilter((cur) => (cur === 'in-transit' ? 'all' : 'in-transit'))}
+          className={`border-blue-200/80 bg-blue-50/30 dark:border-blue-900/40 dark:bg-blue-950/20 shadow-xs cursor-pointer transition-all hover:border-blue-400 ${
+            statusFilter === 'in-transit' ? 'ring-2 ring-blue-500 shadow-sm' : ''
+          }`}
+          title="Click to filter In Transit shipments"
+        >
           <CardHeader className="p-4 pb-2">
             <CardDescription className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">
               In Transit
               <Ship className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </CardDescription>
-            <CardTitle className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-              {report.summary.inTransit}
-            </CardTitle>
+            <div className="flex items-baseline justify-between gap-1 pt-1">
+              <CardTitle className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                {report.summary.inTransit}
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="border-blue-300/80 bg-blue-100/70 font-mono text-xs font-bold text-blue-700 dark:border-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
+              >
+                {inTransitPct}%
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0 text-xs text-blue-600/80 dark:text-blue-400/80">
-            En route (ETA today or future)
+          <CardContent className="p-4 pt-0">
+            <div className="h-1.5 w-full rounded-full bg-blue-100 dark:bg-blue-950 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-blue-600 dark:bg-blue-400 transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.max(0, inTransitPct))}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-blue-600/80 dark:text-blue-400/80 truncate">
+              En route (ETA today or future)
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-emerald-200/80 bg-emerald-50/30 dark:border-emerald-900/40 dark:bg-emerald-950/20 shadow-xs">
+        {/* Arrived */}
+        <Card
+          onClick={() => setStatusFilter((cur) => (cur === 'arrived' ? 'all' : 'arrived'))}
+          className={`border-emerald-200/80 bg-emerald-50/30 dark:border-emerald-900/40 dark:bg-emerald-950/20 shadow-xs cursor-pointer transition-all hover:border-emerald-400 ${
+            statusFilter === 'arrived' ? 'ring-2 ring-emerald-500 shadow-sm' : ''
+          }`}
+          title="Click to filter Arrived shipments"
+        >
           <CardHeader className="p-4 pb-2">
             <CardDescription className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
               Arrived
               <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             </CardDescription>
-            <CardTitle className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
-              {report.summary.arrived}
-            </CardTitle>
+            <div className="flex items-baseline justify-between gap-1 pt-1">
+              <CardTitle className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                {report.summary.arrived}
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="border-emerald-300/80 bg-emerald-100/70 font-mono text-xs font-bold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
+              >
+                {arrivedPct}%
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0 text-xs text-emerald-600/80 dark:text-emerald-400/80">
-            Delivered / arrival confirmed
+          <CardContent className="p-4 pt-0">
+            <div className="h-1.5 w-full rounded-full bg-emerald-100 dark:bg-emerald-950 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-emerald-600 dark:bg-emerald-400 transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.max(0, arrivedPct))}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-emerald-600/80 dark:text-emerald-400/80 truncate">
+              Delivered / arrival confirmed
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-rose-200/80 bg-rose-50/30 dark:border-rose-900/40 dark:bg-rose-950/20 shadow-xs">
+        {/* Delayed */}
+        <Card
+          onClick={() => setStatusFilter((cur) => (cur === 'delayed' ? 'all' : 'delayed'))}
+          className={`border-rose-200/80 bg-rose-50/30 dark:border-rose-900/40 dark:bg-rose-950/20 shadow-xs cursor-pointer transition-all hover:border-rose-400 ${
+            statusFilter === 'delayed' ? 'ring-2 ring-rose-500 shadow-sm' : ''
+          }`}
+          title="Click to filter Delayed shipments"
+        >
           <CardHeader className="p-4 pb-2">
             <CardDescription className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
               Delayed
               <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
             </CardDescription>
-            <CardTitle className="text-2xl font-bold text-rose-700 dark:text-rose-300">
-              {report.summary.delayed}
-            </CardTitle>
+            <div className="flex items-baseline justify-between gap-1 pt-1">
+              <CardTitle className="text-2xl font-bold text-rose-700 dark:text-rose-300">
+                {report.summary.delayed}
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="border-rose-300/80 bg-rose-100/70 font-mono text-xs font-bold text-rose-700 dark:border-rose-800 dark:bg-rose-900/50 dark:text-rose-300"
+              >
+                {delayedPct}%
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0 text-xs text-rose-600/80 dark:text-rose-400/80">
-            ETA passed without arrival
+          <CardContent className="p-4 pt-0">
+            <div className="h-1.5 w-full rounded-full bg-rose-100 dark:bg-rose-950 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-rose-600 dark:bg-rose-400 transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.max(0, delayedPct))}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-rose-600/80 dark:text-rose-400/80 truncate">
+              ETA passed without arrival
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/80 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/40 shadow-xs">
+        {/* Pending */}
+        <Card
+          onClick={() => setStatusFilter((cur) => (cur === 'pending' ? 'all' : 'pending'))}
+          className={`border-amber-200/80 bg-amber-50/30 dark:border-amber-900/40 dark:bg-amber-950/20 shadow-xs cursor-pointer transition-all hover:border-amber-400 ${
+            statusFilter === 'pending' ? 'ring-2 ring-amber-500 shadow-sm' : ''
+          }`}
+          title="Click to filter Pending shipments"
+        >
           <CardHeader className="p-4 pb-2">
-            <CardDescription className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+            <CardDescription className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
               Pending
-              <HelpCircle className="h-4 w-4 text-slate-500" />
+              <HelpCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             </CardDescription>
-            <CardTitle className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-              {report.summary.pending}
-            </CardTitle>
+            <div className="flex items-baseline justify-between gap-1 pt-1">
+              <CardTitle className="text-2xl font-bold text-amber-700 dark:text-amber-300">
+                {report.summary.pending}
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="border-amber-300/80 bg-amber-100/70 font-mono text-xs font-bold text-amber-700 dark:border-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+              >
+                {pendingPct}%
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0 text-xs text-slate-600/80 dark:text-slate-400/80">
-            Awaiting ETA allocation
+          <CardContent className="p-4 pt-0">
+            <div className="h-1.5 w-full rounded-full bg-amber-100 dark:bg-amber-950 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-amber-500 dark:bg-amber-400 transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.max(0, pendingPct))}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-amber-600/80 dark:text-amber-400/80 truncate">
+              Awaiting ETA allocation
+            </p>
           </CardContent>
         </Card>
 
+        {/* Avg Planned Transit */}
         <Card className="border-border/60 shadow-xs">
           <CardHeader className="p-4 pb-2">
             <CardDescription className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Avg Planned Transit
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardDescription>
-            <CardTitle className="text-2xl font-bold text-foreground">
-              {report.summary.averagePlannedTransit > 0
-                ? `${report.summary.averagePlannedTransit} d`
-                : '—'}
-            </CardTitle>
+            <div className="flex items-baseline justify-between gap-1 pt-1">
+              <CardTitle className="text-2xl font-bold text-foreground">
+                {report.summary.averagePlannedTransit > 0
+                  ? `${report.summary.averagePlannedTransit} d`
+                  : '—'}
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="border-border/80 bg-muted/50 font-mono text-xs font-medium text-muted-foreground"
+              >
+                ETA − ETD
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
-            Calendar days (ETA − ETD)
+          <CardContent className="p-4 pt-0">
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary/50 transition-all duration-300"
+                style={{ width: report.summary.averagePlannedTransit > 0 ? '75%' : '0%' }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground truncate">
+              Average duration across shipments
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Status Breakdown & Template Guidelines Toggle */}
-      <Card className="border-border/60">
-        <CardHeader className="p-4 pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base font-semibold">Shipment Status Breakdown</CardTitle>
-              <CardDescription className="text-xs">
-                Live distribution of tracked consignments across operational states
-              </CardDescription>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowGuide((g) => !g)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Info className="h-4 w-4 mr-1 text-primary" />
-              {showGuide ? 'Hide Template Rules' : 'How To Use This Template'}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {report.breakdown.map((b) => {
-              let badgeColor = 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300';
-              if (b.status === 'In Transit') {
-                badgeColor = 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300';
-              } else if (b.status === 'Arrived') {
-                badgeColor = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300';
-              } else if (b.status === 'Delayed') {
-                badgeColor = 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300';
-              }
-              return (
-                <div
-                  key={b.status}
-                  className="flex items-center justify-between rounded-lg border border-border/50 bg-card p-2.5 px-3"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-block h-2.5 w-2.5 rounded-full ${badgeColor.split(' ')[0]}`} />
-                    <span className="text-sm font-medium">{b.status}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-bold">{b.count}</span>
-                    <span className="ml-1.5 text-xs text-muted-foreground">({b.pct}%)</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Collapsible How-To Guide from Template */}
-          {showGuide && (
-            <div className="rounded-md border border-primary/20 bg-primary/5 p-4 text-xs space-y-2 mt-3">
-              <div className="font-semibold text-primary flex items-center gap-1.5">
+      {/* Collapsible How-To Guide from Template */}
+      {showGuide && (
+        <Card className="border-primary/20 bg-primary/5 shadow-xs">
+          <CardHeader className="p-4 pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-primary flex items-center gap-1.5">
                 <Info className="h-4 w-4" />
                 HOW TO USE THIS TEMPLATE (Reference Guide)
-              </div>
-              <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-                <li>
-                  <strong className="text-foreground">Enter shipment details:</strong> Use the light-blue cells in the Shipment Tracker sheet. One row represents one import shipment / invoice.
-                </li>
-                <li>
-                  <strong className="text-foreground">Required fields:</strong> Enter at least the Shipper / Supplier, Invoice No., ETD and ETA to calculate the planned transit period.
-                </li>
-                <li>
-                  <strong className="text-foreground">Transit Period:</strong> Transit Period (Days) is calculated automatically as ETA minus ETD (calendar days, not working days).
-                </li>
-                <li>
-                  <strong className="text-foreground">Actual Transit:</strong> Enter ATD (Actual Departure) and ATA (Actual Arrival). Actual Transit is calculated automatically.
-                </li>
-                <li>
-                  <strong className="text-foreground">Shipment Status:</strong> Status is automatic:
-                  <ul className="list-disc pl-4 mt-0.5 space-y-0.5">
-                    <li><strong className="text-slate-700 dark:text-slate-300">Pending:</strong> ETA missing</li>
-                    <li><strong className="text-blue-700 dark:text-blue-300">In Transit:</strong> ETA today or later and no ATA</li>
-                    <li><strong className="text-rose-700 dark:text-rose-300">Delayed:</strong> ETA passed and no ATA</li>
-                    <li><strong className="text-emerald-700 dark:text-emerald-300">Arrived:</strong> ATA entered / delivered</li>
-                  </ul>
-                </li>
-                <li>
-                  <strong className="text-foreground">Dashboard:</strong> The Dashboard updates automatically based on the Shipment Tracker entries.
-                </li>
-                <li>
-                  <strong className="text-foreground">Date format:</strong> Enter real dates. The workbook displays dates as <code className="font-mono">dd-mmm-yyyy</code>.
-                </li>
-                <li>
-                  <strong className="text-foreground">Capacity:</strong> The template is preformatted for 200 shipment entries.
-                </li>
-              </ol>
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowGuide(false)}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Hide
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="p-4 pt-1 text-xs">
+            <ol className="list-decimal pl-5 space-y-1.5 text-muted-foreground">
+              <li>
+                <strong className="text-foreground">Enter shipment details:</strong> Use the light-blue cells in the Shipment Tracker sheet. One row represents one import shipment / invoice.
+              </li>
+              <li>
+                <strong className="text-foreground">Required fields:</strong> Enter at least the Shipper / Supplier, Invoice No., ETD and ETA to calculate the planned transit period.
+              </li>
+              <li>
+                <strong className="text-foreground">Transit Period:</strong> Transit Period (Days) is calculated automatically as ETA minus ETD (calendar days, not working days).
+              </li>
+              <li>
+                <strong className="text-foreground">Actual Transit:</strong> Enter ATD (Actual Departure) and ATA (Actual Arrival). Actual Transit is calculated automatically.
+              </li>
+              <li>
+                <strong className="text-foreground">Shipment Status:</strong> Status is automatic:
+                <ul className="list-disc pl-4 mt-0.5 space-y-0.5">
+                  <li><strong className="text-slate-700 dark:text-slate-300">Pending:</strong> ETA missing</li>
+                  <li><strong className="text-blue-700 dark:text-blue-300">In Transit:</strong> ETA today or later and no ATA</li>
+                  <li><strong className="text-rose-700 dark:text-rose-300">Delayed:</strong> ETA passed and no ATA</li>
+                  <li><strong className="text-emerald-700 dark:text-emerald-300">Arrived:</strong> ATA entered / delivered</li>
+                </ul>
+              </li>
+              <li>
+                <strong className="text-foreground">Dashboard:</strong> The Dashboard updates automatically based on the Shipment Tracker entries.
+              </li>
+              <li>
+                <strong className="text-foreground">Date format:</strong> Enter real dates. The workbook displays dates as <code className="font-mono text-foreground font-semibold">dd-mmm-yyyy</code>.
+              </li>
+              <li>
+                <strong className="text-foreground">Capacity:</strong> The template is preformatted for 200 shipment entries.
+              </li>
+            </ol>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filter & Search Bar */}
       <Card className="border-border/60">

@@ -19,7 +19,7 @@ import * as http$0 from "../../../../../../net/http/models.js";
 import * as $models from "./models.js";
 
 /**
- * ApplyUpdate launches the downloaded installer executable in background.
+ * ApplyUpdate launches the downloaded installer executable in background after verifying file safety.
  */
 export function ApplyUpdate(installerPath: string): $CancellablePromise<void> {
     return $Call.ByID(2618780526, installerPath);

@@ -88,11 +88,10 @@ describe('CBIC Customs Exchange Rate Master (v1.7.0 Priority 3)', () => {
       </MemoryRouter>,
     );
 
-  it('renders CBIC Customs Exchange Rate Master with statutory notifications and snapshot guarantees', async () => {
+  it('renders CBIC Customs Exchange Rate Master with statutory notifications and exchange rates', async () => {
     renderComponent();
 
     expect(await screen.findByText('CBIC Customs Exchange Rate Master')).toBeInTheDocument();
-    expect(screen.getByText(/Statutory Customs Rate Compliance & Historical Snapshot Invariant/i)).toBeInTheDocument();
     expect(screen.getAllByText('USD').length).toBeGreaterThan(0);
     expect(screen.getByText('EUR')).toBeInTheDocument();
     expect(screen.getByText('₹84.50')).toBeInTheDocument();

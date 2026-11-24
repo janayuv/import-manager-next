@@ -10,7 +10,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  ShieldAlert,
   Sparkles,
   Trash2,
   Upload,
@@ -390,18 +389,6 @@ export function CBICRatesPage() {
         </div>
       </div>
 
-      {/* Safety & Immutability Notice Banner */}
-      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-xs space-y-1">
-        <div className="flex items-center gap-2 font-semibold text-primary">
-          <ShieldAlert className="h-4 w-4" />
-          <span>Statutory Customs Rate Compliance &amp; Historical Snapshot Invariant</span>
-        </div>
-        <p className="text-muted-foreground">
-          Assessed Bills of Entry snapshot and preserve the exact exchange rate applied during customs duty calculation.
-          Updating or adding newer CBIC gazette notifications will <strong>never alter historical assessed BOEs</strong>.
-        </p>
-      </div>
-
       {/* Quick Rate Lookup Tool */}
       <Card>
         <CardHeader className="pb-3">
@@ -457,38 +444,38 @@ export function CBICRatesPage() {
               </div>
             )}
           </div>
+
+          {/* Filter and Search Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
+                <SelectTrigger className="h-8 w-36 text-xs">
+                  <SelectValue placeholder="All Currencies" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Currencies</SelectItem>
+                  {TOP_CURRENCIES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="relative w-64">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search notification, currency or source..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
-
-      {/* Filter and Search Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-            <SelectTrigger className="h-8 w-36 text-xs">
-              <SelectValue placeholder="All Currencies" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Currencies</SelectItem>
-              {TOP_CURRENCIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="relative w-64">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search notification, currency or source..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8 pl-8 text-xs"
-          />
-        </div>
-      </div>
 
       {/* CBIC Exchange Rates Table */}
       <div className="rounded-md border border-border">
