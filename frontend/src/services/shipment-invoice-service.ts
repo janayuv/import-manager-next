@@ -59,6 +59,9 @@ export const shipmentService = {
   getDetail(id: string): Promise<ShipmentDetail> {
     return ShipmentBindings.GetDetail(id);
   },
+  checkDuplicate(supplierId: string, invoiceNumber: string, excludeId = ''): Promise<Shipment | null> {
+    return ShipmentBindings.CheckDuplicate(supplierId, invoiceNumber, excludeId);
+  },
   create(input: ShipmentInput): Promise<Shipment> {
     return ShipmentBindings.Create(input);
   },

@@ -36,12 +36,13 @@ vi.mock('@/services/master-service', () => ({
 vi.mock('@/services/shipment-invoice-service', () => ({
   shipmentService: {
     list: vi.fn(),
+    getDetail: vi.fn(),
+    checkDuplicate: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     freeze: vi.fn(),
     unfreeze: vi.fn(),
     delete: vi.fn(),
-    getDetail: vi.fn(),
     checkReadyForDelivery: vi.fn(),
     downloadTemplateCsv: vi.fn(),
     importCsv: vi.fn(),
@@ -80,6 +81,7 @@ describe('Stage 5 Shipments & Invoice Wizard UI', () => {
     });
     vi.mocked(optionsService.listAll).mockResolvedValue({});
     vi.mocked(supplierService.list).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 500 });
+    vi.mocked(shipmentService.checkDuplicate).mockResolvedValue(null);
   });
 
   it('renders shipments table and triggers 7-day ready-dly sweep', async () => {
@@ -251,6 +253,104 @@ describe('Stage 5 Shipments & Invoice Wizard UI', () => {
     // Verify shipmentService.create was NOT called due to duplicate detection
     await waitFor(() => {
       expect(shipmentService.create).not.toHaveBeenCalled();
+    });
+  });
+
+  it('detects duplicate invoice number live while typing in Create Shipment and clears when changed', async () => {
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 10,
+    });
+    vi.mocked(supplierService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'Sup-001',
+          supplierName: 'CNF Co LTD',
+          shortName: 'CNF',
+          country: 'South Korea',
+          email: '',
+          phone: '',
+          beneficiaryName: '',
+          bankName: '',
+          branch: '',
+          bankAddress: '',
+          accountNo: '',
+          swiftCode: '',
+          iban: '',
+          isActive: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+    vi.mocked(shipmentService.checkDuplicate).mockImplementation(async (supplierId, invoiceNumber) => {
+      if (supplierId === 'Sup-001' && invoiceNumber.trim().toUpperCase() === 'INV-EXIST-99') {
+        return {
+          id: 'SHP-099',
+          supplierId: 'Sup-001',
+          supplierName: 'CNF Co LTD',
+          invoiceNumber: 'INV-EXIST-99',
+          invoiceDate: '2026-09-10',
+          goodsCategory: 'Electronics',
+          invoiceValue: 12000,
+          invoiceCurrency: 'USD',
+          incoterm: 'CIF',
+          shipmentMode: 'Sea',
+          shipmentType: 'FCL',
+          blAwbNumber: '',
+          blAwbDate: '',
+          vesselName: '',
+          containerNumber: '',
+          grossWeightKg: 0,
+          etd: '',
+          eta: '',
+          status: 'in-transit',
+          dateOfDelivery: '',
+          isFrozen: false,
+          createdAt: '',
+        };
+      }
+      return null;
+    });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ShipmentsPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /New Shipment/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /New Shipment/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Create Shipment' })).toBeInTheDocument();
+    });
+
+    const invoiceInput = screen.getByLabelText(/Invoice Number \*/i);
+    fireEvent.change(invoiceInput, { target: { value: 'inv-exist-99' } });
+
+    await waitFor(() => {
+      expect(shipmentService.checkDuplicate).toHaveBeenCalledWith('Sup-001', 'inv-exist-99', '');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        /Duplicate invoice: INV-EXIST-99 already exists for CNF Co LTD \(SHP-099, 2026-09-10\)/i,
+      );
+      expect(invoiceInput).toHaveAttribute('aria-invalid', 'true');
+    });
+
+    // Changing to a unique invoice number clears the duplicate alert
+    fireEvent.change(invoiceInput, { target: { value: 'INV-UNIQUE-100' } });
+
+    await waitFor(() => {
+      expect(shipmentService.checkDuplicate).toHaveBeenCalledWith('Sup-001', 'INV-UNIQUE-100', '');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(invoiceInput).toHaveAttribute('aria-invalid', 'false');
     });
   });
 

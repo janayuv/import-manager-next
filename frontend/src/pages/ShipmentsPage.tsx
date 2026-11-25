@@ -10,6 +10,7 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import {
+  AlertTriangle,
   Building2,
   CheckCircle2,
   Eye,
@@ -229,8 +230,11 @@ export function ShipmentsPage() {
   const [opts, setOpts] = React.useState<Record<string, LookupOption[]>>({});
 
   const formCardRef = React.useRef<HTMLDivElement | null>(null);
+  const dupCheckSeqRef = React.useRef(0);
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Shipment | null>(null);
+  const [duplicateShipment, setDuplicateShipment] = React.useState<Shipment | null>(null);
+  const [checkingDuplicate, setCheckingDuplicate] = React.useState(false);
   const [detail, setDetail] = React.useState<ShipmentDetail | null>(null);
   const [mainTab, setMainTab] = React.useState<'pipeline' | 'warehouse'>('pipeline');
   const [containerModalShipment, setContainerModalShipment] = React.useState<Shipment | null>(null);
@@ -246,6 +250,9 @@ export function ShipmentsPage() {
     defaultValues: EMPTY_SHIPMENT,
   });
 
+  const supplierIdValue = form.watch('supplierId');
+  const invoiceNumberValue = form.watch('invoiceNumber');
+  const debouncedInvoiceNumber = useDebounce(invoiceNumberValue);
   const currencyValue = form.watch('invoiceCurrency');
   const incotermValue = form.watch('incoterm');
   const categoryValue = form.watch('goodsCategory');
@@ -335,6 +342,81 @@ export function ShipmentsPage() {
     void loadLookups();
   }, [loadLookups, session]);
 
+  const findLocalDuplicate = React.useCallback(
+    (supplierId: string, invoiceNumber: string, excludeId: string): Shipment | null => {
+      const sid = supplierId.trim();
+      const inv = invoiceNumber.trim().toLowerCase();
+      if (!sid || !inv) return null;
+      return (
+        shipments.find(
+          (s) =>
+            s.id !== excludeId &&
+            s.supplierId === sid &&
+            s.invoiceNumber.trim().toLowerCase() === inv,
+        ) ?? null
+      );
+    },
+    [shipments],
+  );
+
+  const verifyDuplicate = React.useCallback(
+    async (supplierId: string, invoiceNumber: string, excludeId: string): Promise<Shipment | null> => {
+      const sid = supplierId.trim();
+      const inv = invoiceNumber.trim();
+      if (!sid || !inv) return null;
+      let remoteDup: Shipment | null = null;
+      if (typeof shipmentService.checkDuplicate === 'function') {
+        try {
+          remoteDup = await shipmentService.checkDuplicate(sid, inv, excludeId);
+        } catch {
+          remoteDup = null;
+        }
+      }
+      return remoteDup ?? findLocalDuplicate(sid, inv, excludeId);
+    },
+    [findLocalDuplicate],
+  );
+
+  const runLiveDuplicateCheck = React.useCallback(
+    async (supplierId: string, invoiceNumber: string, excludeId: string) => {
+      const sid = supplierId.trim();
+      const inv = invoiceNumber.trim();
+      if (!formOpen || !sid || !inv) {
+        dupCheckSeqRef.current += 1;
+        setDuplicateShipment(null);
+        setCheckingDuplicate(false);
+        return;
+      }
+      const seq = ++dupCheckSeqRef.current;
+      setCheckingDuplicate(true);
+      const dup = await verifyDuplicate(sid, inv, excludeId);
+      if (seq === dupCheckSeqRef.current) {
+        setDuplicateShipment(dup);
+        setCheckingDuplicate(false);
+      }
+    },
+    [formOpen, verifyDuplicate],
+  );
+
+  React.useEffect(() => {
+    if (!formOpen || !supplierIdValue?.trim() || !invoiceNumberValue?.trim()) {
+      dupCheckSeqRef.current += 1;
+      setDuplicateShipment(null);
+      setCheckingDuplicate(false);
+      return;
+    }
+    if (invoiceNumberValue.trim() !== debouncedInvoiceNumber.trim()) {
+      setDuplicateShipment(null);
+    }
+  }, [formOpen, supplierIdValue, invoiceNumberValue, debouncedInvoiceNumber]);
+
+  React.useEffect(() => {
+    if (!formOpen || !supplierIdValue?.trim() || !debouncedInvoiceNumber?.trim()) {
+      return;
+    }
+    void runLiveDuplicateCheck(supplierIdValue, debouncedInvoiceNumber, editing?.id ?? '');
+  }, [formOpen, supplierIdValue, debouncedInvoiceNumber, editing?.id, runLiveDuplicateCheck]);
+
   const scrollToForm = () => {
     window.requestAnimationFrame(() => {
       formCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
@@ -343,7 +425,10 @@ export function ShipmentsPage() {
 
   const openCreate = () => {
     void loadLookups();
+    dupCheckSeqRef.current += 1;
     setEditing(null);
+    setDuplicateShipment(null);
+    setCheckingDuplicate(false);
     form.reset({
       ...EMPTY_SHIPMENT,
       supplierId: suppliers[0]?.id ?? '',
@@ -354,7 +439,10 @@ export function ShipmentsPage() {
 
   const openEdit = (sh: Shipment) => {
     void loadLookups();
+    dupCheckSeqRef.current += 1;
     setEditing(sh);
+    setDuplicateShipment(null);
+    setCheckingDuplicate(false);
     form.reset({
       supplierId: sh.supplierId,
       invoiceNumber: sh.invoiceNumber,
@@ -389,14 +477,14 @@ export function ShipmentsPage() {
   };
 
   const onSubmit = async (values: ShipmentFormValues) => {
-    const isDuplicate = shipments.some(
-      (s) =>
-        s.id !== editing?.id &&
-        s.supplierId === values.supplierId &&
-        s.invoiceNumber.trim().toLowerCase() === values.invoiceNumber.trim().toLowerCase()
-    );
-    if (isDuplicate) {
-      toast.error(`Invoice "${values.invoiceNumber}" already exists for this supplier in shipment records.`);
+    const existingDup =
+      duplicateShipment ??
+      (await verifyDuplicate(values.supplierId, values.invoiceNumber, editing?.id ?? ''));
+    if (existingDup) {
+      setDuplicateShipment(existingDup);
+      toast.error(
+        `Invoice "${values.invoiceNumber.trim()}" already exists for ${existingDup.supplierName || 'this supplier'} (${existingDup.id}).`,
+      );
       return;
     }
 
@@ -769,7 +857,40 @@ export function ShipmentsPage() {
 
                 <div className="space-y-1">
                   <Label htmlFor="invoiceNumber">Invoice Number *</Label>
-                  <Input id="invoiceNumber" {...form.register('invoiceNumber')} />
+                  <Input
+                    id="invoiceNumber"
+                    aria-invalid={Boolean(duplicateShipment || form.formState.errors.invoiceNumber)}
+                    className={
+                      duplicateShipment
+                        ? 'border-destructive focus-visible:ring-destructive'
+                        : undefined
+                    }
+                    {...form.register('invoiceNumber', {
+                      onBlur: () => {
+                        void runLiveDuplicateCheck(
+                          form.getValues('supplierId'),
+                          form.getValues('invoiceNumber'),
+                          editing?.id ?? '',
+                        );
+                      },
+                    })}
+                  />
+                  {checkingDuplicate && !duplicateShipment && (
+                    <p className="text-xs text-muted-foreground">Checking for duplicates...</p>
+                  )}
+                  {duplicateShipment && (
+                    <p role="alert" className="flex items-start gap-1.5 text-xs font-medium text-destructive">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        Duplicate invoice: {duplicateShipment.invoiceNumber} already exists for{' '}
+                        {duplicateShipment.supplierName || 'this supplier'} ({duplicateShipment.id}
+                        {duplicateShipment.invoiceDate ? `, ${duplicateShipment.invoiceDate}` : ''}).
+                      </span>
+                    </p>
+                  )}
+                  {form.formState.errors.invoiceNumber && (
+                    <p className="text-xs text-destructive">{form.formState.errors.invoiceNumber.message}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">
