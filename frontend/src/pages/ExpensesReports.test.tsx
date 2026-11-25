@@ -53,6 +53,7 @@ vi.mock('@/services/expense-service', async (importOriginal) => {
       listExpenseInvoices: vi.fn(),
       getExpenseInvoice: vi.fn(),
       createExpenseInvoice: vi.fn(),
+      createExpenseInvoicesBatch: vi.fn(),
       updateExpenseInvoice: vi.fn(),
       deleteExpenseInvoice: vi.fn(),
       downloadBulkTemplateCsv: vi.fn(),
@@ -1077,6 +1078,261 @@ describe('Stage 7: Import Expenses, 5-View Expense Reports & Landed Cost Report'
     await waitFor(() => {
       expect(screen.getByText('Liner Charges')).toBeInTheDocument();
       expect(screen.getAllByText(/Paid by CHA: Express Clearing & Forwarding/i).length).toBeGreaterThan(0);
+    });
+  });
+
+  it('blocks mixed CGST/SGST and IGST on a line, supports Paste Lines, and supports Save & New', async () => {
+    vi.mocked(expenseService.listExpenseInvoices).mockResolvedValue([]);
+    vi.mocked(expenseService.listServiceProviders).mockResolvedValue([
+      {
+        id: 'SP-1',
+        name: 'Fast Logistics',
+        gstin: '33AAACF1234F1Z5',
+        state: 'Tamil Nadu',
+        contactPerson: '',
+        contactEmail: '',
+        contactPhone: '',
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(expenseService.listExpenseTypes).mockResolvedValue([
+      {
+        id: 'ET-1',
+        name: 'Customs Clearance',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 200,
+        isActive: true,
+        createdAt: '',
+      },
+      {
+        id: 'ET-2',
+        name: 'Transport Charges',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 200,
+        isActive: true,
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'SH-1',
+          supplierId: 'SUP-1',
+          supplierName: 'Bosch GmbH',
+          invoiceNumber: 'INV-FAST-1',
+          invoiceDate: '2026-06-10',
+          isFrozen: false,
+        } as any,
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+    vi.mocked(expenseService.createExpenseInvoice).mockResolvedValue({ id: 'EINV-NEW' } as any);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ExpensesPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /New Expense Invoice/i })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole('button', { name: /New Expense Invoice/i }));
+    await waitFor(() =>
+      expect(screen.getByText('New Multi-Line Expense Invoice')).toBeInTheDocument()
+    );
+
+    // Fill Invoice No and Basic amount
+    fireEvent.change(screen.getByLabelText(/Invoice No/i), { target: { value: 'FL-2026-01' } });
+    fireEvent.change(screen.getByLabelText('Basic (INR)'), { target: { value: '10000' } });
+
+    // Mixing IGST% with existing CGST%/SGST% triggers inline error and disables Save
+    fireEvent.change(screen.getByLabelText('IGST % line 1'), { target: { value: '18' } });
+    await waitFor(() =>
+      expect(screen.getAllByText(/Cannot mix CGST\/SGST and IGST/i).length).toBeGreaterThan(0)
+    );
+    const saveButtons = screen.getAllByRole('button', { name: /^Save Expense Invoice$/i });
+    expect(saveButtons[0]).toBeDisabled();
+
+    // Clear IGST% -> valid again
+    fireEvent.change(screen.getByLabelText('IGST % line 1'), { target: { value: '0' } });
+    await waitFor(() => expect(saveButtons[0]).not.toBeDisabled());
+
+    // Test Paste Lines dialog
+    fireEvent.click(screen.getByRole('button', { name: /Paste Lines/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/Paste Expense Lines from Excel \/ Tally/i)).toBeInTheDocument()
+    );
+    const textarea = screen.getByPlaceholderText(/Customs Clearance/i);
+    fireEvent.change(textarea, {
+      target: { value: 'Transport Charges\t5000\tLocal cartage' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Import Pasted Lines/i }));
+    await waitFor(() => expect(screen.getByText('Expense Lines (2)')).toBeInTheDocument());
+
+    // Click Save & New -> calls createExpenseInvoice and stays open with cleared invoiceNo
+    const saveAndNewButtons = screen.getAllByRole('button', { name: /Save & New/i });
+    fireEvent.click(saveAndNewButtons[0]!);
+    await waitFor(() => expect(expenseService.createExpenseInvoice).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect((screen.getByLabelText(/Invoice No/i) as HTMLInputElement).value).toBe('')
+    );
+    expect(screen.getByText('New Multi-Line Expense Invoice')).toBeInTheDocument();
+  });
+
+  it('supports Multi-Provider Shipment Batch entry with Shared CHA Reimbursement', async () => {
+    vi.mocked(expenseService.listExpenseInvoices).mockResolvedValue([]);
+    vi.mocked(expenseService.listServiceProviders).mockResolvedValue([
+      {
+        id: 'SP-LINER',
+        name: 'MSC Shipping',
+        gstin: '33AAACM1234F1Z5',
+        state: 'Tamil Nadu',
+        contactPerson: '',
+        contactEmail: '',
+        contactPhone: '',
+        createdAt: '',
+      },
+      {
+        id: 'SP-CFS',
+        name: 'Chennai CFS',
+        gstin: '33AAACC1234F1Z5',
+        state: 'Tamil Nadu',
+        contactPerson: '',
+        contactEmail: '',
+        contactPhone: '',
+        createdAt: '',
+      },
+      {
+        id: 'SP-CHA',
+        name: 'Apex CHA Services',
+        gstin: '33AAACA1234F1Z5',
+        state: 'Tamil Nadu',
+        contactPerson: '',
+        contactEmail: '',
+        contactPhone: '',
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(expenseService.listExpenseTypes).mockResolvedValue([
+      {
+        id: 'ET-1',
+        name: 'DO Charges',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 0,
+        isActive: true,
+        createdAt: '',
+      },
+      {
+        id: 'ET-2',
+        name: 'CFS Storage',
+        defaultCgstRateBp: 900,
+        defaultSgstRateBp: 900,
+        defaultIgstRateBp: 0,
+        defaultTdsRateBp: 0,
+        isActive: true,
+        createdAt: '',
+      },
+    ]);
+    vi.mocked(shipmentService.list).mockResolvedValue({
+      items: [
+        {
+          id: 'SH-BATCH-1',
+          supplierId: 'SUP-1',
+          supplierName: 'Global Imports Ltd',
+          invoiceNumber: 'INV-BATCH-1',
+          invoiceDate: '2026-07-01',
+          isFrozen: false,
+        } as any,
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 500,
+    });
+    vi.mocked(expenseService.createExpenseInvoicesBatch).mockResolvedValue([]);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ExpensesPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /New Expense Invoice/i })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole('button', { name: /New Expense Invoice/i }));
+    await waitFor(() =>
+      expect(screen.getByText('New Multi-Line Expense Invoice')).toBeInTheDocument()
+    );
+
+    // Click "Add Provider Bill" to switch seamlessly into Multi-Provider Shipment Batch mode with 2 provider bills
+    fireEvent.click(screen.getByRole('button', { name: /Add Provider Bill/i }));
+    await waitFor(() =>
+      expect(screen.getByText('Multi-Provider Shipment Expense Batch')).toBeInTheDocument()
+    );
+    expect(screen.getByText('Bill #1')).toBeInTheDocument();
+    expect(screen.getByText('Bill #2')).toBeInTheDocument();
+
+    // Configure Shared CHA Reimbursement details at the top
+    fireEvent.click(screen.getByRole('combobox', { name: 'Shared Clearing Agent' }));
+    await waitFor(() => expect(screen.getByText('Apex CHA Services')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Apex CHA Services'));
+
+    fireEvent.change(screen.getByLabelText(/Shared CHA Reimburse Invoice No/i), {
+      target: { value: 'CHA-REIMB-9001' },
+    });
+
+    // Fill Bill #1 (MSC Shipping) and Bill #2 (Chennai CFS)
+    fireEvent.change(screen.getByLabelText('Bill 1 Invoice No'), { target: { value: 'MSC-101' } });
+    fireEvent.change(screen.getByLabelText('Bill 1 Basic (INR)'), { target: { value: '10000' } });
+
+    fireEvent.change(screen.getByLabelText('Bill 2 Invoice No'), { target: { value: 'CFS-202' } });
+    fireEvent.change(screen.getByLabelText('Bill 2 Basic (INR)'), { target: { value: '6000' } });
+
+    // Apply shared CHA to all eligible third-party bills in 1 click
+    fireEvent.click(screen.getByRole('button', { name: /Apply CHA to All Other Bills/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/CHA Reimbursable \(2\)/i)).toBeInTheDocument()
+    );
+
+    // Save batch atomically
+    const saveAllBtns = screen.getAllByRole('button', { name: /Save All 2 Invoices/i });
+    fireEvent.click(saveAllBtns[0]!);
+
+    await waitFor(() => {
+      expect(expenseService.createExpenseInvoicesBatch).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            shipmentId: 'SH-BATCH-1',
+            serviceProviderId: 'SP-LINER',
+            invoiceNo: 'MSC-101',
+            isPaidByClearingAgent: true,
+            clearingAgentId: 'SP-CHA',
+            chaReimburseInvoiceNo: 'CHA-REIMB-9001',
+          }),
+          expect.objectContaining({
+            shipmentId: 'SH-BATCH-1',
+            serviceProviderId: 'SP-CFS',
+            invoiceNo: 'CFS-202',
+            isPaidByClearingAgent: true,
+            clearingAgentId: 'SP-CHA',
+            chaReimburseInvoiceNo: 'CHA-REIMB-9001',
+          }),
+        ])
+      );
     });
   });
 });

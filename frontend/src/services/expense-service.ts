@@ -112,6 +112,9 @@ export const expenseService = {
   createExpenseInvoice(req: ExpenseInvoiceRequest): Promise<ExpenseInvoice> {
     return ExpensesBindings.CreateExpenseInvoice(req);
   },
+  createExpenseInvoicesBatch(reqs: ExpenseInvoiceRequest[]): Promise<ExpenseInvoice[]> {
+    return ExpensesBindings.CreateExpenseInvoicesBatch(reqs).then((r) => r ?? []);
+  },
   updateExpenseInvoice(req: ExpenseInvoiceRequest): Promise<ExpenseInvoice> {
     return ExpensesBindings.UpdateExpenseInvoice(req);
   },

@@ -71,6 +71,10 @@ func (e *DependencyViolationError) Error() string {
 	return e.Message
 }
 
+type queryRower interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 // CheckDependencies inspects whether a single parent record has dependent child records.
 // When onlyActive is true, only non-soft-deleted child records are counted (used for soft-delete guards).
 // When onlyActive is false, all referencing records are counted (used for permanent purge guards).
@@ -78,6 +82,19 @@ func CheckDependencies(ctx context.Context, db *sql.DB, parentTable, parentID st
 	if db == nil {
 		return nil, fmt.Errorf("database handle is nil")
 	}
+	return checkDependencies(ctx, db, parentTable, parentID, onlyActive)
+}
+
+// CheckDependenciesTx inspects dependent child records using an active SQL transaction.
+// Use this inside transactions.WithinTx to avoid single-connection SQLite lock contention.
+func CheckDependenciesTx(ctx context.Context, tx *sql.Tx, parentTable, parentID string, onlyActive bool) (*DependencyViolationError, error) {
+	if tx == nil {
+		return nil, fmt.Errorf("transaction handle is nil")
+	}
+	return checkDependencies(ctx, tx, parentTable, parentID, onlyActive)
+}
+
+func checkDependencies(ctx context.Context, db queryRower, parentTable, parentID string, onlyActive bool) (*DependencyViolationError, error) {
 	cleanID := strings.TrimSpace(parentID)
 	if cleanID == "" {
 		return nil, fmt.Errorf("parent ID cannot be empty")

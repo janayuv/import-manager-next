@@ -982,3 +982,361 @@ func TestClearingAgentReimbursementAndReports(t *testing.T) {
 		t.Errorf("expected 1 line with 2500000 paise for CHA, got %d lines with %d paise", chaReport.TotalLines, chaReport.TotalBasePaise)
 	}
 }
+
+func TestExpenseSecurityAndIntegrityHardening(t *testing.T) {
+	rt := setupExpenseEnv(t)
+
+	sup, err := rt.Suppliers.Create(models.SupplierInput{
+		SupplierName: "Hardening Supplier",
+		ShortName:    "HS",
+		Country:      "Germany",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("create supplier: %v", err)
+	}
+	shA, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "INV-SEC-A",
+		InvoiceDate:     "2026-06-01",
+		GoodsCategory:   "Machinery",
+		InvoiceValue:    1000,
+		InvoiceCurrency: "USD",
+		Incoterm:        "FOB",
+	})
+	if err != nil {
+		t.Fatalf("create shipment A: %v", err)
+	}
+	shB, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "INV-SEC-B",
+		InvoiceDate:     "2026-06-02",
+		GoodsCategory:   "Machinery",
+		InvoiceValue:    2000,
+		InvoiceCurrency: "USD",
+		Incoterm:        "FOB",
+	})
+	if err != nil {
+		t.Fatalf("create shipment B: %v", err)
+	}
+
+	// 1. Invalid GSTIN rejected
+	if _, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "Bad GSTIN Logistics",
+		GSTIN: "INVALID-123",
+	}); err == nil {
+		t.Fatalf("expected invalid GSTIN error")
+	}
+
+	sp, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "Valid Logistics",
+		GSTIN: "27AAACL1234F1Z5",
+		State: "Maharashtra",
+	})
+	if err != nil {
+		t.Fatalf("create valid provider: %v", err)
+	}
+
+	etActive, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Active Handling",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		DefaultTDSRateBP:  200,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("create active expense type: %v", err)
+	}
+	etInactive, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Deprecated Fee",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		IsActive:          false,
+	})
+	if err != nil {
+		t.Fatalf("create inactive expense type: %v", err)
+	}
+
+	// 2. Inactive expense type rejected on create
+	if _, err := rt.Expenses.CreateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ShipmentID:        shA.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "SEC-001",
+		InvoiceDate:       "2026-06-05",
+		Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etInactive.ID, AmountPaise: 100000, CGSTRateBP: 900, SGSTRateBP: 900}},
+	}); err == nil {
+		t.Fatalf("expected error for inactive expense type on new invoice")
+	}
+
+	// 3. Mixing CGST/SGST and IGST rejected (auto & manual)
+	if _, err := expenses.CalcLinePaise(models.ExpenseLineInput{
+		ExpenseTypeID: etActive.ID,
+		AmountPaise:   100000,
+		CGSTRateBP:    900,
+		SGSTRateBP:    900,
+		IGSTRateBP:    1800,
+	}); err == nil {
+		t.Fatalf("expected error when mixing CGST/SGST and IGST in auto mode")
+	}
+	if _, err := expenses.CalcLinePaise(models.ExpenseLineInput{
+		ExpenseTypeID: etActive.ID,
+		AmountPaise:   100000,
+		IsManualGST:   true,
+		CGSTPaise:     9000,
+		IGSTPaise:     18000,
+	}); err == nil {
+		t.Fatalf("expected error when mixing CGST and IGST in manual mode")
+	}
+
+	// 4. Excessive round-off and same clearing agent rejected
+	if _, err := rt.Expenses.CreateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ShipmentID:        shA.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "SEC-002",
+		InvoiceDate:       "2026-06-05",
+		RoundOffPaise:     50000, // ₹500 exceeds ±₹100 limit
+		Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etActive.ID, AmountPaise: 100000, CGSTRateBP: 900, SGSTRateBP: 900}},
+	}); err == nil {
+		t.Fatalf("expected round-off limit error")
+	}
+	if _, err := rt.Expenses.CreateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ShipmentID:            shA.ID,
+		ServiceProviderID:     sp.ID,
+		InvoiceNo:             "SEC-003",
+		InvoiceDate:           "2026-06-05",
+		IsPaidByClearingAgent: true,
+		ClearingAgentID:       sp.ID,
+		Lines:                 []models.ExpenseLineInput{{ExpenseTypeID: etActive.ID, AmountPaise: 100000, CGSTRateBP: 900, SGSTRateBP: 900}},
+	}); err == nil {
+		t.Fatalf("expected error when clearingAgentId equals serviceProviderId")
+	}
+
+	// 5. Idempotency key conflict detection
+	created, err := rt.Expenses.CreateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ShipmentID:        shA.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "SEC-100",
+		InvoiceDate:       "2026-06-05",
+		IdempotencyKey:    "idem-sec-100",
+		Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etActive.ID, AmountPaise: 500000, CGSTRateBP: 900, SGSTRateBP: 900}},
+	})
+	if err != nil {
+		t.Fatalf("create SEC-100 failed: %v", err)
+	}
+	if _, err := rt.Expenses.CreateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ShipmentID:        shA.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "SEC-101-DIFF",
+		InvoiceDate:       "2026-06-05",
+		IdempotencyKey:    "idem-sec-100",
+		Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etActive.ID, AmountPaise: 999900, CGSTRateBP: 900, SGSTRateBP: 900}},
+	}); err == nil {
+		t.Fatalf("expected idempotency payload mismatch error")
+	}
+
+	// 6. Strict optimistic locking (version=0 rejected) and line ID preservation with attachments
+	if len(created.Lines) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(created.Lines))
+	}
+	origLineID := created.Lines[0].ID
+	if _, err := rt.Expenses.UploadAttachment(origLineID, "bill.pdf", "application/pdf", "JVBERi0xLjQ="); err != nil {
+		t.Fatalf("UploadAttachment failed: %v", err)
+	}
+	if _, err := rt.Expenses.UpdateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ID:                created.ID,
+		ShipmentID:        shB.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "SEC-100",
+		InvoiceDate:       "2026-06-05",
+		Version:           0, // Must fail!
+		Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etActive.ID, AmountPaise: 600000, CGSTRateBP: 900, SGSTRateBP: 900}},
+	}); err == nil {
+		t.Fatalf("expected error when Version=0 on update")
+	}
+
+	updated, err := rt.Expenses.UpdateExpenseInvoice(models.ExpenseInvoiceRequest{
+		ID:                created.ID,
+		ShipmentID:        shB.ID,
+		ServiceProviderID: sp.ID,
+		InvoiceNo:         "SEC-100",
+		InvoiceDate:       "2026-06-05",
+		Version:           created.Version,
+		Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etActive.ID, AmountPaise: 600000, CGSTRateBP: 900, SGSTRateBP: 900}},
+	})
+	if err != nil {
+		t.Fatalf("UpdateExpenseInvoice preserving line ID failed: %v", err)
+	}
+	if len(updated.Lines) != 1 || updated.Lines[0].ID != origLineID {
+		t.Fatalf("expected preserved line ID %q, got %+v", origLineID, updated.Lines)
+	}
+	atts, err := rt.Expenses.ListAttachments(origLineID)
+	if err != nil || len(atts) != 1 {
+		t.Fatalf("expected attachment preserved across line update, got err=%v atts=%+v", err, atts)
+	}
+}
+
+func TestCreateExpenseInvoicesBatchAtomicAndSharedCHA(t *testing.T) {
+	rt := setupExpenseEnv(t)
+
+	sup, err := rt.Suppliers.Create(models.SupplierInput{
+		SupplierName: "Batch Supplier",
+		ShortName:    "BS",
+		Country:      "Japan",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("create supplier: %v", err)
+	}
+	sh, err := rt.Shipments.Create(models.ShipmentInput{
+		SupplierID:      sup.ID,
+		InvoiceNumber:   "INV-BATCH-1",
+		InvoiceDate:     "2026-07-01",
+		GoodsCategory:   "Machinery",
+		InvoiceValue:    5000,
+		InvoiceCurrency: "USD",
+		Incoterm:        "CIF",
+	})
+	if err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+
+	liner, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "MSC Shipping",
+		GSTIN: "33AAACM1234F1Z5",
+		State: "Tamil Nadu",
+	})
+	if err != nil {
+		t.Fatalf("create liner: %v", err)
+	}
+	cfs, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "Chennai CFS",
+		GSTIN: "33AAACC1234F1Z5",
+		State: "Tamil Nadu",
+	})
+	if err != nil {
+		t.Fatalf("create cfs: %v", err)
+	}
+	cha, err := rt.Expenses.CreateServiceProvider(models.ServiceProviderInput{
+		Name:  "Apex CHA Services",
+		GSTIN: "33AAACA1234F1Z5",
+		State: "Tamil Nadu",
+	})
+	if err != nil {
+		t.Fatalf("create cha: %v", err)
+	}
+
+	etDo, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "DO Charges",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("create etDo: %v", err)
+	}
+	etStorage, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "CFS Storage",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("create etStorage: %v", err)
+	}
+	etClear, err := rt.Expenses.CreateExpenseType(models.ExpenseTypeInput{
+		Name:              "Agency Clearance",
+		DefaultCGSTRateBP: 900,
+		DefaultSGSTRateBP: 900,
+		DefaultTDSRateBP:  200,
+		IsActive:          true,
+	})
+	if err != nil {
+		t.Fatalf("create etClear: %v", err)
+	}
+
+	// 1. Atomic rollback test: invoice #2 has duplicate provider+invoiceNo -> invoice #1 must NOT persist
+	if _, err := rt.Expenses.CreateExpenseInvoicesBatch([]models.ExpenseInvoiceRequest{
+		{
+			ShipmentID:        sh.ID,
+			ServiceProviderID: liner.ID,
+			InvoiceNo:         "MSC-ROLLBACK-1",
+			InvoiceDate:       "2026-07-02",
+			Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etDo.ID, AmountPaise: 500000, CGSTRateBP: 900, SGSTRateBP: 900}},
+		},
+		{
+			ShipmentID:        sh.ID,
+			ServiceProviderID: liner.ID,
+			InvoiceNo:         "MSC-ROLLBACK-1", // intra-batch duplicate!
+			InvoiceDate:       "2026-07-02",
+			Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etStorage.ID, AmountPaise: 300000, CGSTRateBP: 900, SGSTRateBP: 900}},
+		},
+	}); err == nil {
+		t.Fatalf("expected intra-batch duplicate error")
+	}
+	afterRollback, err := rt.Expenses.ListExpenseInvoices(sh.ID, "")
+	if err != nil || len(afterRollback) != 0 {
+		t.Fatalf("expected 0 persisted invoices after rollback, got %d (err=%v)", len(afterRollback), err)
+	}
+
+	// 2. Valid 3-provider batch for 1 shipment: 2 bills paid by CHA under shared reimbursement ref, 1 direct CHA bill
+	created, err := rt.Expenses.CreateExpenseInvoicesBatch([]models.ExpenseInvoiceRequest{
+		{
+			ShipmentID:              sh.ID,
+			ServiceProviderID:       liner.ID,
+			InvoiceNo:               "MSC-101",
+			InvoiceDate:             "2026-07-03",
+			IsPaidByClearingAgent:   true,
+			ClearingAgentID:         cha.ID,
+			CHAReimburseInvoiceNo:   "CHA-REIMB-9001",
+			CHAReimburseInvoiceDate: "2026-07-05",
+			Lines:                   []models.ExpenseLineInput{{ExpenseTypeID: etDo.ID, AmountPaise: 1000000, CGSTRateBP: 900, SGSTRateBP: 900}},
+		},
+		{
+			ShipmentID:              sh.ID,
+			ServiceProviderID:       cfs.ID,
+			InvoiceNo:               "CFS-202",
+			InvoiceDate:             "2026-07-04",
+			IsPaidByClearingAgent:   true,
+			ClearingAgentID:         cha.ID,
+			CHAReimburseInvoiceNo:   "CHA-REIMB-9001",
+			CHAReimburseInvoiceDate: "2026-07-05",
+			Lines:                   []models.ExpenseLineInput{{ExpenseTypeID: etStorage.ID, AmountPaise: 600000, CGSTRateBP: 900, SGSTRateBP: 900}},
+		},
+		{
+			ShipmentID:        sh.ID,
+			ServiceProviderID: cha.ID,
+			InvoiceNo:         "CHA-303",
+			InvoiceDate:       "2026-07-05",
+			Lines:             []models.ExpenseLineInput{{ExpenseTypeID: etClear.ID, AmountPaise: 400000, CGSTRateBP: 900, SGSTRateBP: 900, TDSRateBP: 200}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateExpenseInvoicesBatch failed: %v", err)
+	}
+	if len(created) != 3 {
+		t.Fatalf("expected 3 created invoices, got %d", len(created))
+	}
+
+	rpt, err := rt.ExpenseReports.GetExpenseReport(models.ExpenseReportFilter{
+		ViewMode:   "summary-by-clearing-agent",
+		ShipmentID: sh.ID,
+	})
+	if err != nil {
+		t.Fatalf("GetExpenseReport summary-by-clearing-agent failed: %v", err)
+	}
+	if len(rpt.GroupedRows) != 2 {
+		t.Fatalf("expected 2 grouped rows (direct + shared CHA), got %+v", rpt.GroupedRows)
+	}
+	var foundShared bool
+	for _, g := range rpt.GroupedRows {
+		if g.GroupKey == cha.ID+":CHA-REIMB-9001" {
+			foundShared = true
+			if g.LineCount != 2 || g.AmountPaise != 1600000 {
+				t.Fatalf("expected shared CHA group 2 lines / 1600000 paise, got %+v", g)
+			}
+		}
+	}
+	if !foundShared {
+		t.Fatalf("expected shared CHA group %q in %+v", cha.ID+":CHA-REIMB-9001", rpt.GroupedRows)
+	}
+}

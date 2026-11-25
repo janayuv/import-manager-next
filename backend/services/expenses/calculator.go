@@ -10,7 +10,10 @@ import (
 	"github.com/janayuv/import-manager-next/backend/pkg/finance/money"
 )
 
-const BasisPointsScale = 10000
+const (
+	BasisPointsScale      = 10000
+	maxExpenseAmountPaise = int64(100_000_000_00) // ₹100 Crore per line sanity bound
+)
 
 // CalcLinePaise implements exact integer paise arithmetic:
 // In Automatic mode: tax_paise = (amount_paise * rate_bp) / 10000.
@@ -22,6 +25,9 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 	}
 	if in.AmountPaise <= 0 {
 		return models.ExpenseLineCalculation{}, errors.New("expense amount must be positive")
+	}
+	if in.AmountPaise > maxExpenseAmountPaise {
+		return models.ExpenseLineCalculation{}, errors.New("expense amount exceeds maximum allowed limit")
 	}
 	if in.TDSRateBP < 0 || in.TDSRateBP > 10000 {
 		return models.ExpenseLineCalculation{}, errors.New("TDS rate must be between 0% and 100% (0-10000 bp)")
@@ -35,6 +41,9 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 	if in.IsManualGST {
 		if in.CGSTPaise < 0 || in.SGSTPaise < 0 || in.IGSTPaise < 0 {
 			return models.ExpenseLineCalculation{}, errors.New("manual GST amounts cannot be negative")
+		}
+		if (in.CGSTPaise > 0 || in.SGSTPaise > 0) && in.IGSTPaise > 0 {
+			return models.ExpenseLineCalculation{}, errors.New("cannot combine CGST/SGST and IGST on the same expense line")
 		}
 		cgst = in.CGSTPaise
 		sgst = in.SGSTPaise
@@ -61,6 +70,12 @@ func CalcLinePaise(in models.ExpenseLineInput) (models.ExpenseLineCalculation, e
 		}
 		if in.CGSTRateBP > 10000 || in.SGSTRateBP > 10000 || in.IGSTRateBP > 10000 {
 			return models.ExpenseLineCalculation{}, errors.New("tax and TDS rates cannot exceed 100% (10000 bp)")
+		}
+		if (in.CGSTRateBP > 0 || in.SGSTRateBP > 0) && in.IGSTRateBP > 0 {
+			return models.ExpenseLineCalculation{}, errors.New("cannot combine CGST/SGST and IGST on the same expense line")
+		}
+		if in.CGSTRateBP != in.SGSTRateBP {
+			return models.ExpenseLineCalculation{}, errors.New("CGST and SGST rates must match in automatic mode")
 		}
 		if in.RoundOff {
 			cgst = money.RoundNearestRupee((in.AmountPaise * in.CGSTRateBP) / BasisPointsScale)

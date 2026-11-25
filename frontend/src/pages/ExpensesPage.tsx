@@ -5,14 +5,15 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
+  Copy,
   FileSpreadsheet,
   History,
   Layers,
-  Merge,
   Pencil,
   Plus,
   Receipt,
   RefreshCw,
+  RotateCcw,
   Search,
   Settings2,
   ShieldAlert,
@@ -26,12 +27,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
   Select,
   SelectContent,
@@ -49,19 +52,35 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { ManageExpenseTypesDialog } from '@/components/master/ManageExpenseTypesDialog';
 import { ManageServiceProvidersDialog } from '@/components/master/ManageServiceProvidersDialog';
+import {
+  analyzeDraftLines,
+  draftLinesToInputs,
+  ExpenseLinesGrid,
+  makeEmptyDraftLine,
+  makeLineKey,
+  type DraftLine,
+} from '@/components/expenses/ExpenseLinesGrid';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useModuleSettings } from '@/contexts/ThemeContext';
 import { downloadTextFile } from '@/lib/download';
+import {
+  adaptExpenseTypeRatesForSupply,
+  calculateInvoiceLocal,
+  detectSupplyType,
+  MAX_ROUND_OFF_PAISE,
+  parsePastedExpenseLines,
+} from '@/lib/expense-calculator';
 import {
   expenseService,
   formatPaiseINR,
   type ExpenseAllocationRecord,
   type ExpenseInvoice,
   type ExpenseInvoiceCalculation,
-  type ExpenseLineInput,
   type ExpenseType,
   type ExpenseTypeInput,
   type ServiceProvider,
@@ -69,53 +88,52 @@ import {
 } from '@/services/expense-service';
 import { shipmentService, type Shipment } from '@/services/shipment-invoice-service';
 
-interface DraftLine {
-  expenseTypeId: string;
-  amountInr: string;
-  isManualGst: boolean;
-  cgstPct: string;
-  sgstPct: string;
-  igstPct: string;
-  manualCgstInr: string;
-  manualSgstInr: string;
-  manualIgstInr: string;
-  tdsPct: string;
+const EXPENSE_DRAFT_STORAGE_KEY = 'im_next_expense_invoice_draft_v1';
+
+interface BatchBill {
+  key: string;
+  serviceProviderId: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  isPaidByClearingAgent: boolean;
+  clearingAgentId: string;
+  chaReimburseInvoiceNo: string;
+  chaReimburseInvoiceDate: string;
   remarks: string;
+  roundOffInr: string;
+  idempotencyKey: string;
+  lines: DraftLine[];
+  collapsed: boolean;
 }
 
-const emptyLine = (et?: ExpenseType, isManualGst = false): DraftLine => ({
-  expenseTypeId: et?.id ?? '',
-  amountInr: '0',
-  isManualGst,
-  cgstPct: et ? (et.defaultCgstRateBp / 100).toFixed(2) : '0',
-  sgstPct: et ? (et.defaultSgstRateBp / 100).toFixed(2) : '0',
-  igstPct: et ? (et.defaultIgstRateBp / 100).toFixed(2) : '0',
-  manualCgstInr: '0',
-  manualSgstInr: '0',
-  manualIgstInr: '0',
-  tdsPct: et ? (et.defaultTdsRateBp / 100).toFixed(2) : '0',
-  remarks: '',
-});
-
-function toLineInputs(lines: DraftLine[]): ExpenseLineInput[] {
-  return lines.map((l) => ({
-    expenseTypeId: l.expenseTypeId,
-    amountPaise: Math.round((Number.parseFloat(l.amountInr) || 0) * 100),
-    isManualGst: l.isManualGst,
-    cgstPaise: l.isManualGst ? Math.round(Number.parseFloat(l.manualCgstInr) || 0) * 100 : 0,
-    sgstPaise: l.isManualGst ? Math.round(Number.parseFloat(l.manualSgstInr) || 0) * 100 : 0,
-    igstPaise: l.isManualGst ? Math.round(Number.parseFloat(l.manualIgstInr) || 0) * 100 : 0,
-    cgstRateBp: Math.round((Number.parseFloat(l.cgstPct) || 0) * 100),
-    sgstRateBp: Math.round((Number.parseFloat(l.sgstPct) || 0) * 100),
-    igstRateBp: Math.round((Number.parseFloat(l.igstPct) || 0) * 100),
-    tdsRateBp: Math.round((Number.parseFloat(l.tdsPct) || 0) * 100),
-    remarks: l.remarks,
-    roundOff: true,
-  }));
+interface StoredExpenseDraft {
+  savedAt: number;
+  shipmentId: string;
+  serviceProviderId: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  isPaidByClearingAgent: boolean;
+  clearingAgentId: string;
+  chaReimburseInvoiceNo: string;
+  chaReimburseInvoiceDate: string;
+  remarks: string;
+  roundOffInr: string;
+  draftLines: DraftLine[];
 }
+
+function makeIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `exp-${crypto.randomUUID()}`;
+  }
+  return `exp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+const emptyLine = makeEmptyDraftLine;
+const toLineInputs = draftLinesToInputs;
 
 export function ExpensesPage() {
   const { hasPermission } = useAuth();
+  const { currentCompany } = useCompany();
   const canWrite = hasPermission('data.write');
   const canDelete = hasPermission('data.delete');
 
@@ -132,6 +150,7 @@ export function ExpensesPage() {
 
   // Multi-line Expense Invoice dialog state
   const [invOpen, setInvOpen] = React.useState(false);
+  const [entryMode, setEntryMode] = React.useState<'single' | 'batch'>('single');
   const [editingInv, setEditingInv] = React.useState<ExpenseInvoice | null>(null);
   const [shipmentId, setShipmentId] = React.useState('');
   const [serviceProviderId, setServiceProviderId] = React.useState('');
@@ -144,9 +163,24 @@ export function ExpensesPage() {
   const [remarks, setRemarks] = React.useState('');
   const [idempotencyKey, setIdempotencyKey] = React.useState('');
   const [draftLines, setDraftLines] = React.useState<DraftLine[]>([]);
-  const [preview, setPreview] = React.useState<ExpenseInvoiceCalculation | null>(null);
+  const [backendPreview, setBackendPreview] = React.useState<ExpenseInvoiceCalculation | null>(null);
   const [roundOffInr, setRoundOffInr] = React.useState('0');
   const [savingInv, setSavingInv] = React.useState(false);
+  const [pasteOpen, setPasteOpen] = React.useState(false);
+  const [pasteText, setPasteText] = React.useState('');
+  const [pasteTargetBillKey, setPasteTargetBillKey] = React.useState<string | null>(null);
+  const [recoverableDraft, setRecoverableDraft] = React.useState<StoredExpenseDraft | null>(null);
+  const previewSeqRef = React.useRef(0);
+  const previewTimerRef = React.useRef<number | null>(null);
+  const lineAmountRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
+  const pendingFocusKeyRef = React.useRef<string | null>(null);
+
+  // Multi-provider shipment batch state
+  const [batchBills, setBatchBills] = React.useState<BatchBill[]>([]);
+  const [sharedClearingAgentId, setSharedClearingAgentId] = React.useState('');
+  const [sharedChaReimburseInvoiceNo, setSharedChaReimburseInvoiceNo] = React.useState('');
+  const [sharedChaReimburseInvoiceDate, setSharedChaReimburseInvoiceDate] = React.useState('');
+  const [targetBatchBillKey, setTargetBatchBillKey] = React.useState<string | null>(null);
 
   // Bulk import dialog
   const [bulkOpen, setBulkOpen] = React.useState(false);
@@ -251,24 +285,222 @@ export function ExpensesPage() {
     void loadAll();
   }, [loadAll]);
 
-  const refreshPreview = React.useCallback(async (lines: DraftLine[]) => {
+  const activeTypes = React.useMemo(
+    () => types.filter((t) => t.isActive),
+    [types],
+  );
+
+  const selectedProvider = React.useMemo(
+    () => providers.find((p) => p.id === serviceProviderId) ?? null,
+    [providers, serviceProviderId],
+  );
+
+  const supplyType = React.useMemo(
+    () =>
+      detectSupplyType(
+        currentCompany?.gstin,
+        currentCompany?.state,
+        selectedProvider?.gstin,
+        selectedProvider?.state,
+      ),
+    [currentCompany?.gstin, currentCompany?.state, selectedProvider?.gstin, selectedProvider?.state],
+  );
+
+  const scheduleBackendPreview = React.useCallback((lines: DraftLine[]) => {
+    if (previewTimerRef.current !== null) {
+      window.clearTimeout(previewTimerRef.current);
+    }
     const inputs = toLineInputs(lines).filter((l) => l.expenseTypeId && l.amountPaise > 0);
     if (inputs.length === 0) {
-      setPreview(null);
+      setBackendPreview(null);
       return;
     }
-    try {
-      const p = await expenseService.previewCalculation(inputs);
-      setPreview(p);
-    } catch {
-      setPreview(null);
-    }
+    const seq = ++previewSeqRef.current;
+    previewTimerRef.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const p = await expenseService.previewCalculation(inputs);
+          if (seq === previewSeqRef.current) {
+            setBackendPreview(p);
+          }
+        } catch {
+          if (seq === previewSeqRef.current) {
+            setBackendPreview(null);
+          }
+        }
+      })();
+    }, 60);
   }, []);
 
-  const hasDuplicateType = React.useMemo(() => {
-    const ids = draftLines.map((l) => l.expenseTypeId).filter(Boolean);
-    return new Set(ids).size !== ids.length;
+  React.useEffect(() => {
+    return () => {
+      if (previewTimerRef.current !== null) {
+        window.clearTimeout(previewTimerRef.current);
+      }
+    };
+  }, []);
+
+  const roundOffPaiseVal = React.useMemo(
+    () => Math.round(Number.parseFloat(roundOffInr) || 0) * 100,
+    [roundOffInr],
+  );
+
+  const localPreview = React.useMemo(() => {
+    const validInputs = toLineInputs(draftLines).filter((l) => l.expenseTypeId && l.amountPaise > 0);
+    if (validInputs.length === 0) return null;
+    return calculateInvoiceLocal(validInputs, 0);
   }, [draftLines]);
+
+  const preview = backendPreview ?? localPreview;
+
+  const draftAnalysis = React.useMemo(() => analyzeDraftLines(draftLines), [draftLines]);
+  const lineValidationErrors = draftAnalysis.lineErrors;
+  const hasLineValidationErrors = draftAnalysis.hasLineErrors;
+  const hasZeroOrEmptyLine = draftAnalysis.hasZeroOrEmptyLine;
+  const hasDuplicateType = draftAnalysis.hasDuplicateType;
+
+  const roundOffOutOfRange = Math.abs(roundOffPaiseVal) > MAX_ROUND_OFF_PAISE;
+  const negativeNetPayable = Boolean(
+    preview && preview.netAmountPaise + roundOffPaiseVal < 0,
+  );
+  const sameClearingAgentAsProvider =
+    isPaidByClearingAgent &&
+    Boolean(clearingAgentId) &&
+    clearingAgentId === serviceProviderId;
+
+  const shipmentExistingInvoices = React.useMemo(() => {
+    if (!shipmentId) return [];
+    return invoices.filter((inv) => inv.shipmentId === shipmentId);
+  }, [invoices, shipmentId]);
+
+  const batchSummary = React.useMemo(() => {
+    let basePaise = 0;
+    let gstPaise = 0;
+    let tdsPaise = 0;
+    let netPaise = 0;
+    let directNetPaise = 0;
+    let directCount = 0;
+    let chaNetPaise = 0;
+    let chaCount = 0;
+    let hasAnyErrors = false;
+    const providerInvKeys = new Map<string, number>();
+    const intraBatchDupKeys = new Set<string>();
+
+    batchBills.forEach((bill, idx) => {
+      const spInvKey = `${bill.serviceProviderId}|${bill.invoiceNo.trim().toLowerCase()}`;
+      if (bill.serviceProviderId && bill.invoiceNo.trim()) {
+        if (providerInvKeys.has(spInvKey)) {
+          intraBatchDupKeys.add(spInvKey);
+        } else {
+          providerInvKeys.set(spInvKey, idx);
+        }
+      }
+
+      const billAnalysis = analyzeDraftLines(bill.lines);
+      const rOff = Math.round(Number.parseFloat(bill.roundOffInr) || 0) * 100;
+      const calc = calculateInvoiceLocal(billAnalysis.inputs, rOff);
+
+      basePaise += calc.baseAmountPaise;
+      gstPaise += calc.totalCgstPaise + calc.totalSgstPaise + calc.totalIgstPaise;
+      tdsPaise += calc.totalTdsPaise;
+      netPaise += calc.netAmountPaise;
+
+      if (bill.isPaidByClearingAgent) {
+        chaNetPaise += calc.netAmountPaise;
+        chaCount += 1;
+      } else {
+        directNetPaise += calc.netAmountPaise;
+        directCount += 1;
+      }
+
+      const billInvalid =
+        !bill.serviceProviderId ||
+        !bill.invoiceNo.trim() ||
+        !bill.invoiceDate ||
+        billAnalysis.hasDuplicateType ||
+        billAnalysis.hasLineErrors ||
+        billAnalysis.hasZeroOrEmptyLine ||
+        Math.abs(rOff) > MAX_ROUND_OFF_PAISE ||
+        calc.totalAmountPaise <= 0 ||
+        calc.netAmountPaise < 0 ||
+        (bill.isPaidByClearingAgent &&
+          (!bill.clearingAgentId || bill.clearingAgentId === bill.serviceProviderId));
+
+      if (billInvalid) {
+        hasAnyErrors = true;
+      }
+    });
+
+    if (intraBatchDupKeys.size > 0) {
+      hasAnyErrors = true;
+    }
+
+    return {
+      basePaise,
+      gstPaise,
+      tdsPaise,
+      netPaise,
+      directNetPaise,
+      directCount,
+      chaNetPaise,
+      chaCount,
+      hasAnyErrors,
+      intraBatchDupKeys,
+    };
+  }, [batchBills]);
+
+  // Focus newly added row's amount field automatically for rapid entry
+  React.useEffect(() => {
+    const key = pendingFocusKeyRef.current;
+    if (key && lineAmountRefs.current[key]) {
+      pendingFocusKeyRef.current = null;
+      lineAmountRefs.current[key]?.focus();
+      lineAmountRefs.current[key]?.select();
+    }
+  }, [draftLines]);
+
+  // Persist unsaved new-invoice draft in localStorage
+  React.useEffect(() => {
+    if (!invOpen || editingInv) return;
+    const hasContent =
+      invoiceNo.trim().length > 0 ||
+      remarks.trim().length > 0 ||
+      draftLines.some((l) => (Number.parseFloat(l.amountInr) || 0) > 0 || l.remarks.trim().length > 0);
+    if (!hasContent) return;
+    try {
+      const payload: StoredExpenseDraft = {
+        savedAt: Date.now(),
+        shipmentId,
+        serviceProviderId,
+        invoiceNo,
+        invoiceDate,
+        isPaidByClearingAgent,
+        clearingAgentId,
+        chaReimburseInvoiceNo,
+        chaReimburseInvoiceDate,
+        remarks,
+        roundOffInr,
+        draftLines,
+      };
+      localStorage.setItem(EXPENSE_DRAFT_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [
+    invOpen,
+    editingInv,
+    shipmentId,
+    serviceProviderId,
+    invoiceNo,
+    invoiceDate,
+    isPaidByClearingAgent,
+    clearingAgentId,
+    chaReimburseInvoiceNo,
+    chaReimburseInvoiceDate,
+    remarks,
+    roundOffInr,
+    draftLines,
+  ]);
 
   const matchingExistingInvoice = React.useMemo(() => {
     if (editingInv) return null;
@@ -613,11 +845,23 @@ export function ExpensesPage() {
     );
   };
 
+  const pickNextUnusedType = React.useCallback(
+    (currentLines: DraftLine[]) => {
+      const pool = activeTypes.length > 0 ? activeTypes : types;
+      const usedIds = new Set(currentLines.map((l) => l.expenseTypeId).filter(Boolean));
+      return pool.find((t) => !usedIds.has(t.id)) ?? pool[0];
+    },
+    [activeTypes, types],
+  );
+
   const openCreateInvoice = () => {
     setEditingInv(null);
     const activeSh = shipments.find((s) => !s.isFrozen);
-    setShipmentId(activeSh?.id ?? '');
-    setServiceProviderId(providers[0]?.id ?? '');
+    setShipmentId((prev) =>
+      prev && shipments.some((s) => s.id === prev && !s.isFrozen) ? prev : (activeSh?.id ?? ''),
+    );
+    const defaultProv = providers[0];
+    setServiceProviderId(defaultProv?.id ?? '');
     setInvoiceNo('');
     setInvoiceDate(new Date().toISOString().slice(0, 10));
     setIsPaidByClearingAgent(false);
@@ -626,15 +870,51 @@ export function ExpensesPage() {
     setChaReimburseInvoiceDate('');
     setRemarks('');
     setRoundOffInr('0');
-    setIdempotencyKey(`exp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-    const initial = [emptyLine(types[0])];
+    setIdempotencyKey(makeIdempotencyKey());
+    const pool = activeTypes.length > 0 ? activeTypes : types;
+    const defaultSupply = detectSupplyType(
+      currentCompany?.gstin,
+      currentCompany?.state,
+      defaultProv?.gstin,
+      defaultProv?.state,
+    );
+    const initial = [emptyLine(pool[0], false, defaultSupply)];
+    setEntryMode('single');
+    setBatchBills([]);
+    setSharedClearingAgentId('');
+    setSharedChaReimburseInvoiceNo('');
+    setSharedChaReimburseInvoiceDate('');
+    setTargetBatchBillKey(null);
+    setPasteTargetBillKey(null);
     setDraftLines(initial);
-    setPreview(null);
+    setBackendPreview(null);
+
+    try {
+      const raw = localStorage.getItem(EXPENSE_DRAFT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as StoredExpenseDraft;
+        if (parsed && Array.isArray(parsed.draftLines) && parsed.draftLines.length > 0) {
+          setRecoverableDraft(parsed);
+        } else {
+          setRecoverableDraft(null);
+        }
+      } else {
+        setRecoverableDraft(null);
+      }
+    } catch {
+      setRecoverableDraft(null);
+    }
+
     setInvOpen(true);
   };
 
   const openEditInvoice = (inv: ExpenseInvoice) => {
     setEditingInv(inv);
+    setEntryMode('single');
+    setBatchBills([]);
+    setTargetBatchBillKey(null);
+    setPasteTargetBillKey(null);
+    setRecoverableDraft(null);
     setShipmentId(inv.shipmentId);
     setServiceProviderId(inv.serviceProviderId);
     setInvoiceNo(inv.invoiceNo);
@@ -647,6 +927,7 @@ export function ExpensesPage() {
     setRoundOffInr(Math.round((inv.roundOffPaise || 0) / 100).toString());
     setIdempotencyKey(inv.idempotencyKey);
     const lines: DraftLine[] = (inv.lines || []).map((l) => ({
+      key: l.id || makeLineKey(),
       expenseTypeId: l.expenseTypeId,
       amountInr: Math.round(l.amountPaise / 100).toString(),
       isManualGst: Boolean(l.isManualGst),
@@ -660,20 +941,512 @@ export function ExpensesPage() {
       remarks: l.remarks,
     }));
     setDraftLines(lines);
+    setBackendPreview(null);
     setInvOpen(true);
-    void refreshPreview(lines);
+    scheduleBackendPreview(lines);
+  };
+
+  const getProviderSupplyType = React.useCallback(
+    (provId: string) => {
+      const prov = providers.find((p) => p.id === provId);
+      return detectSupplyType(
+        currentCompany?.gstin,
+        currentCompany?.state,
+        prov?.gstin,
+        prov?.state,
+      );
+    },
+    [providers, currentCompany?.gstin, currentCompany?.state],
+  );
+
+  const makeBlankBatchBill = React.useCallback(
+    (existingBills: BatchBill[]): BatchBill => {
+      const usedProviders = new Set(existingBills.map((b) => b.serviceProviderId).filter(Boolean));
+      const nextProv = providers.find((p) => !usedProviders.has(p.id)) ?? providers[0];
+      const provId = nextProv?.id ?? '';
+      const provSupply = getProviderSupplyType(provId);
+      const pool = activeTypes.length > 0 ? activeTypes : types;
+      return {
+        key: makeLineKey(),
+        serviceProviderId: provId,
+        invoiceNo: '',
+        invoiceDate: new Date().toISOString().slice(0, 10),
+        isPaidByClearingAgent: false,
+        clearingAgentId: '',
+        chaReimburseInvoiceNo: '',
+        chaReimburseInvoiceDate: '',
+        remarks: '',
+        roundOffInr: '0',
+        idempotencyKey: makeIdempotencyKey(),
+        lines: [emptyLine(pool[0], false, provSupply)],
+        collapsed: false,
+      };
+    },
+    [providers, activeTypes, types, getProviderSupplyType],
+  );
+
+  const switchToBatchMode = (appendSecondBill = false) => {
+    if (editingInv) return;
+    if (entryMode === 'batch') {
+      if (appendSecondBill) {
+        setBatchBills((prev) => [...prev, makeBlankBatchBill(prev)]);
+      }
+      return;
+    }
+
+    const firstBill: BatchBill = {
+      key: makeLineKey(),
+      serviceProviderId,
+      invoiceNo,
+      invoiceDate,
+      isPaidByClearingAgent,
+      clearingAgentId,
+      chaReimburseInvoiceNo,
+      chaReimburseInvoiceDate,
+      remarks,
+      roundOffInr,
+      idempotencyKey: idempotencyKey || makeIdempotencyKey(),
+      lines: draftLines.length > 0 ? draftLines : [emptyLine(activeTypes[0] ?? types[0], false, supplyType)],
+      collapsed: false,
+    };
+
+    if (isPaidByClearingAgent && clearingAgentId && !sharedClearingAgentId) {
+      setSharedClearingAgentId(clearingAgentId);
+      setSharedChaReimburseInvoiceNo(chaReimburseInvoiceNo);
+      setSharedChaReimburseInvoiceDate(chaReimburseInvoiceDate);
+    }
+
+    const bills = appendSecondBill ? [firstBill, makeBlankBatchBill([firstBill])] : [firstBill];
+    setBatchBills(bills);
+    setEntryMode('batch');
+  };
+
+  const switchToSingleMode = () => {
+    if (entryMode === 'single') return;
+    const first = batchBills[0];
+    if (first) {
+      setServiceProviderId(first.serviceProviderId);
+      setInvoiceNo(first.invoiceNo);
+      setInvoiceDate(first.invoiceDate);
+      setIsPaidByClearingAgent(first.isPaidByClearingAgent);
+      setClearingAgentId(first.clearingAgentId);
+      setChaReimburseInvoiceNo(first.chaReimburseInvoiceNo);
+      setChaReimburseInvoiceDate(first.chaReimburseInvoiceDate);
+      setRemarks(first.remarks);
+      setRoundOffInr(first.roundOffInr);
+      setIdempotencyKey(first.idempotencyKey);
+      setDraftLines(first.lines);
+      scheduleBackendPreview(first.lines);
+    }
+    setEntryMode('single');
+  };
+
+  const updateBatchBill = (billKey: string, patch: Partial<BatchBill>) => {
+    setBatchBills((prev) => prev.map((b) => (b.key === billKey ? { ...b, ...patch } : b)));
+  };
+
+  const handleBatchProviderChange = (billKey: string, nextProvId: string) => {
+    const nextSupply = getProviderSupplyType(nextProvId);
+    setBatchBills((prev) =>
+      prev.map((b) => {
+        if (b.key !== billKey) return b;
+        const nextClearingId =
+          b.isPaidByClearingAgent && b.clearingAgentId === nextProvId ? '' : b.clearingAgentId;
+        const nextLines =
+          nextSupply === 'unknown'
+            ? b.lines
+            : b.lines.map((l) => {
+                if (l.isManualGst || !l.expenseTypeId) return l;
+                const et = types.find((t) => t.id === l.expenseTypeId);
+                if (!et) return l;
+                const adapted = adaptExpenseTypeRatesForSupply(et, nextSupply);
+                return {
+                  ...l,
+                  cgstPct: (adapted.cgstBp / 100).toFixed(2),
+                  sgstPct: (adapted.sgstBp / 100).toFixed(2),
+                  igstPct: (adapted.igstBp / 100).toFixed(2),
+                  tdsPct: (adapted.tdsBp / 100).toFixed(2),
+                };
+              });
+        return {
+          ...b,
+          serviceProviderId: nextProvId,
+          clearingAgentId: nextClearingId,
+          lines: nextLines,
+        };
+      }),
+    );
+  };
+
+  const addBatchBill = () => {
+    setBatchBills((prev) => [...prev, makeBlankBatchBill(prev)]);
+  };
+
+  const duplicateBatchBill = (billKey: string) => {
+    setBatchBills((prev) => {
+      const idx = prev.findIndex((b) => b.key === billKey);
+      if (idx === -1) return prev;
+      const src = prev[idx]!;
+      const copy: BatchBill = {
+        ...src,
+        key: makeLineKey(),
+        invoiceNo: '',
+        idempotencyKey: makeIdempotencyKey(),
+        collapsed: false,
+        lines: src.lines.map((l) => ({ ...l, key: makeLineKey() })),
+      };
+      return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+    });
+  };
+
+  const removeBatchBill = (billKey: string) => {
+    setBatchBills((prev) => (prev.length <= 1 ? prev : prev.filter((b) => b.key !== billKey)));
+  };
+
+  const handleBatchCombineDuplicates = async (billKey: string) => {
+    const bill = batchBills.find((b) => b.key === billKey);
+    if (!bill) return;
+    try {
+      const merged = await expenseService.mergeDuplicateLines(toLineInputs(bill.lines));
+      const nextLines: DraftLine[] = merged.map((m) => ({
+        key: makeLineKey(),
+        expenseTypeId: m.expenseTypeId,
+        amountInr: Math.round(m.amountPaise / 100).toString(),
+        isManualGst: Boolean(m.isManualGst),
+        cgstPct: (m.cgstRateBp / 100).toFixed(2),
+        sgstPct: (m.sgstRateBp / 100).toFixed(2),
+        igstPct: (m.igstRateBp / 100).toFixed(2),
+        manualCgstInr: Math.round(m.cgstPaise / 100).toString(),
+        manualSgstInr: Math.round(m.sgstPaise / 100).toString(),
+        manualIgstInr: Math.round(m.igstPaise / 100).toString(),
+        tdsPct: (m.tdsRateBp / 100).toFixed(2),
+        remarks: m.remarks,
+      }));
+      updateBatchBill(billKey, { lines: nextLines });
+      toast.success('Duplicate expense lines combined cleanly');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleCopyLastBillForBatch = (billKey: string) => {
+    const bill = batchBills.find((b) => b.key === billKey);
+    if (!bill?.serviceProviderId) return;
+    const prevBill = invoices.find(
+      (inv) => inv.serviceProviderId === bill.serviceProviderId && inv.lines?.length,
+    );
+    if (!prevBill || !prevBill.lines) {
+      toast.info('No previous multi-line bill found for this provider.');
+      return;
+    }
+    const nextLines: DraftLine[] = prevBill.lines.map((l) => ({
+      key: makeLineKey(),
+      expenseTypeId: l.expenseTypeId,
+      amountInr: Math.round(l.amountPaise / 100).toString(),
+      isManualGst: Boolean(l.isManualGst),
+      cgstPct: (l.cgstRateBp / 100).toFixed(2),
+      sgstPct: (l.sgstRateBp / 100).toFixed(2),
+      igstPct: (l.igstRateBp / 100).toFixed(2),
+      manualCgstInr: Math.round(l.cgstPaise / 100).toString(),
+      manualSgstInr: Math.round(l.sgstPaise / 100).toString(),
+      manualIgstInr: Math.round(l.igstPaise / 100).toString(),
+      tdsPct: (l.tdsRateBp / 100).toFixed(2),
+      remarks: l.remarks,
+    }));
+    updateBatchBill(billKey, { lines: nextLines });
+    toast.success(`Loaded ${nextLines.length} line(s) from invoice ${prevBill.invoiceNo}`);
+  };
+
+  const applySharedChaToMarkedBills = (markAllEligible = false) => {
+    if (!sharedClearingAgentId) {
+      toast.error('Select a Shared Clearing Agent first.');
+      return;
+    }
+    let updatedCount = 0;
+    setBatchBills((prev) =>
+      prev.map((b) => {
+        if (b.serviceProviderId === sharedClearingAgentId) {
+          return b;
+        }
+        if (markAllEligible || b.isPaidByClearingAgent) {
+          updatedCount += 1;
+          return {
+            ...b,
+            isPaidByClearingAgent: true,
+            clearingAgentId: sharedClearingAgentId,
+            chaReimburseInvoiceNo: sharedChaReimburseInvoiceNo,
+            chaReimburseInvoiceDate: sharedChaReimburseInvoiceDate,
+          };
+        }
+        return b;
+      }),
+    );
+    if (updatedCount > 0) {
+      toast.success(`Applied shared CHA reimbursement details to ${updatedCount} bill(s)`);
+    } else {
+      toast.info('No eligible third-party bills updated.');
+    }
+  };
+
+  const handleSaveBatch = async () => {
+    if (!shipmentId) {
+      toast.error('Please select a shipment.');
+      return;
+    }
+    if (batchSummary.hasAnyErrors || batchBills.length === 0) {
+      toast.error('Please resolve highlighted bill errors before saving.');
+      return;
+    }
+    setSavingInv(true);
+    try {
+      const reqs = batchBills.map((b) => {
+        const roundOffVal = Math.round(Number.parseFloat(b.roundOffInr) || 0);
+        return {
+          id: '',
+          shipmentId,
+          serviceProviderId: b.serviceProviderId,
+          invoiceNo: b.invoiceNo.trim(),
+          invoiceDate: b.invoiceDate,
+          currency: 'INR',
+          isPaidByClearingAgent: b.isPaidByClearingAgent,
+          clearingAgentId: b.isPaidByClearingAgent ? b.clearingAgentId : '',
+          chaReimburseInvoiceNo: b.isPaidByClearingAgent ? b.chaReimburseInvoiceNo.trim() : '',
+          chaReimburseInvoiceDate: b.isPaidByClearingAgent ? b.chaReimburseInvoiceDate : '',
+          remarks: b.remarks.trim(),
+          idempotencyKey: b.idempotencyKey,
+          version: 1,
+          mergeDuplicates: false,
+          roundOffPaise: roundOffVal * 100,
+          lines: toLineInputs(b.lines),
+        };
+      });
+      await expenseService.createExpenseInvoicesBatch(reqs);
+      toast.success(`Recorded ${reqs.length} expense invoice(s) atomically`);
+      handleDiscardDraft();
+      setInvOpen(false);
+      await loadAll();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingInv(false);
+    }
+  };
+
+  const handleProviderChange = (nextProvId: string) => {
+    setServiceProviderId(nextProvId);
+    if (isPaidByClearingAgent && clearingAgentId === nextProvId) {
+      setClearingAgentId('');
+    }
+    if (editingInv) return;
+    const nextProv = providers.find((p) => p.id === nextProvId);
+    const nextSupply = detectSupplyType(
+      currentCompany?.gstin,
+      currentCompany?.state,
+      nextProv?.gstin,
+      nextProv?.state,
+    );
+    if (nextSupply === 'unknown') return;
+    const nextLines = draftLines.map((l) => {
+      if (l.isManualGst || !l.expenseTypeId) return l;
+      const et = types.find((t) => t.id === l.expenseTypeId);
+      if (!et) return l;
+      const adapted = adaptExpenseTypeRatesForSupply(et, nextSupply);
+      return {
+        ...l,
+        cgstPct: (adapted.cgstBp / 100).toFixed(2),
+        sgstPct: (adapted.sgstBp / 100).toFixed(2),
+        igstPct: (adapted.igstBp / 100).toFixed(2),
+        tdsPct: (adapted.tdsBp / 100).toFixed(2),
+      };
+    });
+    setDraftLines(nextLines);
+    scheduleBackendPreview(nextLines);
   };
 
   const updateLine = (idx: number, patch: Partial<DraftLine>) => {
     const next = draftLines.map((l, i) => (i === idx ? { ...l, ...patch } : l));
     setDraftLines(next);
-    void refreshPreview(next);
+    scheduleBackendPreview(next);
+  };
+
+  const addDraftLine = (focusNew = false) => {
+    setDraftLines((prev) => {
+      const nextEt = pickNextUnusedType(prev);
+      const created = emptyLine(
+        nextEt,
+        prev.some((l) => l.isManualGst),
+        supplyType,
+      );
+      if (focusNew) {
+        pendingFocusKeyRef.current = created.key;
+      }
+      const next = [...prev, created];
+      scheduleBackendPreview(next);
+      return next;
+    });
+  };
+
+  const duplicateDraftLine = (idx: number) => {
+    const src = draftLines[idx];
+    if (!src) return;
+    const nextEt = pickNextUnusedType(draftLines);
+    const adapted = nextEt ? adaptExpenseTypeRatesForSupply(nextEt, supplyType) : null;
+    const copy: DraftLine = {
+      ...src,
+      key: makeLineKey(),
+      expenseTypeId: nextEt?.id ?? src.expenseTypeId,
+      cgstPct: adapted ? (adapted.cgstBp / 100).toFixed(2) : src.cgstPct,
+      sgstPct: adapted ? (adapted.sgstBp / 100).toFixed(2) : src.sgstPct,
+      igstPct: adapted ? (adapted.igstBp / 100).toFixed(2) : src.igstPct,
+      tdsPct: adapted ? (adapted.tdsBp / 100).toFixed(2) : src.tdsPct,
+    };
+    pendingFocusKeyRef.current = copy.key;
+    const next = [...draftLines.slice(0, idx + 1), copy, ...draftLines.slice(idx + 1)];
+    setDraftLines(next);
+    scheduleBackendPreview(next);
+  };
+
+  const handleCopyLastBillForProvider = () => {
+    if (!serviceProviderId) return;
+    const prevBill = invoices.find((inv) => inv.serviceProviderId === serviceProviderId && inv.lines?.length);
+    if (!prevBill || !prevBill.lines) {
+      toast.info('No previous multi-line bill found for this provider.');
+      return;
+    }
+    const next: DraftLine[] = prevBill.lines.map((l) => ({
+      key: makeLineKey(),
+      expenseTypeId: l.expenseTypeId,
+      amountInr: Math.round(l.amountPaise / 100).toString(),
+      isManualGst: Boolean(l.isManualGst),
+      cgstPct: (l.cgstRateBp / 100).toFixed(2),
+      sgstPct: (l.sgstRateBp / 100).toFixed(2),
+      igstPct: (l.igstRateBp / 100).toFixed(2),
+      manualCgstInr: Math.round(l.cgstPaise / 100).toString(),
+      manualSgstInr: Math.round(l.sgstPaise / 100).toString(),
+      manualIgstInr: Math.round(l.igstPaise / 100).toString(),
+      tdsPct: (l.tdsRateBp / 100).toFixed(2),
+      remarks: l.remarks,
+    }));
+    setDraftLines(next);
+    scheduleBackendPreview(next);
+    toast.success(`Loaded ${next.length} line(s) from invoice ${prevBill.invoiceNo}`);
+  };
+
+  const handleApplyPaste = () => {
+    const pool = activeTypes.length > 0 ? activeTypes : types;
+    const targetBill = pasteTargetBillKey
+      ? batchBills.find((b) => b.key === pasteTargetBillKey)
+      : null;
+    const activeSupply = targetBill
+      ? getProviderSupplyType(targetBill.serviceProviderId)
+      : supplyType;
+
+    const { rows, errors } = parsePastedExpenseLines(pasteText, pool, activeSupply);
+    if (rows.length === 0) {
+      toast.error(errors[0] || 'No valid expense lines found in pasted text');
+      return;
+    }
+    const newLines: DraftLine[] = rows.map((r) => ({
+      key: makeLineKey(),
+      expenseTypeId: r.expenseType.id,
+      amountInr: r.amountInr,
+      isManualGst: false,
+      cgstPct: r.cgstPct ?? '0.00',
+      sgstPct: r.sgstPct ?? '0.00',
+      igstPct: r.igstPct ?? '0.00',
+      manualCgstInr: '0',
+      manualSgstInr: '0',
+      manualIgstInr: '0',
+      tdsPct: r.tdsPct ?? '0.00',
+      remarks: r.remarks,
+    }));
+
+    if (targetBill) {
+      const hasExistingData = targetBill.lines.some(
+        (l) => (Number.parseFloat(l.amountInr) || 0) > 0 || l.remarks.trim().length > 0,
+      );
+      const next = hasExistingData ? [...targetBill.lines, ...newLines] : newLines;
+      updateBatchBill(targetBill.key, { lines: next });
+    } else {
+      const hasExistingData = draftLines.some(
+        (l) => (Number.parseFloat(l.amountInr) || 0) > 0 || l.remarks.trim().length > 0,
+      );
+      const next = hasExistingData ? [...draftLines, ...newLines] : newLines;
+      setDraftLines(next);
+      scheduleBackendPreview(next);
+    }
+
+    setPasteOpen(false);
+    setPasteText('');
+    setPasteTargetBillKey(null);
+    if (errors.length > 0) {
+      toast.warning(`Added ${newLines.length} line(s); skipped ${errors.length}: ${errors[0]}`);
+    } else {
+      toast.success(`Added ${newLines.length} line(s) from clipboard`);
+    }
+  };
+
+  const handleRestoreDraft = () => {
+    if (!recoverableDraft) return;
+    setShipmentId(recoverableDraft.shipmentId);
+    setServiceProviderId(recoverableDraft.serviceProviderId);
+    setInvoiceNo(recoverableDraft.invoiceNo);
+    setInvoiceDate(recoverableDraft.invoiceDate);
+    setIsPaidByClearingAgent(recoverableDraft.isPaidByClearingAgent);
+    setClearingAgentId(recoverableDraft.clearingAgentId);
+    setChaReimburseInvoiceNo(recoverableDraft.chaReimburseInvoiceNo);
+    setChaReimburseInvoiceDate(recoverableDraft.chaReimburseInvoiceDate);
+    setRemarks(recoverableDraft.remarks);
+    setRoundOffInr(recoverableDraft.roundOffInr);
+    const restored = recoverableDraft.draftLines.map((l) => ({ ...l, key: l.key || makeLineKey() }));
+    setDraftLines(restored);
+    setRecoverableDraft(null);
+    scheduleBackendPreview(restored);
+    toast.success('Restored unsaved draft');
+  };
+
+  const handleDiscardDraft = () => {
+    setRecoverableDraft(null);
+    try {
+      localStorage.removeItem(EXPENSE_DRAFT_STORAGE_KEY);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const isEditorDirty = React.useMemo(() => {
+    if (!invOpen) return false;
+    if (editingInv) return true;
+    if (entryMode === 'batch') {
+      return batchBills.some(
+        (b) =>
+          b.invoiceNo.trim().length > 0 ||
+          b.remarks.trim().length > 0 ||
+          b.lines.some((l) => (Number.parseFloat(l.amountInr) || 0) > 0 || l.remarks.trim().length > 0),
+      );
+    }
+    return (
+      invoiceNo.trim().length > 0 ||
+      remarks.trim().length > 0 ||
+      draftLines.some((l) => (Number.parseFloat(l.amountInr) || 0) > 0 || l.remarks.trim().length > 0)
+    );
+  }, [invOpen, editingInv, entryMode, batchBills, invoiceNo, remarks, draftLines]);
+
+  const requestCloseEditor = () => {
+    if (!editingInv && isEditorDirty) {
+      if (!window.confirm('Discard unsaved expense invoice entries and return to the ledger?')) {
+        return;
+      }
+      handleDiscardDraft();
+    }
+    setInvOpen(false);
   };
 
   const handleCombineDuplicates = async () => {
     try {
       const merged = await expenseService.mergeDuplicateLines(toLineInputs(draftLines));
       const next: DraftLine[] = merged.map((m) => ({
+        key: makeLineKey(),
         expenseTypeId: m.expenseTypeId,
         amountInr: Math.round(m.amountPaise / 100).toString(),
         isManualGst: Boolean(m.isManualGst),
@@ -687,16 +1460,41 @@ export function ExpensesPage() {
         remarks: m.remarks,
       }));
       setDraftLines(next);
-      await refreshPreview(next);
+      scheduleBackendPreview(next);
       toast.success('Duplicate expense lines combined cleanly');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
   };
 
-  const handleSaveInvoice = async () => {
+  const canSubmitInvoice =
+    !savingInv &&
+    !hasDuplicateType &&
+    !hasLineValidationErrors &&
+    !hasZeroOrEmptyLine &&
+    !roundOffOutOfRange &&
+    !negativeNetPayable &&
+    !sameClearingAgentAsProvider &&
+    Boolean(shipmentId) &&
+    Boolean(serviceProviderId) &&
+    Boolean(invoiceNo.trim());
+
+  const handleSaveInvoice = async (saveAndNew = false) => {
     if (isPaidByClearingAgent && !clearingAgentId) {
       toast.error('Please select the Clearing Agent who paid these charges.');
+      return;
+    }
+    if (sameClearingAgentAsProvider) {
+      toast.error('Clearing Agent cannot be the same as the original Service Provider.');
+      return;
+    }
+    if (hasLineValidationErrors) {
+      const firstErr = Object.values(lineValidationErrors)[0];
+      toast.error(firstErr || 'Please resolve tax validation errors on lines.');
+      return;
+    }
+    if (roundOffOutOfRange) {
+      toast.error(`Round-off adjustment must be within ±₹${MAX_ROUND_OFF_PAISE / 100}.`);
       return;
     }
     setSavingInv(true);
@@ -706,14 +1504,14 @@ export function ExpensesPage() {
         id: editingInv?.id ?? '',
         shipmentId,
         serviceProviderId,
-        invoiceNo,
+        invoiceNo: invoiceNo.trim(),
         invoiceDate,
         currency: 'INR',
         isPaidByClearingAgent,
         clearingAgentId: isPaidByClearingAgent ? clearingAgentId : '',
         chaReimburseInvoiceNo: isPaidByClearingAgent ? chaReimburseInvoiceNo.trim() : '',
         chaReimburseInvoiceDate: isPaidByClearingAgent ? chaReimburseInvoiceDate : '',
-        remarks,
+        remarks: remarks.trim(),
         idempotencyKey,
         version: editingInv?.version ?? 1,
         mergeDuplicates: false,
@@ -726,9 +1524,22 @@ export function ExpensesPage() {
       } else {
         await expenseService.createExpenseInvoice(req);
         toast.success('Expense invoice recorded');
+        handleDiscardDraft();
       }
-      setInvOpen(false);
-      await loadAll();
+      if (saveAndNew && !editingInv) {
+        setInvoiceNo('');
+        setChaReimburseInvoiceNo('');
+        setRemarks('');
+        setRoundOffInr('0');
+        setIdempotencyKey(makeIdempotencyKey());
+        const pool = activeTypes.length > 0 ? activeTypes : types;
+        setDraftLines([emptyLine(pool[0], false, supplyType)]);
+        setBackendPreview(null);
+        await loadAll();
+      } else {
+        setInvOpen(false);
+        await loadAll();
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -815,690 +1626,1103 @@ export function ExpensesPage() {
   return (
     <div className="space-y-6">
       {invOpen ? (
-        <div className="space-y-6">
+        <div
+          className="space-y-5"
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault();
+              if (entryMode === 'batch') {
+                if (!savingInv && shipmentId && batchBills.length > 0 && !batchSummary.hasAnyErrors) {
+                  void handleSaveBatch();
+                }
+              } else if (canSubmitInvoice) {
+                void handleSaveInvoice(e.shiftKey && !editingInv);
+              }
+            } else if (entryMode === 'single' && e.altKey && e.key.toLowerCase() === 'n') {
+              e.preventDefault();
+              addDraftLine(true);
+            }
+          }}
+        >
           {/* Top Navigation & Action Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setInvOpen(false)}
+                onClick={requestCloseEditor}
                 className="gap-1.5"
               >
                 <ArrowLeft className="h-4 w-4" />
                 <span>Back to Expense Ledger</span>
               </Button>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">
-                  {editingInv ? `Edit Expense Invoice (${editingInv.invoiceNo})` : 'New Multi-Line Expense Invoice'}
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  All amounts calculate in integer paise without floating-point drift.
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold tracking-tight">
+                    {editingInv
+                      ? `Edit Expense Invoice (${editingInv.invoiceNo})`
+                      : entryMode === 'batch'
+                      ? 'Multi-Provider Shipment Expense Batch'
+                      : 'New Multi-Line Expense Invoice'}
+                  </h1>
+                  {entryMode === 'single' && supplyType !== 'unknown' && (
+                    <Badge
+                      variant="outline"
+                      className={
+                        supplyType === 'inter'
+                          ? 'border-blue-400/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[11px]'
+                          : 'border-emerald-400/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px]'
+                      }
+                    >
+                      {supplyType === 'inter' ? 'Inter-State · IGST' : 'Intra-State · CGST + SGST'}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {entryMode === 'batch'
+                    ? 'Enter multiple service provider bills for one shipment with optional shared CHA reimbursement — saved atomically.'
+                    : 'Whole-rupee integer-paise math · Tab across cells · Enter on last Remarks adds a line · Ctrl+Enter saves'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setInvOpen(false)}>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {!editingInv && (
+                <div className="inline-flex items-center rounded-md border bg-muted/40 p-0.5 text-xs">
+                  <button
+                    type="button"
+                    className={`rounded px-2.5 py-1 font-medium transition-colors cursor-pointer ${
+                      entryMode === 'single'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={switchToSingleMode}
+                  >
+                    Single Invoice
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded px-2.5 py-1 font-medium transition-colors cursor-pointer ${
+                      entryMode === 'batch'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => switchToBatchMode(batchBills.length === 0)}
+                  >
+                    Multi-Provider Batch
+                  </button>
+                </div>
+              )}
+
+              <Button variant="outline" onClick={requestCloseEditor}>
                 Cancel
               </Button>
-              <Button
-                disabled={savingInv || hasDuplicateType || !shipmentId || !serviceProviderId || !invoiceNo}
-                onClick={() => void handleSaveInvoice()}
-              >
-                {savingInv ? 'Saving...' : 'Save Expense Invoice'}
-              </Button>
+
+              {entryMode === 'batch' ? (
+                <Button
+                  disabled={savingInv || !shipmentId || batchBills.length === 0 || batchSummary.hasAnyErrors}
+                  onClick={() => void handleSaveBatch()}
+                >
+                  {savingInv ? 'Saving Batch...' : `Save All ${batchBills.length} Invoices`}
+                </Button>
+              ) : (
+                <>
+                  {!editingInv && (
+                    <>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => switchToBatchMode(true)}
+                        title="Keep this shipment & add another service provider invoice in the same batch"
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Add Provider Bill
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        disabled={!canSubmitInvoice}
+                        onClick={() => void handleSaveInvoice(true)}
+                        title="Save and start the next bill (Ctrl+Shift+Enter)"
+                      >
+                        {savingInv ? 'Saving...' : 'Save & New'}
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    disabled={!canSubmitInvoice}
+                    onClick={() => void handleSaveInvoice(false)}
+                  >
+                    {savingInv ? 'Saving...' : 'Save Expense Invoice'}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Invoice Information Header Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Invoice Information</CardTitle>
-              <CardDescription>Select the shipment and service provider, and enter invoice reference details.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5">
-                  <Label>Shipment *</Label>
-                  <Select value={shipmentId} onValueChange={setShipmentId}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose shipment" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {shipments
-                        .filter((s) => !s.isFrozen || s.id === shipmentId)
-                        .map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.invoiceNumber} — {s.supplierName}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label>Service Provider *</Label>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
-                      onClick={() => setManageSpOpen(true)}
-                    >
-                      <Settings2 className="h-3 w-3" />
-                      Manage
-                    </button>
-                  </div>
-                  <Select value={serviceProviderId} onValueChange={setServiceProviderId}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {providers.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="expInvNo">Invoice No *</Label>
-                  <Input
-                    id="expInvNo"
-                    placeholder="e.g. INV-2026-001"
-                    value={invoiceNo}
-                    onChange={(e) => setInvoiceNo(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="expInvDate">Invoice Date *</Label>
-                  <Input
-                    id="expInvDate"
-                    type="date"
-                    value={invoiceDate}
-                    onChange={(e) => setInvoiceDate(e.target.value)}
-                  />
-                </div>
+          {recoverableDraft && !editingInv && entryMode === 'single' && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/40 bg-primary/5 px-4 py-2.5 text-xs">
+              <span className="flex items-center gap-2 font-medium">
+                <RotateCcw className="h-4 w-4 text-primary" />
+                Unsaved draft found
+                {recoverableDraft.invoiceNo ? ` (Invoice #${recoverableDraft.invoiceNo})` : ''} with{' '}
+                {recoverableDraft.draftLines.length} line(s). Restore where you left off?
+              </span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleDiscardDraft}>
+                  Discard
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleRestoreDraft}>
+                  Restore Draft
+                </Button>
               </div>
+            </div>
+          )}
 
-              {/* Clearing Agent (CHA) Reimbursement Section */}
-              <div className="rounded-lg border p-3.5 bg-muted/20 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="cha-toggle" className="text-sm font-semibold cursor-pointer">
-                        Paid by Clearing Agent (Reimbursement)
+          {entryMode === 'batch' ? (
+            <div className="space-y-5">
+              {/* Shared Shipment + Shared CHA Reimbursement Header */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">
+                    Shipment &amp; Shared CHA Reimbursement Settings
+                  </CardTitle>
+                  <CardDescription>
+                    Choose the target shipment once, then add invoices from multiple service providers below.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>Shipment (Shared for all bills in batch) *</Label>
+                      <SearchableCombobox
+                        value={shipmentId}
+                        onValueChange={setShipmentId}
+                        ariaLabel="Batch Shipment"
+                        placeholder="Choose shipment"
+                        searchPlaceholder="Search shipment invoice or supplier..."
+                        options={shipments
+                          .filter((s) => !s.isFrozen || s.id === shipmentId)
+                          .map((s) => ({
+                            value: s.id,
+                            label: `${s.invoiceNumber} — ${s.supplierName || 'No Supplier'}`,
+                            sublabel: `${s.invoiceDate || ''}${s.blAwbNumber ? ` · BL/AWB: ${s.blAwbNumber}` : ''}`,
+                            keywords: `${s.invoiceNumber} ${s.supplierName} ${s.blAwbNumber || ''}`,
+                          }))}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Already Recorded on This Shipment ({shipmentExistingInvoices.length})
                       </Label>
-                      <Badge variant="outline" className="text-[10px] font-normal">
-                        e.g. Liner &amp; CFS Charges
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Check this if charges were paid upfront by your clearing agent. The expense remains attributed to the original provider for GST credit, but payment liability is linked to the clearing agent.
-                    </p>
-                  </div>
-                  <Switch
-                    id="cha-toggle"
-                    checked={isPaidByClearingAgent}
-                    onCheckedChange={setIsPaidByClearingAgent}
-                  />
-                </div>
-
-                {isPaidByClearingAgent && (
-                  <div className="grid gap-4 sm:grid-cols-3 pt-3 border-t">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="clearingAgentSelect">Clearing Agent (Payable To) *</Label>
-                      <Select value={clearingAgentId} onValueChange={setClearingAgentId}>
-                        <SelectTrigger id="clearingAgentSelect" className="w-full">
-                          <SelectValue placeholder="Select clearing agent" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {providers.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="chaReimbInvNo">CHA Reimburse Invoice No</Label>
-                      <Input
-                        id="chaReimbInvNo"
-                        placeholder="e.g. CHA-REIMB-2026-001"
-                        value={chaReimburseInvoiceNo}
-                        onChange={(e) => setChaReimburseInvoiceNo(e.target.value)}
-                        className="font-mono text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="chaReimbInvDate">CHA Reimburse Date</Label>
-                      <Input
-                        id="chaReimbInvDate"
-                        type="date"
-                        value={chaReimburseInvoiceDate}
-                        onChange={(e) => setChaReimburseInvoiceDate(e.target.value)}
-                      />
+                      <div className="min-h-9 rounded-md border bg-muted/20 px-3 py-2 text-xs flex flex-wrap items-center gap-1.5">
+                        {shipmentExistingInvoices.length === 0 ? (
+                          <span className="text-muted-foreground">No expense invoices recorded yet for this shipment.</span>
+                        ) : (
+                          shipmentExistingInvoices.map((ex) => (
+                            <Badge key={ex.id} variant="secondary" className="text-[11px] font-normal gap-1">
+                              <span className="font-medium">{ex.serviceProviderName}</span>
+                              <span>#{ex.invoiceNo}</span>
+                              <span className="font-mono">({formatPaiseINR(ex.netAmountPaise)})</span>
+                            </Badge>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
-          {matchingExistingInvoice && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-xs">
-              <span className="flex items-center gap-2 font-medium text-blue-900 dark:text-blue-200">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                Invoice &ldquo;{matchingExistingInvoice.invoiceNo}&rdquo; already exists for this service provider ({matchingExistingInvoice.lines?.length ?? 0} line(s) recorded).
-                To add multiple services (transport, customs clearance, etc.) to this bill, edit the existing invoice.
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-blue-500/40 hover:bg-blue-500/20 text-xs shrink-0"
-                onClick={() => openEditInvoice(matchingExistingInvoice)}
-              >
-                <Pencil className="h-3.5 w-3.5 mr-1" />
-                Edit Existing Invoice #{matchingExistingInvoice.invoiceNo}
-              </Button>
-            </div>
-          )}
+                  {/* Shared CHA Reimbursement Defaults */}
+                  <div className="rounded-lg border p-3.5 bg-muted/20 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <span>Shared CHA Reimbursement Bill (Optional)</span>
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            Auto-fills bills marked Paid by CHA
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          If one Clearing Agent settled multiple vendor bills (e.g., Liner + CFS) under a single reimbursement invoice, enter the shared CHA details here.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          type="button"
+                          className="h-7 text-xs"
+                          disabled={!sharedClearingAgentId}
+                          onClick={() => applySharedChaToMarkedBills(false)}
+                        >
+                          Sync to Marked CHA Bills
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          type="button"
+                          className="h-7 text-xs"
+                          disabled={!sharedClearingAgentId}
+                          onClick={() => applySharedChaToMarkedBills(true)}
+                        >
+                          Apply CHA to All Other Bills
+                        </Button>
+                      </div>
+                    </div>
 
-          {hasDuplicateType && (
-            <div className="flex items-center justify-between rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs">
-              <span className="flex items-center gap-2 font-medium text-amber-800 dark:text-amber-300">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                Duplicate expense type detected across lines. Combine matching lines before saving.
-              </span>
-              <Button size="sm" variant="outline" onClick={() => void handleCombineDuplicates()}>
-                <Merge className="h-3.5 w-3.5" />
-                Combine Duplicate Lines
-              </Button>
-            </div>
-          )}
-
-          {/* Expense Lines Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-base font-semibold">Expense Lines</CardTitle>
-                  <div className="inline-flex items-center rounded-md border bg-muted/40 p-0.5 text-xs">
-                    <button
-                      type="button"
-                      className={`rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                        !draftLines.some((l) => l.isManualGst)
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      onClick={() => {
-                        const next = draftLines.map((l) => ({ ...l, isManualGst: false }));
-                        setDraftLines(next);
-                        void refreshPreview(next);
-                      }}
-                    >
-                      Automatic (% Rate)
-                    </button>
-                    <button
-                      type="button"
-                      className={`rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                        draftLines.every((l) => l.isManualGst)
-                          ? 'bg-amber-500 text-white shadow-sm dark:bg-amber-600'
-                          : draftLines.some((l) => l.isManualGst)
-                          ? 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      onClick={() => {
-                        const next = draftLines.map((l) => {
-                          const amt = Number.parseFloat(l.amountInr) || 0;
-                          const cPct = Number.parseFloat(l.cgstPct) || 0;
-                          const sPct = Number.parseFloat(l.sgstPct) || 0;
-                          const iPct = Number.parseFloat(l.igstPct) || 0;
-                          return {
-                            ...l,
-                            isManualGst: true,
-                            manualCgstInr:
-                              l.manualCgstInr && l.manualCgstInr !== '0' && l.manualCgstInr !== '0.00'
-                                ? Math.round(Number.parseFloat(l.manualCgstInr)).toString()
-                                : Math.round((amt * cPct) / 100).toString(),
-                            manualSgstInr:
-                              l.manualSgstInr && l.manualSgstInr !== '0' && l.manualSgstInr !== '0.00'
-                                ? Math.round(Number.parseFloat(l.manualSgstInr)).toString()
-                                : Math.round((amt * sPct) / 100).toString(),
-                            manualIgstInr:
-                              l.manualIgstInr && l.manualIgstInr !== '0' && l.manualIgstInr !== '0.00'
-                                ? Math.round(Number.parseFloat(l.manualIgstInr)).toString()
-                                : Math.round((amt * iPct) / 100).toString(),
-                          };
-                        });
-                        setDraftLines(next);
-                        void refreshPreview(next);
-                      }}
-                    >
-                      Manual GST Amount (₹)
-                    </button>
+                    <div className="grid gap-4 sm:grid-cols-3 pt-2 border-t">
+                      <div className="space-y-1.5">
+                        <Label>Shared Clearing Agent (Payable To)</Label>
+                        <SearchableCombobox
+                          value={sharedClearingAgentId}
+                          onValueChange={setSharedClearingAgentId}
+                          ariaLabel="Shared Clearing Agent"
+                          placeholder="Select clearing agent"
+                          searchPlaceholder="Search clearing agent..."
+                          options={providers.map((p) => ({
+                            value: p.id,
+                            label: p.name,
+                            sublabel: [p.gstin, p.state].filter(Boolean).join(' · ') || undefined,
+                            keywords: `${p.name} ${p.gstin || ''} ${p.state || ''}`,
+                          }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="sharedChaNo">Shared CHA Reimburse Invoice No</Label>
+                        <Input
+                          id="sharedChaNo"
+                          maxLength={100}
+                          placeholder="e.g. CHA-REIMB-2026-001"
+                          className="font-mono text-sm"
+                          value={sharedChaReimburseInvoiceNo}
+                          onChange={(e) => setSharedChaReimburseInvoiceNo(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="sharedChaDate">Shared CHA Reimburse Date</Label>
+                        <Input
+                          id="sharedChaDate"
+                          type="date"
+                          value={sharedChaReimburseInvoiceDate}
+                          onChange={(e) => setSharedChaReimburseInvoiceDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    className="gap-1.5 text-xs"
-                    onClick={() => {
-                      setTargetLineIdx(null);
-                      setManageEtOpen(true);
-                    }}
-                  >
-                    <Settings2 className="h-3.5 w-3.5" />
-                    Manage Types
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    className="gap-1.5 text-xs"
-                    onClick={() =>
-                      setDraftLines((prev) => [
-                        ...prev,
-                        emptyLine(types[0], prev.some((l) => l.isManualGst)),
-                      ])
+                </CardContent>
+              </Card>
+
+              {/* Provider Invoice Cards */}
+              {batchBills.map((bill, billIdx) => {
+                const billProv = providers.find((p) => p.id === bill.serviceProviderId);
+                const billSupply = getProviderSupplyType(bill.serviceProviderId);
+                const billAnalysis = analyzeDraftLines(bill.lines);
+                const billRoundOffPaise = Math.round(Number.parseFloat(bill.roundOffInr) || 0) * 100;
+                const billCalc = calculateInvoiceLocal(billAnalysis.inputs, billRoundOffPaise);
+                const billSpInvKey = `${bill.serviceProviderId}|${bill.invoiceNo.trim().toLowerCase()}`;
+                const isIntraBatchDup = Boolean(
+                  bill.serviceProviderId &&
+                    bill.invoiceNo.trim() &&
+                    batchSummary.intraBatchDupKeys.has(billSpInvKey),
+                );
+                const existingInDb =
+                  bill.serviceProviderId && bill.invoiceNo.trim()
+                    ? invoices.find(
+                        (inv) =>
+                          inv.serviceProviderId === bill.serviceProviderId &&
+                          inv.invoiceNo.trim().toLowerCase() === bill.invoiceNo.trim().toLowerCase(),
+                      )
+                    : null;
+                const billSameCha =
+                  bill.isPaidByClearingAgent &&
+                  Boolean(bill.clearingAgentId) &&
+                  bill.clearingAgentId === bill.serviceProviderId;
+                const billChaAgentName =
+                  providers.find((p) => p.id === bill.clearingAgentId)?.name || '';
+
+                return (
+                  <Card
+                    key={bill.key}
+                    className={
+                      isIntraBatchDup || billAnalysis.hasLineErrors || billSameCha
+                        ? 'border-destructive/60'
+                        : bill.isPaidByClearingAgent
+                        ? 'border-purple-400/50'
+                        : undefined
                     }
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Line
-                  </Button>
-                </div>
-              </div>
-
-              {draftLines.some((l) => l.isManualGst) && (
-                <div className="mt-2 rounded-md border border-amber-300 bg-amber-50/50 p-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-                  <span className="font-semibold">Manual GST Mode active:</span> Enter exact GST rupee amounts (CGST/SGST or IGST) for lines where some values are exempt or not eligible for full GST.
-                </div>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {draftLines.map((line, idx) => (
-                <div
-                  key={idx}
-                  className={`rounded-lg border p-3 transition-colors ${
-                    line.isManualGst
-                      ? 'border-amber-300 bg-amber-50/20 dark:border-amber-800/60 dark:bg-amber-950/10'
-                      : 'bg-card'
-                  }`}
-                >
-                  <div className="flex flex-wrap items-end gap-3">
-                    {/* Line Index Badge */}
-                    <div className="flex items-center pb-2">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                        #{idx + 1}
-                      </span>
-                    </div>
-
-                    {/* Expense Type */}
-                    <div className="min-w-[200px] flex-1 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <Label className="text-xs font-medium">Expense Type</Label>
-                          <button
+                    <CardHeader className="py-3 px-4 border-b bg-muted/20">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
                             type="button"
-                            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer font-medium ${
-                              line.isManualGst
-                                ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-200'
-                                : 'bg-muted text-muted-foreground border-transparent hover:bg-muted/80'
-                            }`}
-                            title={
-                              line.isManualGst
-                                ? 'Manual GST amount mode active. Click to switch to Auto %'
-                                : 'Auto percentage mode active. Click to enter manual GST amount'
-                            }
-                            onClick={() => {
-                              const nextManual = !line.isManualGst;
-                              let mCgst = line.manualCgstInr;
-                              let mSgst = line.manualSgstInr;
-                              let mIgst = line.manualIgstInr;
-                              if (nextManual && (!mCgst || mCgst === '0' || mCgst === '0.00')) {
-                                const amt = Number.parseFloat(line.amountInr) || 0;
-                                const cPct = Number.parseFloat(line.cgstPct) || 0;
-                                const sPct = Number.parseFloat(line.sgstPct) || 0;
-                                const iPct = Number.parseFloat(line.igstPct) || 0;
-                                mCgst = Math.round((amt * cPct) / 100).toString();
-                                mSgst = Math.round((amt * sPct) / 100).toString();
-                                mIgst = Math.round((amt * iPct) / 100).toString();
-                              }
-                              updateLine(idx, {
-                                isManualGst: nextManual,
-                                manualCgstInr: mCgst,
-                                manualSgstInr: mSgst,
-                                manualIgstInr: mIgst,
-                              });
-                            }}
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={() => updateBatchBill(bill.key, { collapsed: !bill.collapsed })}
+                            aria-label={bill.collapsed ? `Expand bill ${billIdx + 1}` : `Collapse bill ${billIdx + 1}`}
                           >
-                            {line.isManualGst ? 'Manual ₹' : 'Auto %'}
-                          </button>
+                            {bill.collapsed ? (
+                              <ChevronRight className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Badge variant="outline" className="font-mono text-xs">
+                            Bill #{billIdx + 1}
+                          </Badge>
+                          <span className="font-semibold text-sm">
+                            {billProv?.name || 'Select Service Provider'}
+                          </span>
+                          {bill.invoiceNo.trim() && (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              #{bill.invoiceNo.trim()}
+                            </span>
+                          )}
+                          {billSupply !== 'unknown' && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {billSupply === 'inter' ? 'IGST' : 'CGST+SGST'}
+                            </Badge>
+                          )}
+                          {bill.isPaidByClearingAgent && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300"
+                            >
+                              Paid by CHA{billChaAgentName ? `: ${billChaAgentName}` : ''}
+                              {bill.chaReimburseInvoiceNo ? ` (Ref: ${bill.chaReimburseInvoiceNo})` : ''}
+                            </Badge>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
-                          onClick={() => {
-                            setTargetLineIdx(idx);
+
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold text-primary">
+                            Net: INR {formatPaiseINR(billCalc.netAmountPaise)}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => duplicateBatchBill(bill.key)}
+                            title="Duplicate this provider bill"
+                          >
+                            <Copy className="h-3.5 w-3.5 mr-1" />
+                            Duplicate
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            disabled={batchBills.length <= 1}
+                            onClick={() => removeBatchBill(bill.key)}
+                            title="Remove bill from batch"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    {!bill.collapsed && (
+                      <CardContent className="p-4 space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs">Service Provider *</Label>
+                              <button
+                                type="button"
+                                tabIndex={-1}
+                                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
+                                onClick={() => {
+                                  setTargetBatchBillKey(bill.key);
+                                  setManageSpOpen(true);
+                                }}
+                              >
+                                <Settings2 className="h-2.5 w-2.5" />
+                                Manage
+                              </button>
+                            </div>
+                            <SearchableCombobox
+                              value={bill.serviceProviderId}
+                              onValueChange={(v) => handleBatchProviderChange(bill.key, v)}
+                              ariaLabel={`Bill ${billIdx + 1} Service Provider`}
+                              placeholder="Choose provider"
+                              searchPlaceholder="Search provider or GSTIN..."
+                              options={providers.map((p) => ({
+                                value: p.id,
+                                label: p.name,
+                                sublabel: [p.gstin, p.state].filter(Boolean).join(' · ') || undefined,
+                                keywords: `${p.name} ${p.gstin || ''} ${p.state || ''}`,
+                              }))}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Invoice No *</Label>
+                            <Input
+                              className="h-9 text-xs font-mono"
+                              maxLength={100}
+                              aria-label={`Bill ${billIdx + 1} Invoice No`}
+                              placeholder="e.g. INV-2026-001"
+                              value={bill.invoiceNo}
+                              onChange={(e) => updateBatchBill(bill.key, { invoiceNo: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Invoice Date *</Label>
+                            <Input
+                              className="h-9 text-xs"
+                              type="date"
+                              aria-label={`Bill ${billIdx + 1} Invoice Date`}
+                              value={bill.invoiceDate}
+                              onChange={(e) => updateBatchBill(bill.key, { invoiceDate: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Round Off (₹) &amp; Remarks</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                className="h-9 w-24 text-xs font-mono"
+                                type="number"
+                                step="1"
+                                min={-MAX_ROUND_OFF_PAISE / 100}
+                                max={MAX_ROUND_OFF_PAISE / 100}
+                                aria-label={`Bill ${billIdx + 1} Round Off (INR)`}
+                                value={bill.roundOffInr}
+                                onChange={(e) => updateBatchBill(bill.key, { roundOffInr: e.target.value })}
+                              />
+                              <Input
+                                className="h-9 flex-1 text-xs"
+                                maxLength={1000}
+                                placeholder="Bill remarks"
+                                value={bill.remarks}
+                                onChange={(e) => updateBatchBill(bill.key, { remarks: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Per-bill CHA Reimbursement toggle */}
+                        <div className="rounded-md border bg-muted/20 p-3 space-y-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                id={`cha-bill-${bill.key}`}
+                                checked={bill.isPaidByClearingAgent}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    const fallbackCa =
+                                      bill.clearingAgentId ||
+                                      (sharedClearingAgentId !== bill.serviceProviderId
+                                        ? sharedClearingAgentId
+                                        : '');
+                                    updateBatchBill(bill.key, {
+                                      isPaidByClearingAgent: true,
+                                      clearingAgentId: fallbackCa,
+                                      chaReimburseInvoiceNo:
+                                        bill.chaReimburseInvoiceNo || sharedChaReimburseInvoiceNo,
+                                      chaReimburseInvoiceDate:
+                                        bill.chaReimburseInvoiceDate || sharedChaReimburseInvoiceDate,
+                                    });
+                                  } else {
+                                    updateBatchBill(bill.key, { isPaidByClearingAgent: false });
+                                  }
+                                }}
+                              />
+                              <Label htmlFor={`cha-bill-${bill.key}`} className="text-xs font-semibold cursor-pointer">
+                                Paid by Clearing Agent (Reimbursement)
+                              </Label>
+                            </div>
+                            {billSameCha && (
+                              <span className="text-[11px] font-medium text-destructive">
+                                Clearing Agent cannot be the same as the Service Provider
+                              </span>
+                            )}
+                          </div>
+
+                          {bill.isPaidByClearingAgent && (
+                            <div className="grid gap-3 sm:grid-cols-3 pt-2 border-t">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Clearing Agent (Payable To) *</Label>
+                                <SearchableCombobox
+                                  value={bill.clearingAgentId}
+                                  onValueChange={(v) => updateBatchBill(bill.key, { clearingAgentId: v })}
+                                  ariaLabel={`Bill ${billIdx + 1} Clearing Agent`}
+                                  placeholder="Select clearing agent"
+                                  searchPlaceholder="Search clearing agent..."
+                                  className="h-8 text-xs"
+                                  options={providers
+                                    .filter((p) => p.id !== bill.serviceProviderId)
+                                    .map((p) => ({
+                                      value: p.id,
+                                      label: p.name,
+                                      sublabel: [p.gstin, p.state].filter(Boolean).join(' · ') || undefined,
+                                      keywords: `${p.name} ${p.gstin || ''} ${p.state || ''}`,
+                                    }))}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">CHA Reimburse Invoice No</Label>
+                                <Input
+                                  className="h-8 text-xs font-mono"
+                                  maxLength={100}
+                                  aria-label={`Bill ${billIdx + 1} CHA Reimburse Invoice No`}
+                                  placeholder="Shared or custom CHA Ref #"
+                                  value={bill.chaReimburseInvoiceNo}
+                                  onChange={(e) =>
+                                    updateBatchBill(bill.key, { chaReimburseInvoiceNo: e.target.value })
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">CHA Reimburse Date</Label>
+                                <Input
+                                  className="h-8 text-xs"
+                                  type="date"
+                                  value={bill.chaReimburseInvoiceDate}
+                                  onChange={(e) =>
+                                    updateBatchBill(bill.key, { chaReimburseInvoiceDate: e.target.value })
+                                  }
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {isIntraBatchDup && (
+                          <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive font-medium">
+                            <AlertTriangle className="h-4 w-4 shrink-0" />
+                            <span>
+                              Duplicate provider &amp; invoice number within this batch. Update one of the invoice numbers.
+                            </span>
+                          </div>
+                        )}
+
+                        {existingInDb && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs">
+                            <span className="flex items-center gap-2 font-medium text-blue-900 dark:text-blue-200">
+                              <AlertTriangle className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                              Invoice &ldquo;{existingInDb.invoiceNo}&rdquo; already exists for {billProv?.name}.
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => openEditInvoice(existingInDb)}
+                            >
+                              Edit Existing #{existingInDb.invoiceNo}
+                            </Button>
+                          </div>
+                        )}
+
+                        <ExpenseLinesGrid
+                          lines={bill.lines}
+                          types={types}
+                          supplyType={billSupply}
+                          billLabelPrefix={`Bill ${billIdx + 1} `}
+                          lineAmountRefs={lineAmountRefs}
+                          onChangeLines={(nextLines) => updateBatchBill(bill.key, { lines: nextLines })}
+                          onAddLine={() => {
+                            const nextEt = pickNextUnusedType(bill.lines);
+                            const created = emptyLine(
+                              nextEt,
+                              bill.lines.some((l) => l.isManualGst),
+                              billSupply,
+                            );
+                            pendingFocusKeyRef.current = created.key;
+                            updateBatchBill(bill.key, { lines: [...bill.lines, created] });
+                          }}
+                          onDuplicateLine={(lineIdx) => {
+                            const src = bill.lines[lineIdx];
+                            if (!src) return;
+                            const nextEt = pickNextUnusedType(bill.lines);
+                            const adapted = nextEt ? adaptExpenseTypeRatesForSupply(nextEt, billSupply) : null;
+                            const copy: DraftLine = {
+                              ...src,
+                              key: makeLineKey(),
+                              expenseTypeId: nextEt?.id ?? src.expenseTypeId,
+                              cgstPct: adapted ? (adapted.cgstBp / 100).toFixed(2) : src.cgstPct,
+                              sgstPct: adapted ? (adapted.sgstBp / 100).toFixed(2) : src.sgstPct,
+                              igstPct: adapted ? (adapted.igstBp / 100).toFixed(2) : src.igstPct,
+                              tdsPct: adapted ? (adapted.tdsBp / 100).toFixed(2) : src.tdsPct,
+                            };
+                            pendingFocusKeyRef.current = copy.key;
+                            updateBatchBill(bill.key, {
+                              lines: [
+                                ...bill.lines.slice(0, lineIdx + 1),
+                                copy,
+                                ...bill.lines.slice(lineIdx + 1),
+                              ],
+                            });
+                          }}
+                          onCombineDuplicates={() => void handleBatchCombineDuplicates(bill.key)}
+                          onCopyLastBill={
+                            bill.serviceProviderId
+                              ? () => handleCopyLastBillForBatch(bill.key)
+                              : undefined
+                          }
+                          onOpenPaste={() => {
+                            setPasteTargetBillKey(bill.key);
+                            setPasteOpen(true);
+                          }}
+                          onOpenManageTypes={() => {
+                            setTargetBatchBillKey(bill.key);
+                            setTargetLineIdx(null);
                             setManageEtOpen(true);
                           }}
+                        />
+
+                        {/* Per-bill mini summary strip */}
+                        <div className="flex flex-wrap items-center justify-end gap-4 rounded-md bg-muted/30 px-3 py-2 text-xs font-mono">
+                          <span>Base: INR {formatPaiseINR(billCalc.baseAmountPaise)}</span>
+                          <span>
+                            GST: INR{' '}
+                            {formatPaiseINR(
+                              billCalc.totalCgstPaise + billCalc.totalSgstPaise + billCalc.totalIgstPaise,
+                            )}
+                          </span>
+                          <span>TDS: INR {formatPaiseINR(billCalc.totalTdsPaise)}</span>
+                          <span className="font-bold text-primary">
+                            Net: INR {formatPaiseINR(billCalc.netAmountPaise)}
+                          </span>
+                        </div>
+                      </CardContent>
+                    )}
+                  </Card>
+                );
+              })}
+
+              <div className="flex justify-center">
+                <Button type="button" variant="outline" className="gap-1.5" onClick={addBatchBill}>
+                  <Plus className="h-4 w-4" />
+                  Add Another Service Provider Invoice
+                </Button>
+              </div>
+
+              {/* Grand Batch Summary Card */}
+              <Card className="border-primary/30 bg-muted/20">
+                <CardHeader className="py-3 px-6 border-b">
+                  <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Batch Summary ({batchBills.length} Provider Invoice{batchBills.length === 1 ? '' : 's'})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-5 space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="rounded-lg border bg-card p-3">
+                      <span className="text-xs text-muted-foreground">Total Base</span>
+                      <div className="font-mono text-base font-bold mt-0.5">
+                        INR {formatPaiseINR(batchSummary.basePaise)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border bg-card p-3">
+                      <span className="text-xs text-muted-foreground">Total GST</span>
+                      <div className="font-mono text-base font-bold mt-0.5">
+                        INR {formatPaiseINR(batchSummary.gstPaise)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border bg-card p-3">
+                      <span className="text-xs text-muted-foreground">Total TDS</span>
+                      <div className="font-mono text-base font-bold mt-0.5">
+                        INR {formatPaiseINR(batchSummary.tdsPaise)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border bg-card p-3">
+                      <span className="text-xs text-muted-foreground">Direct to Providers ({batchSummary.directCount})</span>
+                      <div className="font-mono text-base font-bold mt-0.5">
+                        INR {formatPaiseINR(batchSummary.directNetPaise)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border bg-card p-3">
+                      <span className="text-xs text-purple-700 dark:text-purple-300">CHA Reimbursable ({batchSummary.chaCount})</span>
+                      <div className="font-mono text-base font-bold text-purple-700 dark:text-purple-300 mt-0.5">
+                        INR {formatPaiseINR(batchSummary.chaNetPaise)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
+                      <span className="text-xs text-primary font-semibold">Combined Net</span>
+                      <div className="font-mono text-lg font-extrabold text-primary mt-0.5">
+                        INR {formatPaiseINR(batchSummary.netPaise)}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <>
+              {/* Invoice Information Header Card */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">Invoice Information</CardTitle>
+                  <CardDescription>Select the shipment and service provider, and enter invoice reference details.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-1.5">
+                      <Label>Shipment *</Label>
+                      <SearchableCombobox
+                        value={shipmentId}
+                        onValueChange={setShipmentId}
+                        ariaLabel="Shipment"
+                        placeholder="Choose shipment"
+                        searchPlaceholder="Search shipment invoice or supplier..."
+                        options={shipments
+                          .filter((s) => !s.isFrozen || s.id === shipmentId)
+                          .map((s) => ({
+                            value: s.id,
+                            label: `${s.invoiceNumber} — ${s.supplierName || 'No Supplier'}`,
+                            sublabel: `${s.invoiceDate || ''}${s.blAwbNumber ? ` · BL/AWB: ${s.blAwbNumber}` : ''}`,
+                            keywords: `${s.invoiceNumber} ${s.supplierName} ${s.blAwbNumber || ''}`,
+                          }))}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label>Service Provider *</Label>
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
+                          onClick={() => {
+                            setTargetBatchBillKey(null);
+                            setManageSpOpen(true);
+                          }}
                         >
-                          <Settings2 className="h-2.5 w-2.5" />
+                          <Settings2 className="h-3 w-3" />
                           Manage
                         </button>
                       </div>
-                      <Select
-                        value={line.expenseTypeId}
-                        onValueChange={(v) => {
-                          const et = types.find((t) => t.id === v);
-                          const cPct = et ? (et.defaultCgstRateBp / 100).toFixed(2) : line.cgstPct;
-                          const sPct = et ? (et.defaultSgstRateBp / 100).toFixed(2) : line.sgstPct;
-                          const iPct = et ? (et.defaultIgstRateBp / 100).toFixed(2) : line.igstPct;
-                          const amt = Number.parseFloat(line.amountInr) || 0;
-                          updateLine(idx, {
-                            expenseTypeId: v,
-                            cgstPct: cPct,
-                            sgstPct: sPct,
-                            igstPct: iPct,
-                            manualCgstInr: line.isManualGst ? Math.round((amt * Number.parseFloat(cPct)) / 100).toString() : line.manualCgstInr,
-                            manualSgstInr: line.isManualGst ? Math.round((amt * Number.parseFloat(sPct)) / 100).toString() : line.manualSgstInr,
-                            manualIgstInr: line.isManualGst ? Math.round((amt * Number.parseFloat(iPct)) / 100).toString() : line.manualIgstInr,
-                            tdsPct: et ? (et.defaultTdsRateBp / 100).toFixed(2) : line.tdsPct,
-                          });
-                        }}
-                      >
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {types.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Basic (INR) */}
-                    <div className="w-36 space-y-1">
-                      <Label className="text-xs font-medium">Basic (INR)</Label>
-                      <Input
-                        className="h-9 text-xs font-mono"
-                        type="number"
-                        step="1"
-                        aria-label="Basic (INR)"
-                        value={line.amountInr}
-                        onChange={(e) => updateLine(idx, { amountInr: e.target.value })}
+                      <SearchableCombobox
+                        value={serviceProviderId}
+                        onValueChange={handleProviderChange}
+                        ariaLabel="Service Provider"
+                        placeholder="Choose provider"
+                        searchPlaceholder="Search provider or GSTIN..."
+                        options={providers.map((p) => ({
+                          value: p.id,
+                          label: p.name,
+                          sublabel: [p.gstin, p.state].filter(Boolean).join(' · ') || undefined,
+                          keywords: `${p.name} ${p.gstin || ''} ${p.state || ''}`,
+                        }))}
                       />
                     </div>
 
-                    {/* GST Columns */}
-                    {!line.isManualGst ? (
-                      <>
-                        <div className="w-24 space-y-1">
-                          <Label className="text-xs font-medium">CGST%</Label>
-                          <Input
-                            className="h-9 text-xs font-mono text-center px-2"
-                            type="number"
-                            step="0.01"
-                            value={line.cgstPct}
-                            onChange={(e) => updateLine(idx, { cgstPct: e.target.value })}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="expInvNo">Invoice No *</Label>
+                      <Input
+                        id="expInvNo"
+                        maxLength={100}
+                        placeholder="e.g. INV-2026-001"
+                        value={invoiceNo}
+                        onChange={(e) => setInvoiceNo(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="expInvDate">Invoice Date *</Label>
+                      <Input
+                        id="expInvDate"
+                        type="date"
+                        value={invoiceDate}
+                        onChange={(e) => setInvoiceDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Clearing Agent (CHA) Reimbursement Section */}
+                  <div className="rounded-lg border p-3.5 bg-muted/20 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="cha-toggle" className="text-sm font-semibold cursor-pointer">
+                            Paid by Clearing Agent (Reimbursement)
+                          </Label>
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            e.g. Liner &amp; CFS Charges
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Check this if charges were paid upfront by your clearing agent. The expense remains attributed to the original provider for GST credit, but payment liability is linked to the clearing agent.
+                        </p>
+                      </div>
+                      <Switch
+                        id="cha-toggle"
+                        checked={isPaidByClearingAgent}
+                        onCheckedChange={setIsPaidByClearingAgent}
+                      />
+                    </div>
+
+                    {isPaidByClearingAgent && (
+                      <div className="grid gap-4 sm:grid-cols-3 pt-3 border-t">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="clearingAgentSelect">Clearing Agent (Payable To) *</Label>
+                          <SearchableCombobox
+                            triggerId="clearingAgentSelect"
+                            value={clearingAgentId}
+                            onValueChange={setClearingAgentId}
+                            ariaLabel="Clearing Agent"
+                            placeholder="Select clearing agent"
+                            searchPlaceholder="Search clearing agent..."
+                            options={providers
+                              .filter((p) => p.id !== serviceProviderId)
+                              .map((p) => ({
+                                value: p.id,
+                                label: p.name,
+                                sublabel: [p.gstin, p.state].filter(Boolean).join(' · ') || undefined,
+                                keywords: `${p.name} ${p.gstin || ''} ${p.state || ''}`,
+                              }))}
                           />
                         </div>
-                        <div className="w-24 space-y-1">
-                          <Label className="text-xs font-medium">SGST%</Label>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="chaReimbInvNo">CHA Reimburse Invoice No</Label>
                           <Input
-                            className="h-9 text-xs font-mono text-center px-2"
-                            type="number"
-                            step="0.01"
-                            value={line.sgstPct}
-                            onChange={(e) => updateLine(idx, { sgstPct: e.target.value })}
+                            id="chaReimbInvNo"
+                            maxLength={100}
+                            placeholder="e.g. CHA-REIMB-2026-001"
+                            value={chaReimburseInvoiceNo}
+                            onChange={(e) => setChaReimburseInvoiceNo(e.target.value)}
+                            className="font-mono text-sm"
                           />
                         </div>
-                        <div className="w-24 space-y-1">
-                          <Label className="text-xs font-medium">IGST%</Label>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="chaReimbInvDate">CHA Reimburse Date</Label>
                           <Input
-                            className="h-9 text-xs font-mono text-center px-2"
-                            type="number"
-                            step="0.01"
-                            value={line.igstPct}
-                            onChange={(e) => updateLine(idx, { igstPct: e.target.value })}
+                            id="chaReimbInvDate"
+                            type="date"
+                            value={chaReimburseInvoiceDate}
+                            onChange={(e) => setChaReimburseInvoiceDate(e.target.value)}
                           />
                         </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-32 space-y-1">
-                          <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">CGST (₹)</Label>
-                          <Input
-                            className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
-                            type="number"
-                            step="1"
-                            placeholder="0"
-                            aria-label="CGST Amount (INR)"
-                            value={line.manualCgstInr}
-                            onChange={(e) => updateLine(idx, { manualCgstInr: e.target.value })}
-                          />
-                        </div>
-                        <div className="w-32 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">SGST (₹)</Label>
-                            <button
-                              type="button"
-                              className="text-[10px] text-primary hover:underline cursor-pointer font-medium"
-                              title="Copy CGST to SGST"
-                              onClick={() => updateLine(idx, { manualSgstInr: line.manualCgstInr })}
-                            >
-                              =CGST
-                            </button>
-                          </div>
-                          <Input
-                            className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
-                            type="number"
-                            step="1"
-                            placeholder="0"
-                            aria-label="SGST Amount (INR)"
-                            value={line.manualSgstInr}
-                            onChange={(e) => updateLine(idx, { manualSgstInr: e.target.value })}
-                          />
-                        </div>
-                        <div className="w-32 space-y-1">
-                          <Label className="text-xs text-amber-700 dark:text-amber-400 font-medium">IGST (₹)</Label>
-                          <Input
-                            className="h-9 text-xs font-mono border-amber-300 dark:border-amber-800"
-                            type="number"
-                            step="1"
-                            placeholder="0"
-                            aria-label="IGST Amount (INR)"
-                            value={line.manualIgstInr}
-                            onChange={(e) => updateLine(idx, { manualIgstInr: e.target.value })}
-                          />
-                        </div>
-                      </>
+                      </div>
                     )}
-
-                    {/* TDS% */}
-                    <div className="w-24 space-y-1">
-                      <Label className="text-xs font-medium">TDS%</Label>
-                      <Input
-                        className="h-9 text-xs font-mono text-center px-2"
-                        type="number"
-                        step="0.01"
-                        value={line.tdsPct}
-                        onChange={(e) => updateLine(idx, { tdsPct: e.target.value })}
-                      />
-                    </div>
-
-                    {/* Remarks */}
-                    <div className="min-w-[160px] flex-1 space-y-1">
-                      <Label className="text-xs font-medium">Remarks</Label>
-                      <Input
-                        className="h-9 text-xs"
-                        placeholder="Optional line remarks"
-                        value={line.remarks}
-                        onChange={(e) => updateLine(idx, { remarks: e.target.value })}
-                      />
-                    </div>
-
-                    {/* Delete Line Action */}
-                    <div className="pb-0.5">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
-                        disabled={draftLines.length === 1}
-                        title="Delete line"
-                        onClick={() => {
-                          const next = draftLines.filter((_, i) => i !== idx);
-                          setDraftLines(next);
-                          void refreshPreview(next);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {matchingExistingInvoice && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-xs">
+                  <span className="flex items-center gap-2 font-medium text-blue-900 dark:text-blue-200">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                    Invoice &ldquo;{matchingExistingInvoice.invoiceNo}&rdquo; already exists for this service provider ({matchingExistingInvoice.lines?.length ?? 0} line(s) recorded).
+                    To add multiple services (transport, customs clearance, etc.) to this bill, edit the existing invoice.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-blue-500/40 hover:bg-blue-500/20 text-xs shrink-0"
+                    onClick={() => openEditInvoice(matchingExistingInvoice)}
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Edit Existing Invoice #{matchingExistingInvoice.invoiceNo}
+                  </Button>
                 </div>
-              ))}
+              )}
 
-              <div className="pt-2 flex justify-end">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  type="button"
-                  className="gap-1.5 text-xs"
-                  onClick={() =>
-                    setDraftLines((prev) => [
-                      ...prev,
-                      emptyLine(types[0], prev.some((l) => l.isManualGst)),
-                    ])
-                  }
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Another Line
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Expense Lines Compact Grid Card */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">Expense Lines ({draftLines.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ExpenseLinesGrid
+                    lines={draftLines}
+                    types={types}
+                    supplyType={supplyType}
+                    lineAmountRefs={lineAmountRefs}
+                    onChangeLines={(next) => {
+                      setDraftLines(next);
+                      scheduleBackendPreview(next);
+                    }}
+                    onAddLine={() => addDraftLine(true)}
+                    onDuplicateLine={(idx) => duplicateDraftLine(idx)}
+                    onCombineDuplicates={() => void handleCombineDuplicates()}
+                    onCopyLastBill={!editingInv && serviceProviderId ? handleCopyLastBillForProvider : undefined}
+                    onOpenPaste={() => {
+                      setPasteTargetBillKey(null);
+                      setPasteOpen(true);
+                    }}
+                    onOpenManageTypes={() => {
+                      setTargetBatchBillKey(null);
+                      setTargetLineIdx(null);
+                      setManageEtOpen(true);
+                    }}
+                  />
+                </CardContent>
+              </Card>
 
-          {/* Invoice Remarks Card */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-1.5">
-                <Label htmlFor="expInvRemarks" className="text-sm font-medium">Invoice Remarks</Label>
-                <Input
-                  id="expInvRemarks"
-                  placeholder="Optional notes or reference instructions for this expense invoice"
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
+              {/* Invoice Remarks Card */}
+              <Card>
+                <CardContent className="pt-5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="expInvRemarks" className="text-sm font-medium">Invoice Remarks</Label>
+                    <Input
+                      id="expInvRemarks"
+                      maxLength={1000}
+                      placeholder="Optional notes or reference instructions for this expense invoice"
+                      value={remarks}
+                      onChange={(e) => setRemarks(e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Calculation Summary Card */}
-          {preview && (
-            <Card className="border-primary/20 bg-muted/20">
-              <CardHeader className="py-3 px-6 border-b">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Computed Totals (Whole Rupee / Rounded)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                  <div className="rounded-lg border bg-card p-4 shadow-xs">
-                    <span className="text-xs text-muted-foreground font-medium">Base (Excl. GST)</span>
-                    <div className="font-mono text-lg font-bold text-foreground mt-1">
-                      INR {formatPaiseINR(preview.baseAmountPaise)}
+              {/* Calculation Summary Card */}
+              {preview && (
+                <Card className="border-primary/20 bg-muted/20">
+                  <CardHeader className="py-3 px-6 border-b">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Computed Totals (Whole Rupee / Rounded)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                      <div className="rounded-lg border bg-card p-4 shadow-xs">
+                        <span className="text-xs text-muted-foreground font-medium">Base (Excl. GST)</span>
+                        <div className="font-mono text-lg font-bold text-foreground mt-1">
+                          INR {formatPaiseINR(preview.baseAmountPaise)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border bg-card p-4 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground font-medium">GST Total</span>
+                          <span className="text-[10px] text-muted-foreground">(CGST+SGST+IGST)</span>
+                        </div>
+                        <div className="font-mono text-lg font-bold text-foreground mt-1">
+                          INR {formatPaiseINR(preview.totalCgstPaise + preview.totalSgstPaise + preview.totalIgstPaise)}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          CGST: {formatPaiseINR(preview.totalCgstPaise)} | SGST: {formatPaiseINR(preview.totalSgstPaise)} | IGST: {formatPaiseINR(preview.totalIgstPaise)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border/80 bg-muted/40 p-4 shadow-xs">
+                        <span className="text-xs text-muted-foreground font-medium">Invoice Total</span>
+                        <div className="font-mono text-lg font-bold text-foreground mt-1">
+                          INR {formatPaiseINR(
+                            preview.baseAmountPaise +
+                              preview.totalCgstPaise +
+                              preview.totalSgstPaise +
+                              preview.totalIgstPaise +
+                              roundOffPaiseVal
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          Base + GST (w/o TDS)
+                        </div>
+                      </div>
+                      <div className="rounded-lg border bg-card p-4 shadow-xs">
+                        <span className="text-xs text-muted-foreground font-medium">TDS Deducted</span>
+                        <div className="font-mono text-lg font-bold text-foreground mt-1">
+                          INR {formatPaiseINR(preview.totalTdsPaise)}
+                        </div>
+                      </div>
+                      <div className={`rounded-lg border bg-card p-4 shadow-xs ${roundOffOutOfRange ? 'border-destructive' : ''}`}>
+                        <span className="text-xs text-muted-foreground font-medium">Round Off (₹)</span>
+                        <div className="mt-1">
+                          <Input
+                            className="h-8 text-sm font-mono font-bold"
+                            type="number"
+                            step="1"
+                            min={-MAX_ROUND_OFF_PAISE / 100}
+                            max={MAX_ROUND_OFF_PAISE / 100}
+                            placeholder="0"
+                            aria-label="Round Off (INR)"
+                            value={roundOffInr}
+                            onChange={(e) => setRoundOffInr(e.target.value)}
+                          />
+                        </div>
+                        <span className={`text-[10px] mt-0.5 block ${roundOffOutOfRange ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                          {roundOffOutOfRange ? `Max ±₹${MAX_ROUND_OFF_PAISE / 100}` : `Whole rupee (±₹${MAX_ROUND_OFF_PAISE / 100})`}
+                        </span>
+                      </div>
+                      <div className={`rounded-lg border p-4 shadow-xs ${negativeNetPayable ? 'border-destructive bg-destructive/10' : 'border-primary/40 bg-primary/5'}`}>
+                        <span className={`text-xs font-semibold ${negativeNetPayable ? 'text-destructive' : 'text-primary'}`}>Net Payable</span>
+                        <div className={`font-mono text-xl font-extrabold mt-1 ${negativeNetPayable ? 'text-destructive' : 'text-primary'}`}>
+                          INR {formatPaiseINR(preview.netAmountPaise + roundOffPaiseVal)}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="rounded-lg border bg-card p-4 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground font-medium">GST Total</span>
-                      <span className="text-[10px] text-muted-foreground">(CGST+SGST+IGST)</span>
-                    </div>
-                    <div className="font-mono text-lg font-bold text-foreground mt-1">
-                      INR {formatPaiseINR(preview.totalCgstPaise + preview.totalSgstPaise + preview.totalIgstPaise)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      CGST: {formatPaiseINR(preview.totalCgstPaise)} | SGST: {formatPaiseINR(preview.totalSgstPaise)} | IGST: {formatPaiseINR(preview.totalIgstPaise)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-border/80 bg-muted/40 p-4 shadow-xs">
-                    <span className="text-xs text-muted-foreground font-medium">Invoice Total</span>
-                    <div className="font-mono text-lg font-bold text-foreground mt-1">
-                      INR {formatPaiseINR(
-                        preview.baseAmountPaise +
-                          preview.totalCgstPaise +
-                          preview.totalSgstPaise +
-                          preview.totalIgstPaise +
-                          Math.round((Number.parseFloat(roundOffInr) || 0) * 100)
-                      )}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      Base + GST (w/o TDS)
-                    </div>
-                  </div>
-                  <div className="rounded-lg border bg-card p-4 shadow-xs">
-                    <span className="text-xs text-muted-foreground font-medium">TDS Deducted</span>
-                    <div className="font-mono text-lg font-bold text-foreground mt-1">
-                      INR {formatPaiseINR(preview.totalTdsPaise)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border bg-card p-4 shadow-xs">
-                    <span className="text-xs text-muted-foreground font-medium">Round Off (₹)</span>
-                    <div className="mt-1">
-                      <Input
-                        className="h-8 text-sm font-mono font-bold"
-                        type="number"
-                        step="1"
-                        placeholder="0"
-                        aria-label="Round Off (INR)"
-                        value={roundOffInr}
-                        onChange={(e) => setRoundOffInr(e.target.value)}
-                      />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground mt-0.5 block">Whole rupee adj</span>
-                  </div>
-                  <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 shadow-xs">
-                    <span className="text-xs text-primary font-semibold">Net Payable</span>
-                    <div className="font-mono text-xl font-extrabold text-primary mt-1">
-                      INR {formatPaiseINR(preview.netAmountPaise + Math.round((Number.parseFloat(roundOffInr) || 0) * 100))}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
 
           {/* Bottom Action Footer */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-            <Button variant="outline" onClick={() => setInvOpen(false)}>
+            <Button variant="outline" onClick={requestCloseEditor}>
               Cancel
             </Button>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setInvOpen(false)}
-              >
+              <Button variant="outline" onClick={requestCloseEditor}>
                 Back to List
               </Button>
-              <Button
-                disabled={savingInv || hasDuplicateType || !shipmentId || !serviceProviderId || !invoiceNo}
-                onClick={() => void handleSaveInvoice()}
-              >
-                {savingInv ? 'Saving...' : 'Save Expense Invoice'}
-              </Button>
+              {entryMode === 'batch' ? (
+                <Button
+                  disabled={savingInv || !shipmentId || batchBills.length === 0 || batchSummary.hasAnyErrors}
+                  onClick={() => void handleSaveBatch()}
+                >
+                  {savingInv ? 'Saving Batch...' : `Save All ${batchBills.length} Invoices`}
+                </Button>
+              ) : (
+                <>
+                  {!editingInv && (
+                    <Button
+                      variant="secondary"
+                      disabled={!canSubmitInvoice}
+                      onClick={() => void handleSaveInvoice(true)}
+                    >
+                      {savingInv ? 'Saving...' : 'Save & New'}
+                    </Button>
+                  )}
+                  <Button
+                    disabled={!canSubmitInvoice}
+                    onClick={() => void handleSaveInvoice(false)}
+                  >
+                    {savingInv ? 'Saving...' : 'Save Expense Invoice'}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
+
+          {/* Paste Expense Lines Dialog */}
+          <Dialog
+            open={pasteOpen}
+            onOpenChange={(open) => {
+              setPasteOpen(open);
+              if (!open) setPasteTargetBillKey(null);
+            }}
+          >
+            <DialogContent className="max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Paste Expense Lines from Excel / Tally</DialogTitle>
+                <DialogDescription>
+                  Paste tab- or comma-separated lines. Format: <span className="font-mono">Expense Type, Basic Amount, [Remarks]</span> or <span className="font-mono">Expense Type, Basic, CGST%, SGST%, IGST%, TDS%, [Remarks]</span>.
+                </DialogDescription>
+              </DialogHeader>
+              <Textarea
+                rows={7}
+                className="font-mono text-xs"
+                placeholder={"Customs Clearance\t15000\tBOE processing\nTransport Charges\t6250\tLocal cartage"}
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+              />
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPasteOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleApplyPaste} disabled={!pasteText.trim()}>
+                  Import Pasted Lines
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       ) : (
         <>
@@ -2814,12 +4038,24 @@ export function ExpensesPage() {
 
       <ManageServiceProvidersDialog
         open={manageSpOpen}
-        onOpenChange={setManageSpOpen}
+        onOpenChange={(open) => {
+          setManageSpOpen(open);
+          if (!open) setTargetBatchBillKey(null);
+        }}
         providers={providers}
-        selectedId={serviceProviderId}
+        selectedId={
+          targetBatchBillKey
+            ? batchBills.find((b) => b.key === targetBatchBillKey)?.serviceProviderId
+            : serviceProviderId
+        }
         onUpdated={loadAll}
         onSelect={(id) => {
-          setServiceProviderId(id);
+          if (targetBatchBillKey) {
+            handleBatchProviderChange(targetBatchBillKey, id);
+            setTargetBatchBillKey(null);
+          } else {
+            handleProviderChange(id);
+          }
           toast.success('Selected service provider');
         }}
       />
@@ -2836,12 +4072,13 @@ export function ExpensesPage() {
         onUpdated={loadAll}
         onSelect={(et) => {
           if (targetLineIdx !== null && draftLines[targetLineIdx]) {
+            const adapted = adaptExpenseTypeRatesForSupply(et, supplyType);
             updateLine(targetLineIdx, {
               expenseTypeId: et.id,
-              cgstPct: (et.defaultCgstRateBp / 100).toFixed(2),
-              sgstPct: (et.defaultSgstRateBp / 100).toFixed(2),
-              igstPct: (et.defaultIgstRateBp / 100).toFixed(2),
-              tdsPct: (et.defaultTdsRateBp / 100).toFixed(2),
+              cgstPct: (adapted.cgstBp / 100).toFixed(2),
+              sgstPct: (adapted.sgstBp / 100).toFixed(2),
+              igstPct: (adapted.igstBp / 100).toFixed(2),
+              tdsPct: (adapted.tdsBp / 100).toFixed(2),
             });
             toast.success(`Selected expense type "${et.name}"`);
           }
