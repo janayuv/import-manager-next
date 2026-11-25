@@ -371,7 +371,34 @@ func CopyAttachedTables(ctx context.Context, db *sql.DB, attachedPath, attachedK
 
 	orderedTables = sortTablesByDependencyTx(ctx, tx, "main", orderedTables)
 
+	// Unconditional immutability triggers (e.g. rule version / ledger immutability) block clearing
+	// destination rows during an atomic full-database restore. Suspend only those inside this tx
+	// and recreate them identically before Commit so FK delete-order protection still applies and
+	// any rollback leaves all triggers intact.
+	type suspendedTrigger struct{ name, ddl string }
+	var suspended []suspendedTrigger
 	if opts.ReplaceExisting {
+		trgRows, tErr := tx.QueryContext(ctx,
+			`SELECT name, sql FROM main.sqlite_master
+			 WHERE type = 'trigger' AND sql IS NOT NULL
+			   AND (UPPER(sql) LIKE '%IMMUTABLE%' OR UPPER(name) LIKE 'TRG_PREVENT_%')`,
+		)
+		if tErr != nil {
+			return result, fmt.Errorf("inspect immutability triggers: %w", tErr)
+		}
+		for trgRows.Next() {
+			var st suspendedTrigger
+			if sErr := trgRows.Scan(&st.name, &st.ddl); sErr == nil && st.name != "" && st.ddl != "" {
+				suspended = append(suspended, st)
+			}
+		}
+		_ = trgRows.Close()
+		for _, st := range suspended {
+			if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DROP TRIGGER IF EXISTS main.%s;`, QuoteIdent(st.name))); err != nil {
+				return result, fmt.Errorf("suspend trigger %s during restore: %w", st.name, err)
+			}
+		}
+
 		// Clear destination tables in reverse dependency order (children before parents).
 		// This ensures child records are removed before their parents, satisfying
 		// SQLite DELETE protection triggers and foreign key constraints cleanly.
@@ -433,6 +460,13 @@ func CopyAttachedTables(ctx context.Context, db *sql.DB, attachedPath, attachedK
 				QuoteIdent(alias),
 			)
 			_, _ = tx.ExecContext(ctx, seqSQL)
+		}
+	}
+
+	// Restore any suspended immutability triggers inside the same atomic transaction before commit.
+	for _, st := range suspended {
+		if _, err := tx.ExecContext(ctx, st.ddl); err != nil {
+			return result, fmt.Errorf("recreate trigger %s after restore: %w", st.name, err)
 		}
 	}
 

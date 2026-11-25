@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,38 +24,104 @@ func (s *Service) ListBackgroundJobs() ([]models.BackgroundJob, error) {
 	return s.listBackgroundJobsInternal()
 }
 
+func (s *Service) isJobGuardStopped(ctx context.Context, jobID string) bool {
+	var guardTime string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT recovery_time FROM workflow_job_recovery_log
+		 WHERE job_id = ? AND result = 'RECOVERY_GUARD_STOP' AND datetime(recovery_time) >= datetime('now', '-24 hours')
+		 ORDER BY datetime(recovery_time) DESC, rowid DESC LIMIT 1`,
+		jobID,
+	).Scan(&guardTime)
+	if err != nil || guardTime == "" {
+		return false
+	}
+	var overrideTime string
+	_ = s.db.QueryRowContext(ctx,
+		`SELECT created_at FROM workflow_job_manual_override_log
+		 WHERE job_id = ? AND action = 'OVERRIDE_RECOVERY_GUARD'
+		 ORDER BY datetime(created_at) DESC, rowid DESC LIMIT 1`,
+		jobID,
+	).Scan(&overrideTime)
+	if overrideTime == "" {
+		return true
+	}
+	return overrideTime < guardTime
+}
+
 func (s *Service) listBackgroundJobsInternal() ([]models.BackgroundJob, error) {
 	rows, err := s.db.Query(
 		`SELECT j.job_id, j.job_name, j.job_type, j.schedule_type, j.is_enabled,
 		        j.expected_duration_ms, j.max_retries, j.retry_delay_sec,
 		        COALESCE((SELECT e.status FROM workflow_job_execution_log e WHERE e.job_id = j.job_id ORDER BY datetime(e.started_at) DESC, e.rowid DESC LIMIT 1), 'IDLE'),
 		        COALESCE((SELECT e.started_at FROM workflow_job_execution_log e WHERE e.job_id = j.job_id ORDER BY datetime(e.started_at) DESC, e.rowid DESC LIMIT 1), ''),
-		        COALESCE((SELECT COALESCE(e.completed_at, '') FROM workflow_job_execution_log e WHERE e.job_id = j.job_id ORDER BY datetime(e.started_at) DESC, e.rowid DESC LIMIT 1), '')
+		        COALESCE((SELECT COALESCE(e.completed_at, '') FROM workflow_job_execution_log e WHERE e.job_id = j.job_id ORDER BY datetime(e.started_at) DESC, e.rowid DESC LIMIT 1), ''),
+		        COALESCE((SELECT COALESCE(e.error_message, '') FROM workflow_job_execution_log e WHERE e.job_id = j.job_id ORDER BY datetime(e.started_at) DESC, e.rowid DESC LIMIT 1), ''),
+		        COALESCE((SELECT COUNT(*) FROM workflow_job_recovery_log r WHERE r.job_id = j.job_id AND datetime(r.recovery_time) >= datetime('now', '-24 hours')), 0),
+		        COALESCE((SELECT exp.expected_interval_minutes FROM workflow_job_schedule_expectations exp WHERE exp.job_id = j.job_id), 1440)
 		 FROM workflow_background_jobs j ORDER BY j.job_id ASC`,
 	)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var out []models.BackgroundJob
+	var intervals []int
 	for rows.Next() {
 		var j models.BackgroundJob
 		var en int
+		var intervalMin int
 		if err := rows.Scan(
 			&j.JobID, &j.JobName, &j.JobType, &j.ScheduleType, &en,
 			&j.ExpectedDurationMs, &j.MaxRetries, &j.RetryDelaySec,
-			&j.LastStatus, &j.LastStartedAt, &j.LastCompletedAt,
+			&j.LastStatus, &j.LastStartedAt, &j.LastCompletedAt, &j.LastErrorMessage,
+			&j.RecoveryAttempts24h, &intervalMin,
 		); err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
 		j.IsEnabled = en == 1
 		out = append(out, j)
+		intervals = append(intervals, intervalMin)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	_ = rows.Close()
+
+	depMap := map[string][]string{}
+	if depRows, dErr := s.db.Query(`SELECT dependent_job_id, parent_job_id FROM workflow_job_dependencies ORDER BY parent_job_id ASC`); dErr == nil {
+		for depRows.Next() {
+			var depID, parentID string
+			if depRows.Scan(&depID, &parentID) == nil {
+				depMap[depID] = append(depMap[depID], parentID)
+			}
+		}
+		_ = depRows.Close()
+	}
+
+	ctx := context.Background()
+	for i := range out {
+		j := &out[i]
+		intervalMin := intervals[i]
+		j.GuardStopped = s.isJobGuardStopped(ctx, j.JobID)
+		if deps := depMap[j.JobID]; len(deps) > 0 {
+			j.DependsOn = deps
+		}
+		if j.IsEnabled && !j.GuardStopped && intervalMin > 0 {
+			if j.LastCompletedAt != "" {
+				if t, parseErr := time.Parse("2006-01-02 15:04:05", j.LastCompletedAt); parseErr == nil {
+					j.NextExpectedAt = t.Add(time.Duration(intervalMin) * time.Minute).Format("2006-01-02 15:04:05")
+				}
+			} else {
+				j.NextExpectedAt = "Due now"
+			}
+		}
 	}
 	if out == nil {
 		out = []models.BackgroundJob{}
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // ToggleBackgroundJob enables or disables one of the scheduled background jobs.
@@ -62,6 +129,12 @@ func (s *Service) ToggleBackgroundJob(jobID string, enabled bool) error {
 	sess, err := s.security.RequireAnyPermission(security.PermAutomationMutate, security.PermAutomationOpsCenter)
 	if err != nil {
 		return err
+	}
+	if !enabled && jobID == "maintenance_cleanup" {
+		return errors.New("CANNOT_DISABLE_MAINTENANCE_JOB: maintenance_cleanup cannot be disabled")
+	}
+	if enabled && s.isJobGuardStopped(context.Background(), jobID) {
+		return fmt.Errorf("job %q is halted by RECOVERY_GUARD_STOP circuit breaker; override recovery guard first", jobID)
 	}
 	en := 0
 	if enabled {
@@ -80,6 +153,42 @@ func (s *Service) ToggleBackgroundJob(jobID string, enabled bool) error {
 		return fmt.Errorf("background job %q not found", jobID)
 	}
 	_ = s.audit.RecordTableAudit("workflow_background_jobs", jobID, "TOGGLE", sess.UserID, nil, map[string]bool{"enabled": enabled}, nil)
+	return nil
+}
+
+// OverrideRecoveryGuard clears a RECOVERY_GUARD_STOP circuit breaker, logs the operator override, and re-enables the job.
+func (s *Service) OverrideRecoveryGuard(jobID, reason string) error {
+	sess, err := s.security.RequirePermission(security.PermAutomationOpsCenter)
+	if err != nil {
+		return err
+	}
+	trimmedReason := strings.TrimSpace(reason)
+	if len(trimmedReason) < 5 {
+		return errors.New("override reason must be at least 5 characters")
+	}
+	nowStr := time.Now().UTC().Format("2006-01-02 15:04:05")
+	err = transactions.WithinTx(context.Background(), s.db, func(tx *sql.Tx) error {
+		res, err := tx.Exec(
+			`UPDATE workflow_background_jobs SET is_enabled = 1, updated_at = ? WHERE job_id = ?`,
+			nowStr, jobID,
+		)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return fmt.Errorf("background job %q not found", jobID)
+		}
+		_, err = tx.Exec(
+			`INSERT INTO workflow_job_manual_override_log (id, job_id, action, reason, caller_role, created_at)
+			 VALUES (?, ?, 'OVERRIDE_RECOVERY_GUARD', ?, ?, ?)`,
+			newID("ovr"), jobID, trimmedReason, string(sess.Role), nowStr,
+		)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	_ = s.audit.RecordTableAudit("workflow_job_manual_override_log", jobID, "OVERRIDE_RECOVERY_GUARD", sess.UserID, nil, map[string]string{"reason": trimmedReason}, nil)
 	return nil
 }
 
@@ -149,6 +258,21 @@ func (s *Service) runJobInternal(ctx context.Context, jobID, actor string) (mode
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_background_jobs WHERE job_id = ?`, jobID).Scan(&exists); err != nil || exists == 0 {
 		return models.JobExecutionRecord{}, fmt.Errorf("background job %q not found", jobID)
 	}
+	if s.isJobGuardStopped(ctx, jobID) {
+		return models.JobExecutionRecord{}, fmt.Errorf("background job %q is halted by RECOVERY_GUARD_STOP circuit breaker; admin override required", jobID)
+	}
+
+	release, ok := s.acquireJobLock(jobID)
+	if !ok {
+		return models.JobExecutionRecord{}, fmt.Errorf("background job %q is already running", jobID)
+	}
+	defer release()
+
+	var recoveryRetries int
+	_ = s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM workflow_job_recovery_log WHERE job_id = ? AND datetime(recovery_time) >= datetime('now', '-24 hours')`,
+		jobID,
+	).Scan(&recoveryRetries)
 
 	execID := newID("exec")
 	started := time.Now().UTC()
@@ -156,8 +280,8 @@ func (s *Service) runJobInternal(ctx context.Context, jobID, actor string) (mode
 
 	if _, err := s.db.ExecContext(ctx,
 		`INSERT INTO workflow_job_execution_log (execution_id, job_id, started_at, status, records_processed, retry_count)
-		 VALUES (?, ?, ?, 'RUNNING', 0, 0)`,
-		execID, jobID, startedStr,
+		 VALUES (?, ?, ?, 'RUNNING', 0, ?)`,
+		execID, jobID, startedStr, recoveryRetries,
 	); err != nil {
 		return models.JobExecutionRecord{}, err
 	}
@@ -180,6 +304,11 @@ func (s *Service) runJobInternal(ctx context.Context, jobID, actor string) (mode
 			`INSERT INTO workflow_job_failure_alerts (alert_id, job_id, detected_at, alert_type, details_json)
 			 VALUES (?, ?, ?, 'JOB_EXECUTION_FAILED', ?)`,
 			newID("jfa"), jobID, completedStr, fmt.Sprintf(`{"executionId":%q,"error":%q}`, execID, errMsg),
+		)
+	} else {
+		_, _ = s.db.ExecContext(ctx,
+			`UPDATE workflow_job_schedule_expectations SET last_expected_run_at = ?, updated_at = ? WHERE job_id = ?`,
+			completedStr, completedStr, jobID,
 		)
 	}
 
@@ -221,12 +350,14 @@ func (s *Service) runJobInternal(ctx context.Context, jobID, actor string) (mode
 		RecordsProcessed: recordsProcessed,
 		ErrorMessage:     errMsg,
 		ExecutionTimeMs:  durationMs,
+		RetryCount:       recoveryRetries,
 	}
 	return rec, runErr
 }
 
 func (s *Service) executeCanonicalJobLogic(ctx context.Context, jobID, actor string) (int, error) {
-	nowStr := time.Now().UTC().Format("2006-01-02 15:04:05")
+	now := time.Now().UTC()
+	nowStr := now.Format("2006-01-02 15:04:05")
 	switch jobID {
 	case "maintenance_cleanup":
 		res, err := s.RunExceptionScanInternal(ctx, actor)
@@ -236,36 +367,142 @@ func (s *Service) executeCanonicalJobLogic(ctx context.Context, jobID, actor str
 		_, _ = s.db.ExecContext(ctx,
 			`DELETE FROM workflow_alert_signal_log WHERE datetime(created_at) < datetime('now', '-90 days')`,
 		)
+		// Cap retained failure forecasts to latest 1000 rows
+		_, _ = s.db.ExecContext(ctx,
+			`DELETE FROM workflow_failure_forecast
+			 WHERE forecast_id NOT IN (
+				SELECT forecast_id FROM workflow_failure_forecast ORDER BY datetime(forecast_time) DESC, rowid DESC LIMIT 1000
+			 )`,
+		)
 		return res.CreatedCount + res.UpdatedCount + res.SelfHealedCount + res.EscalatedCount, nil
 
 	case "automation_cycle":
+		cycleStart := time.Now()
 		res, err := s.RunExceptionScanInternal(ctx, actor)
 		if err != nil {
 			return 0, err
 		}
+		var maxCostUnits float64 = 500000
 		var maxRecords int64 = 100
-		_ = s.db.QueryRowContext(ctx, `SELECT max_records_processed_per_cycle FROM automation_cost_limits WHERE id = 'default'`).Scan(&maxRecords)
+		var maxExecMs int64 = 120000
+		_ = s.db.QueryRowContext(ctx,
+			`SELECT max_cost_units_per_cycle, max_records_processed_per_cycle, max_execution_time_per_cycle_ms FROM automation_cost_limits WHERE id = 'default'`,
+		).Scan(&maxCostUnits, &maxRecords, &maxExecMs)
+		if maxCostUnits <= 0 {
+			maxCostUnits = 500000
+		}
 		if maxRecords <= 0 {
 			maxRecords = 100
 		}
-		var ruleCount int
-		_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_decision_rules WHERE enabled = 1`).Scan(&ruleCount)
+		if maxExecMs <= 0 {
+			maxExecMs = 120000
+		}
+
+		costWeights := loadRuleCostWeightsMap(ctx, s.db)
+
+		rulesRows, rErr := s.db.QueryContext(ctx,
+			`SELECT d.tenant_id, d.rule_id, d.version_id, v.rule_definition_json, COALESCE(v.definition_sha256, ''), v.created_by,
+			        COALESCE((SELECT c.sample_size_percentage FROM canary_rule_deployment c
+			                  WHERE c.rule_id = d.rule_id AND c.version_id = d.version_id AND c.deployment_status = 'ACTIVE' LIMIT 1), 100),
+			        COALESCE((SELECT 1 FROM canary_rule_deployment c
+			                  WHERE c.rule_id = d.rule_id AND c.version_id = d.version_id AND c.deployment_status = 'ACTIVE' LIMIT 1), 0)
+			 FROM workflow_environment_deployment_log d
+			 JOIN workflow_decision_rules r ON r.rule_id = d.rule_id
+			 JOIN workflow_rule_versions v ON v.rule_id = d.rule_id AND v.version_id = d.version_id
+			 WHERE d.tenant_id = ?
+			   AND d.environment_id = 'env-prod'
+			   AND d.status = 'DEPLOYED'
+			   AND r.enabled = 1
+			 ORDER BY r.priority DESC, r.updated_at ASC`,
+			defaultTenantID,
+		)
+		if rErr != nil {
+			return 0, rErr
+		}
+		var activeRules []evalRuleSpec
+		for rulesRows.Next() {
+			var tenantID, ruleID, versionID, defJSON, defSHA, createdBy string
+			var canaryPct float64
+			var isCanary int
+			if rulesRows.Scan(&tenantID, &ruleID, &versionID, &defJSON, &defSHA, &createdBy, &canaryPct, &isCanary) != nil {
+				continue
+			}
+			var decErr error
+			if defSHA == "" && !strings.EqualFold(createdBy, "system") {
+				decErr = errors.New("missing definition_sha256 on non-system rule version")
+			}
+			var def immutableRuleDefinition
+			if decErr == nil {
+				def, _, decErr = decodeAndVerifyRuleDefinition(defJSON, defSHA)
+			}
+			if decErr != nil {
+				_, _ = s.db.ExecContext(ctx,
+					`INSERT INTO workflow_alert_signal_log (id, created_at, signal_type, severity, entity_id, message, details_json)
+					 VALUES (?, ?, 'RULE_CHECKSUM_MISMATCH', 'CRITICAL', ?, ?, ?)`,
+					newID("sig"), nowStr, ruleID,
+					fmt.Sprintf("Skipped prod rule %s version %s due to integrity error: %v", ruleID, versionID, decErr),
+					fmt.Sprintf(`{"ruleId":%q,"versionId":%q}`, ruleID, versionID),
+				)
+				continue
+			}
+			if !def.Enabled {
+				continue
+			}
+			costWeight := resolveRuleCostWeight(costWeights, ruleID, def.ActionType, def.RuleType)
+			activeRules = append(activeRules, evalRuleSpec{
+				id:         ruleID,
+				tenantID:   tenantID,
+				versionID:  versionID,
+				ruleType:   def.RuleType,
+				cond:       def.ConditionExpression,
+				action:     def.ActionType,
+				priority:   def.Priority,
+				canaryPct:  canaryPct,
+				costWeight: costWeight,
+				isCanary:   isCanary == 1,
+			})
+		}
+		_ = rulesRows.Close()
+
+		sort.SliceStable(activeRules, func(i, j int) bool {
+			return activeRules[i].priority > activeRules[j].priority
+		})
+
+		actionsApplied, skippedIdempotent, usedCostUnits, stopReason, telemetry := s.evaluateAutomationRules(ctx, activeRules, int(maxRecords), maxCostUnits, maxExecMs, cycleStart, nowStr)
+
+		for _, r := range activeRules {
+			if ct, ok := telemetry[r.id+"|"+r.versionID]; ok {
+				if r.isCanary {
+					_ = s.recordCanaryCohortMetricsInternal(ctx, r.id, r.versionID, nowStr, ct.canary, ct.control)
+				} else {
+					_ = s.recordCanaryCohortMetricsInternal(ctx, r.id, r.versionID, nowStr, models.CanaryCohortMetrics{}, ct.canary)
+				}
+			}
+		}
+		autoRollbacks, _ := s.evaluateAllActiveCanaries(ctx, actor)
+
 		resultJSON, _ := json.Marshal(map[string]any{
-			"rulesEvaluated":      ruleCount,
+			"rulesEvaluated":      len(activeRules),
+			"actionsApplied":      actionsApplied,
+			"skippedIdempotent":   skippedIdempotent,
+			"usedCostUnits":       usedCostUnits,
 			"exceptionsEvaluated": res.ActiveOpenCount,
 			"escalated":           res.EscalatedCount,
+			"costCapHit":          stopReason != "",
+			"stopReason":          stopReason,
+			"autoRollbacks":       autoRollbacks,
 		})
 		_, _ = s.db.ExecContext(ctx,
-			`INSERT INTO workflow_automation_log (automation_id, rule_id, action_taken, target_entity, executed_at, execution_result)
-			 VALUES (?, '', 'AUTOMATION_CYCLE_SUMMARY', 'system', ?, ?)`,
-			newID("cyc"), nowStr, string(resultJSON),
+			`INSERT INTO workflow_automation_log (automation_id, rule_id, action_taken, target_entity, executed_at, execution_result, estimated_cost_units)
+			 VALUES (?, '', 'AUTOMATION_CYCLE_SUMMARY', 'system', ?, ?, ?)`,
+			newID("cyc"), nowStr, string(resultJSON), usedCostUnits,
 		)
-		return res.ActiveOpenCount, nil
+		return res.ActiveOpenCount + actionsApplied, nil
 
 	case "cost_metrics_aggregation":
 		var actions int
 		_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_automation_log WHERE date(executed_at) = date('now')`).Scan(&actions)
-		today := time.Now().UTC().Format("2006-01-02")
+		today := now.Format("2006-01-02")
 		benefitScore := float64(actions) * 1.5
 		costScore := float64(actions) * 0.3
 		efficiency := 1.0
@@ -286,19 +523,65 @@ func (s *Service) executeCanonicalJobLogic(ctx context.Context, jobID, actor str
 		return actions, err
 
 	case "deployment_safety_checks":
-		var activeCanaries int
+		checkStart := time.Now()
+		autoRollbacks, _ := s.evaluateAllActiveCanaries(ctx, actor)
+		var activeCanaries, recentFailures, criticalIncidents int
 		_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM canary_rule_deployment WHERE deployment_status = 'ACTIVE'`).Scan(&activeCanaries)
+		_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_job_execution_log WHERE status IN ('FAILED','TIMEOUT') AND datetime(started_at) >= datetime('now', '-24 hours')`).Scan(&recentFailures)
+		_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_incidents WHERE status IN ('OPEN','ACKNOWLEDGED') AND severity IN ('CRITICAL','FATAL')`).Scan(&criticalIncidents)
+		elapsedMs := time.Since(checkStart).Milliseconds()
+		if elapsedMs < 1 {
+			elapsedMs = 1
+		}
 		_, err := s.db.ExecContext(ctx,
 			`INSERT INTO performance_timing_metrics (id, category, entity_id, duration_ms, recorded_at, details_json)
-			 VALUES (?, 'SAFETY_CHECK', 'canary_health', 5, ?, ?)`,
-			newID("ptm"), nowStr, fmt.Sprintf(`{"activeCanaries":%d}`, activeCanaries),
+			 VALUES (?, 'SAFETY_CHECK', 'canary_health', ?, ?, ?)`,
+			newID("ptm"), elapsedMs, nowStr,
+			fmt.Sprintf(`{"activeCanaries":%d,"recentFailures24h":%d,"criticalIncidents":%d,"autoRollbacks":%d}`, activeCanaries, recentFailures, criticalIncidents, autoRollbacks),
 		)
 		return activeCanaries, err
 
 	case "risk_evaluation":
-		var rulesChecked int
-		_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_decision_rules`).Scan(&rulesChecked)
-		return rulesChecked, nil
+		evalStart := time.Now()
+		rRows, err := s.db.QueryContext(ctx,
+			`SELECT r.rule_id,
+			        COALESCE((SELECT v.version_id FROM workflow_rule_versions v WHERE v.rule_id = r.rule_id ORDER BY v.version_number DESC LIMIT 1), '')
+			 FROM workflow_decision_rules r`,
+		)
+		if err != nil {
+			return 0, err
+		}
+		type rulePair struct{ id, verID string }
+		var pairs []rulePair
+		for rRows.Next() {
+			var rp rulePair
+			if rRows.Scan(&rp.id, &rp.verID) == nil {
+				pairs = append(pairs, rp)
+			}
+		}
+		_ = rRows.Close()
+
+		highRiskCount := 0
+		for _, rp := range pairs {
+			if rp.verID == "" {
+				continue
+			}
+			risk, rErr := s.evaluateRuleRiskInternal(ctx, rp.id, rp.verID)
+			if rErr == nil && risk.BlocksProd {
+				highRiskCount++
+			}
+		}
+		elapsedMs := time.Since(evalStart).Milliseconds()
+		if elapsedMs < 1 {
+			elapsedMs = 1
+		}
+		_, _ = s.db.ExecContext(ctx,
+			`INSERT INTO performance_timing_metrics (id, category, entity_id, duration_ms, recorded_at, details_json)
+			 VALUES (?, 'RISK_EVALUATION', 'rule_risk_rollup', ?, ?, ?)`,
+			newID("ptm"), elapsedMs, nowStr,
+			fmt.Sprintf(`{"rulesChecked":%d,"highOrCritical":%d}`, len(pairs), highRiskCount),
+		)
+		return len(pairs), nil
 
 	case "observability_update":
 		alerts, forecasts, err := s.runObservabilityAndIncidentPipeline(ctx)
@@ -309,7 +592,270 @@ func (s *Service) executeCanonicalJobLogic(ctx context.Context, jobID, actor str
 	}
 }
 
-// RunDailyOperationsTick runs timeout recovery (circuit breaker), alert correlation/suppression, burst detection, stabilization, and 30m forecasting.
+type evalRuleSpec struct {
+	id, tenantID, versionID, ruleType, cond, action string
+	priority                                        int
+	canaryPct, costWeight                           float64
+	isCanary                                        bool
+}
+
+type ruleCohortAccumulator struct {
+	canary        models.CanaryCohortMetrics
+	control       models.CanaryCohortMetrics
+	canaryDurSum  float64
+	controlDurSum float64
+}
+
+func (s *Service) evaluateAutomationRules(
+	ctx context.Context,
+	rules []evalRuleSpec,
+	maxRecords int,
+	maxCostUnits float64,
+	maxExecMs int64,
+	cycleStart time.Time,
+	nowStr string,
+) (int, int, float64, string, map[string]*ruleCohortAccumulator) {
+	telemetry := map[string]*ruleCohortAccumulator{}
+	finalize := func(applied, skipped int, cost float64, reason string) (int, int, float64, string, map[string]*ruleCohortAccumulator) {
+		for _, acc := range telemetry {
+			if acc.canary.AttemptedCount > 0 {
+				acc.canary.AvgDurationMs = acc.canaryDurSum / float64(acc.canary.AttemptedCount)
+			}
+			if acc.control.AttemptedCount > 0 {
+				acc.control.AvgDurationMs = acc.controlDurSum / float64(acc.control.AttemptedCount)
+			}
+		}
+		return applied, skipped, cost, reason, telemetry
+	}
+
+	if len(rules) == 0 || maxRecords <= 0 || maxCostUnits <= 0 {
+		return finalize(0, 0, 0, "")
+	}
+	scanLimit := maxRecords * 10
+	if scanLimit < 500 {
+		scanLimit = 500
+	}
+	if scanLimit > 50000 {
+		scanLimit = 50000
+	}
+	exRows, err := s.db.QueryContext(ctx,
+		`SELECT id, exception_type, entity_id, status, priority, COALESCE(assigned_to, ''), sla_status, lifecycle_generation
+		 FROM exception_cases
+		 WHERE status IN ('OPEN', 'IN_PROGRESS')
+		 ORDER BY created_at ASC LIMIT ?`,
+		scanLimit,
+	)
+	if err != nil {
+		return finalize(0, 0, 0, "")
+	}
+	type exItem struct {
+		id, exType, entityID, status, priority, assignedTo, slaStatus string
+		lifecycleGen                                                  int
+	}
+	var cases []exItem
+	for exRows.Next() {
+		var ex exItem
+		if exRows.Scan(&ex.id, &ex.exType, &ex.entityID, &ex.status, &ex.priority, &ex.assignedTo, &ex.slaStatus, &ex.lifecycleGen) == nil {
+			cases = append(cases, ex)
+		}
+	}
+	_ = exRows.Close()
+
+	actionsApplied := 0
+	skippedIdempotent := 0
+	usedCostUnits := 0.0
+	for _, r := range rules {
+		telKey := r.id + "|" + r.versionID
+		acc := telemetry[telKey]
+		if acc == nil {
+			acc = &ruleCohortAccumulator{}
+			telemetry[telKey] = acc
+		}
+		actionUpper := strings.ToUpper(strings.TrimSpace(r.action))
+		if actionUpper == "" {
+			actionUpper = strings.ToUpper(strings.TrimSpace(r.ruleType))
+		}
+		for i := range cases {
+			if actionsApplied >= maxRecords {
+				return finalize(actionsApplied, skippedIdempotent, usedCostUnits, "MAX_RECORDS_REACHED")
+			}
+			if time.Since(cycleStart).Milliseconds() >= maxExecMs {
+				return finalize(actionsApplied, skippedIdempotent, usedCostUnits, "MAX_EXECUTION_TIME_REACHED")
+			}
+			if usedCostUnits+r.costWeight > maxCostUnits {
+				return finalize(actionsApplied, skippedIdempotent, usedCostUnits, "MAX_COST_UNITS_REACHED")
+			}
+			ex := &cases[i]
+			matchStart := time.Now()
+			if !s.doesRuleMatchException(ctx, actionUpper, r.cond, ex.exType, ex.entityID, ex.status, ex.priority, ex.assignedTo, ex.slaStatus) {
+				continue
+			}
+			if !ShouldRouteCanaryVersion(r.tenantID, r.id, r.versionID, ex.id, r.canaryPct) {
+				acc.control.AttemptedCount++
+				acc.control.SuccessCount++
+				acc.controlDurSum += float64(time.Since(matchStart).Microseconds()) / 1000.0
+				continue
+			}
+
+			execStart := time.Now()
+			appliedNow := false
+			dupSkip := false
+			txErr := transactions.WithinTx(ctx, s.db, func(tx *sql.Tx) error {
+				autID := newID("aut")
+				idemRes, iErr := tx.ExecContext(ctx,
+					`INSERT OR IGNORE INTO workflow_rule_action_idempotency
+					 (id, tenant_id, rule_id, rule_version_id, entity_type, entity_id, action_type, lifecycle_generation, execution_id, created_at)
+					 VALUES (?, ?, ?, ?, 'exception_case', ?, ?, ?, ?, ?)`,
+					newID("idm"), r.tenantID, r.id, r.versionID, ex.id, actionUpper, ex.lifecycleGen, autID, nowStr,
+				)
+				if iErr != nil {
+					return iErr
+				}
+				if n, _ := idemRes.RowsAffected(); n == 0 {
+					dupSkip = true
+					return nil
+				}
+
+				switch actionUpper {
+				case "AUTO_RESOLVE":
+					res, uErr := tx.ExecContext(ctx,
+						`UPDATE exception_cases SET status = 'RESOLVED', resolved_by = 'automation', resolved_at = ?, updated_at = ?
+						 WHERE id = ? AND status IN ('OPEN', 'IN_PROGRESS')`,
+						nowStr, nowStr, ex.id,
+					)
+					if uErr != nil {
+						return uErr
+					}
+					if n, _ := res.RowsAffected(); n == 0 {
+						return nil
+					}
+					if _, eErr := tx.ExecContext(ctx,
+						`INSERT INTO exception_lifecycle_events (id, exception_case_id, old_status, new_status, actor, created_at) VALUES (?, ?, ?, 'RESOLVED', ?, ?)`,
+						newID("exev"), ex.id, ex.status, "rule:"+r.id+":"+r.versionID, nowStr,
+					); eErr != nil {
+						return eErr
+					}
+					if _, lErr := tx.ExecContext(ctx,
+						`INSERT INTO workflow_automation_log (automation_id, rule_id, action_taken, target_entity, executed_at, execution_result, estimated_cost_units)
+						 VALUES (?, ?, 'AUTO_RESOLVE', ?, ?, '{"status":"RESOLVED"}', ?)`,
+						autID, r.id, ex.id, nowStr, r.costWeight,
+					); lErr != nil {
+						return lErr
+					}
+					ex.status = "RESOLVED"
+					appliedNow = true
+
+				case "AUTO_ASSIGN":
+					res, uErr := tx.ExecContext(ctx,
+						`UPDATE exception_cases SET status = 'IN_PROGRESS', assigned_to = 'admin', assigned_at = ?, assignment_method = 'AUTO', updated_at = ?
+						 WHERE id = ? AND status = 'OPEN' AND COALESCE(assigned_to, '') = ''`,
+						nowStr, nowStr, ex.id,
+					)
+					if uErr != nil {
+						return uErr
+					}
+					if n, _ := res.RowsAffected(); n == 0 {
+						return nil
+					}
+					if _, lErr := tx.ExecContext(ctx,
+						`INSERT INTO workflow_automation_log (automation_id, rule_id, action_taken, target_entity, executed_at, execution_result, estimated_cost_units)
+						 VALUES (?, ?, 'AUTO_ASSIGN', ?, ?, '{"assignedTo":"admin"}', ?)`,
+						autID, r.id, ex.id, nowStr, r.costWeight,
+					); lErr != nil {
+						return lErr
+					}
+					ex.status = "IN_PROGRESS"
+					ex.assignedTo = "admin"
+					appliedNow = true
+
+				case "PRIORITY_ADJUST":
+					res, uErr := tx.ExecContext(ctx,
+						`UPDATE exception_cases SET priority = 'HIGH', updated_at = ?
+						 WHERE id = ? AND sla_status = 'BREACHED' AND priority NOT IN ('CRITICAL', 'HIGH')`,
+						nowStr, ex.id,
+					)
+					if uErr != nil {
+						return uErr
+					}
+					if n, _ := res.RowsAffected(); n == 0 {
+						return nil
+					}
+					if _, lErr := tx.ExecContext(ctx,
+						`INSERT INTO workflow_automation_log (automation_id, rule_id, action_taken, target_entity, executed_at, execution_result, estimated_cost_units)
+						 VALUES (?, ?, 'PRIORITY_ADJUST', ?, ?, '{"priority":"HIGH"}', ?)`,
+						autID, r.id, ex.id, nowStr, r.costWeight,
+					); lErr != nil {
+						return lErr
+					}
+					ex.priority = "HIGH"
+					appliedNow = true
+				}
+				return nil
+			})
+			execDurMs := float64(time.Since(execStart).Microseconds()) / 1000.0
+			if dupSkip {
+				skippedIdempotent++
+				acc.canary.SkippedCount++
+				continue
+			}
+			if txErr != nil {
+				acc.canary.AttemptedCount++
+				acc.canary.FailureCount++
+				acc.canaryDurSum += execDurMs
+				continue
+			}
+			if appliedNow {
+				actionsApplied++
+				usedCostUnits += r.costWeight
+				acc.canary.AttemptedCount++
+				acc.canary.SuccessCount++
+				acc.canary.CostUnits += r.costWeight
+				acc.canaryDurSum += execDurMs
+			}
+		}
+	}
+	return finalize(actionsApplied, skippedIdempotent, usedCostUnits, "")
+}
+
+func (s *Service) shouldAutoResolveException(ctx context.Context, condExpr, exType, entityID string) bool {
+	condLower := strings.ToLower(condExpr)
+	switch exType {
+	case "OVERDUE_ETA":
+		if !strings.Contains(condLower, "shipment_delivered") && !strings.Contains(condLower, "overdue_eta") {
+			return false
+		}
+		var cnt int
+		_ = s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM shipments WHERE id = ? AND (deleted_at IS NOT NULL OR LOWER(COALESCE(status, '')) IN ('delivered', 'cancelled'))`,
+			entityID,
+		).Scan(&cnt)
+		return cnt > 0
+	case "MISSING_BOE":
+		if !strings.Contains(condLower, "has_boe") && !strings.Contains(condLower, "missing_boe") {
+			return false
+		}
+		var cnt int
+		_ = s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM boe_calculations WHERE shipment_id = ? AND deleted_at IS NULL`,
+			entityID,
+		).Scan(&cnt)
+		return cnt > 0
+	case "MISSING_EXPENSE":
+		if !strings.Contains(condLower, "has_expenses") && !strings.Contains(condLower, "missing_expense") {
+			return false
+		}
+		var cnt int
+		_ = s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM expenses WHERE shipment_id = ? AND deleted_at IS NULL`,
+			entityID,
+		).Scan(&cnt)
+		return cnt > 0
+	default:
+		return false
+	}
+}
+
+// RunDailyOperationsTick runs timeout recovery (circuit breaker), due scheduled jobs, alert correlation/suppression, burst detection, stabilization, and 30m forecasting.
 // Safe to invoke from the background scheduler.
 func (s *Service) RunDailyOperationsTick(actor string) error {
 	if err := s.restoreCtrl.RequireIdle(); err != nil {
@@ -319,8 +865,52 @@ func (s *Service) RunDailyOperationsTick(actor string) error {
 	if err := s.detectAndRecoverTimedOutJobs(ctx); err != nil {
 		return err
 	}
+	s.runDueScheduledJobs(ctx, actor)
 	_, _, err := s.runObservabilityAndIncidentPipeline(ctx)
 	return err
+}
+
+func (s *Service) runDueScheduledJobs(ctx context.Context, actor string) {
+	// Ordered respect for canonical dependencies: maintenance_cleanup -> automation_cycle -> cost_metrics_aggregation -> deployment_safety_checks -> risk_evaluation.
+	// observability_update runs on every tick via runObservabilityAndIncidentPipeline above.
+	orderedJobs := []string{
+		"maintenance_cleanup",
+		"automation_cycle",
+		"cost_metrics_aggregation",
+		"deployment_safety_checks",
+		"risk_evaluation",
+	}
+	for _, jobID := range orderedJobs {
+		var enabled int
+		if err := s.db.QueryRowContext(ctx, `SELECT is_enabled FROM workflow_background_jobs WHERE job_id = ?`, jobID).Scan(&enabled); err != nil || enabled != 1 {
+			continue
+		}
+		if s.isJobGuardStopped(ctx, jobID) {
+			continue
+		}
+		var intervalMin int
+		_ = s.db.QueryRowContext(ctx, `SELECT COALESCE(expected_interval_minutes, 1440) FROM workflow_job_schedule_expectations WHERE job_id = ?`, jobID).Scan(&intervalMin)
+		if intervalMin <= 0 {
+			intervalMin = 1440
+		}
+		var lastCompleted string
+		_ = s.db.QueryRowContext(ctx,
+			`SELECT COALESCE(completed_at, '') FROM workflow_job_execution_log
+			 WHERE job_id = ? AND status = 'COMPLETED'
+			 ORDER BY datetime(started_at) DESC, rowid DESC LIMIT 1`,
+			jobID,
+		).Scan(&lastCompleted)
+
+		due := lastCompleted == ""
+		if !due {
+			if t, parseErr := time.Parse("2006-01-02 15:04:05", lastCompleted); parseErr == nil {
+				due = time.Since(t) >= time.Duration(intervalMin)*time.Minute
+			}
+		}
+		if due {
+			_, _ = s.runJobInternal(ctx, jobID, actor)
+		}
+	}
 }
 
 func (s *Service) detectAndRecoverTimedOutJobs(ctx context.Context) error {
@@ -389,6 +979,10 @@ func (s *Service) detectAndRecoverTimedOutJobs(ctx context.Context) error {
 
 		attemptNum := priorAttempts + 1
 		if priorAttempts >= c.maxRetries {
+			_, _ = s.db.ExecContext(ctx,
+				`UPDATE workflow_background_jobs SET is_enabled = 0, updated_at = ? WHERE job_id = ?`,
+				nowStr, c.jobID,
+			)
 			_, _ = s.db.ExecContext(ctx,
 				`INSERT INTO workflow_job_recovery_log (recovery_id, job_id, alert_id, recovery_time, result, attempt_count, error_message)
 				 VALUES (?, ?, ?, ?, 'RECOVERY_GUARD_STOP', ?, 'max_retries circuit breaker engaged')`,

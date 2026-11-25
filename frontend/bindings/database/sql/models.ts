@@ -35,3 +35,32 @@ export class DB {
         return new DB($$parsedSource as Partial<DB>);
     }
 }
+
+/**
+ * Tx is an in-progress database transaction.
+ * 
+ * A transaction must end with a call to [Tx.Commit] or [Tx.Rollback].
+ * 
+ * After a call to [Tx.Commit] or [Tx.Rollback], all operations on the
+ * transaction fail with [ErrTxDone].
+ * 
+ * The statements prepared for a transaction by calling
+ * the transaction's [Tx.Prepare] or [Tx.Stmt] methods are closed
+ * by the call to [Tx.Commit] or [Tx.Rollback].
+ */
+export class Tx {
+
+    /** Creates a new Tx instance. */
+    constructor($$source: Partial<Tx> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Tx instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Tx {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Tx($$parsedSource as Partial<Tx>);
+    }
+}

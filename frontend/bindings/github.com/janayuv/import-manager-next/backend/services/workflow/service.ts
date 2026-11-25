@@ -19,6 +19,13 @@ import * as sql$0 from "../../../../../../database/sql/models.js";
 import * as models$0 from "../../models/models.js";
 
 /**
+ * AcknowledgeOperationalAlert marks an operational alert as acknowledged by the current operator.
+ */
+export function AcknowledgeOperationalAlert(alertID: string): $CancellablePromise<void> {
+    return $Call.ByID(610683467, alertID);
+}
+
+/**
  * AddIncidentNote attaches a root-cause investigation note to an incident in workflow_incident_history (required >= 10 chars before resolve).
  */
 export function AddIncidentNote(incidentID: string, noteText: string): $CancellablePromise<models$0.IncidentNote> {
@@ -28,7 +35,18 @@ export function AddIncidentNote(incidentID: string, noteText: string): $Cancella
 }
 
 /**
- * ApproveRuleVersion marks a staged rule version APPROVED and READY for promotion.
+ * AdvanceCanaryStage advances an active canary along 1% -> 5% -> 10% -> 25% -> 50% -> 100%.
+ * Advancing to 100% completes the rollout and promotes the verified version into normal production deployment.
+ */
+export function AdvanceCanaryStage(ruleID: string, versionID: string): $CancellablePromise<models$0.CanaryStatus> {
+    return $Call.ByID(1156806323, ruleID, versionID).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
+ * ApproveRuleVersion marks a staged rule version APPROVED and READY for promotion within an atomic transaction.
+ * When multiple admin/manager approvers exist, separation of duties prevents the creator from self-approving.
  */
 export function ApproveRuleVersion(ruleID: string, versionID: string): $CancellablePromise<void> {
     return $Call.ByID(2287084158, ruleID, versionID);
@@ -42,7 +60,16 @@ export function AssignIncident(incidentID: string, assignee: string): $Cancellab
 }
 
 /**
- * ConfigureCanary activates FNV-1a deterministic canary sampling for a workflow rule version.
+ * CompareRuleVersions compares two immutable versions of the same rule along with risk and read-only dry-run impact.
+ */
+export function CompareRuleVersions(ruleID: string, baseVersionID: string, targetVersionID: string): $CancellablePromise<models$0.RuleVersionComparison> {
+    return $Call.ByID(592383197, ruleID, baseVersionID, targetVersionID).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
+ * ConfigureCanary activates version-scoped FNV-1a deterministic progressive canary sampling (1, 5, 10, 25, 50, 100%) for a workflow rule version.
  */
 export function ConfigureCanary(ruleID: string, versionID: string, samplePct: number): $CancellablePromise<models$0.CanaryStatus> {
     return $Call.ByID(374417317, ruleID, versionID, samplePct).then(($result: any) => {
@@ -63,16 +90,34 @@ export function DeleteBugNote(id: string): $CancellablePromise<void> {
  */
 export function DetectExceptions(): $CancellablePromise<models$0.ExceptionDetectionResult> {
     return $Call.ByID(1068027366).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
 /**
- * EvaluateRuleRisk calculates deterministic deployment blast-radius risk (<25 LOW, 25..49 MEDIUM, 50..74 HIGH, >=75 CRITICAL).
+ * DryRunRuleVersion simulates a rule version against live open exceptions without performing any mutations.
+ */
+export function DryRunRuleVersion(ruleID: string, versionID: string): $CancellablePromise<models$0.RuleDryRunResult> {
+    return $Call.ByID(4063212037, ruleID, versionID).then(($result: any) => {
+        return $$createType4($result);
+    });
+}
+
+/**
+ * EvaluateCanaryAndAutoRollback evaluates canary telemetry against thresholds and performs two-stage automatic rollback when breached.
+ */
+export function EvaluateCanaryAndAutoRollback(ruleID: string, versionID: string): $CancellablePromise<models$0.AutoRollbackResult> {
+    return $Call.ByID(2719068346, ruleID, versionID).then(($result: any) => {
+        return $$createType5($result);
+    });
+}
+
+/**
+ * EvaluateRuleRisk calculates deterministic deployment blast-radius risk strictly from the requested immutable version.
  */
 export function EvaluateRuleRisk(ruleID: string, versionID: string): $CancellablePromise<models$0.RuleRiskAssessment> {
     return $Call.ByID(2000437821, ruleID, versionID).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType6($result);
     });
 }
 
@@ -81,7 +126,16 @@ export function EvaluateRuleRisk(ruleID: string, versionID: string): $Cancellabl
  */
 export function ExportDiagnosticsBundle(outputPath: string): $CancellablePromise<models$0.DiagnosticsExportResult> {
     return $Call.ByID(333115663, outputPath).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType7($result);
+    });
+}
+
+/**
+ * GetCanaryMonitoring aggregates canary vs control cohort metrics within the configured monitoring window.
+ */
+export function GetCanaryMonitoring(ruleID: string, versionID: string): $CancellablePromise<models$0.CanaryMonitoringSummary> {
+    return $Call.ByID(3874304239, ruleID, versionID).then(($result: any) => {
+        return $$createType8($result);
     });
 }
 
@@ -90,7 +144,17 @@ export function ExportDiagnosticsBundle(outputPath: string): $CancellablePromise
  */
 export function GetCostLimits(): $CancellablePromise<models$0.AutomationCostLimit> {
     return $Call.ByID(3019853964).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType9($result);
+    });
+}
+
+/**
+ * GetDeploymentHealthOverview returns a read-only consolidated snapshot of rule deployments,
+ * health status with reasons, canary progress, recent rollbacks, and operational alerts.
+ */
+export function GetDeploymentHealthOverview(): $CancellablePromise<models$0.DeploymentHealthOverview> {
+    return $Call.ByID(1662219587).then(($result: any) => {
+        return $$createType10($result);
     });
 }
 
@@ -99,7 +163,25 @@ export function GetCostLimits(): $CancellablePromise<models$0.AutomationCostLimi
  */
 export function GetOperationsOverview(): $CancellablePromise<models$0.OperationsOverview> {
     return $Call.ByID(1053061900).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType11($result);
+    });
+}
+
+/**
+ * GetRollbackThresholds returns configurable automatic rollback thresholds from canary_rollback_thresholds.
+ */
+export function GetRollbackThresholds(): $CancellablePromise<models$0.CanaryRollbackThreshold> {
+    return $Call.ByID(561957813).then(($result: any) => {
+        return $$createType12($result);
+    });
+}
+
+/**
+ * GetRuleVersion loads and verifies an immutable historical rule version snapshot.
+ */
+export function GetRuleVersion(ruleID: string, versionID: string): $CancellablePromise<models$0.WorkflowRuleVersion> {
+    return $Call.ByID(1621749321, ruleID, versionID).then(($result: any) => {
+        return $$createType13($result);
     });
 }
 
@@ -108,7 +190,7 @@ export function GetOperationsOverview(): $CancellablePromise<models$0.Operations
  */
 export function ListBackgroundJobs(): $CancellablePromise<models$0.BackgroundJob[]> {
     return $Call.ByID(3334269115).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType15($result);
     });
 }
 
@@ -117,7 +199,7 @@ export function ListBackgroundJobs(): $CancellablePromise<models$0.BackgroundJob
  */
 export function ListBugNotes(): $CancellablePromise<models$0.BugNote[]> {
     return $Call.ByID(3254621696).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType17($result);
     });
 }
 
@@ -126,7 +208,7 @@ export function ListBugNotes(): $CancellablePromise<models$0.BugNote[]> {
  */
 export function ListErrors(status: string, severity: string): $CancellablePromise<models$0.ErrorMemoryRecord[]> {
     return $Call.ByID(443180996, status, severity).then(($result: any) => {
-        return $$createType12($result);
+        return $$createType19($result);
     });
 }
 
@@ -135,7 +217,7 @@ export function ListErrors(status: string, severity: string): $CancellablePromis
  */
 export function ListExceptions(statusFilter: string, priorityFilter: string): $CancellablePromise<models$0.ExceptionCase[]> {
     return $Call.ByID(2374146129, statusFilter, priorityFilter).then(($result: any) => {
-        return $$createType14($result);
+        return $$createType21($result);
     });
 }
 
@@ -144,7 +226,7 @@ export function ListExceptions(statusFilter: string, priorityFilter: string): $C
  */
 export function ListIncidents(status: string): $CancellablePromise<models$0.WorkflowIncident[]> {
     return $Call.ByID(2248122562, status).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType23($result);
     });
 }
 
@@ -153,25 +235,50 @@ export function ListIncidents(status: string): $CancellablePromise<models$0.Work
  */
 export function ListJobExecutions(jobID: string, limit: number): $CancellablePromise<models$0.JobExecutionRecord[]> {
     return $Call.ByID(1183740765, jobID, limit).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType25($result);
     });
 }
 
 /**
- * ListRules returns all workflow decision rules with their latest version & canary state.
+ * ListOperationalAlerts returns operational alerts ordered newest first.
+ */
+export function ListOperationalAlerts(includeAcknowledged: boolean): $CancellablePromise<models$0.OperationalAlert[]> {
+    return $Call.ByID(1233361026, includeAcknowledged).then(($result: any) => {
+        return $$createType27($result);
+    });
+}
+
+/**
+ * ListRuleVersions returns all historical immutable versions for a rule, newest first.
+ */
+export function ListRuleVersions(ruleID: string): $CancellablePromise<models$0.WorkflowRuleVersion[]> {
+    return $Call.ByID(512200472, ruleID).then(($result: any) => {
+        return $$createType28($result);
+    });
+}
+
+/**
+ * ListRules returns all workflow decision rules with their latest version, approval state, prod version, current environment, & canary state.
  */
 export function ListRules(): $CancellablePromise<models$0.WorkflowRule[]> {
     return $Call.ByID(513966758).then(($result: any) => {
-        return $$createType20($result);
+        return $$createType30($result);
     });
 }
 
 /**
- * PromoteRule promotes a rule strictly along env-dev -> env-test -> env-prod after approval & risk gating.
+ * OverrideRecoveryGuard clears a RECOVERY_GUARD_STOP circuit breaker, logs the operator override, and re-enables the job.
  */
-export function PromoteRule(ruleID: string, versionID: string, targetEnvID: string, adminOverride: boolean): $CancellablePromise<models$0.RuleRiskAssessment> {
-    return $Call.ByID(3914938467, ruleID, versionID, targetEnvID, adminOverride).then(($result: any) => {
-        return $$createType3($result);
+export function OverrideRecoveryGuard(jobID: string, reason: string): $CancellablePromise<void> {
+    return $Call.ByID(31158897, jobID, reason);
+}
+
+/**
+ * PromoteRule promotes an immutable rule version strictly along env-dev -> env-test -> env-prod inside one atomic transaction.
+ */
+export function PromoteRule(ruleID: string, versionID: string, targetEnvID: string, adminOverride: boolean, overrideReason: string): $CancellablePromise<models$0.RuleRiskAssessment> {
+    return $Call.ByID(3914938467, ruleID, versionID, targetEnvID, adminOverride, overrideReason).then(($result: any) => {
+        return $$createType6($result);
     });
 }
 
@@ -183,11 +290,18 @@ export function PruneResolvedErrors(retentionDays: number): $CancellablePromise<
 }
 
 /**
+ * RecordCanaryCohortMetrics persists separate canary and control cycle metrics into rule_deployment_impact_metrics.
+ */
+export function RecordCanaryCohortMetrics(ruleID: string, versionID: string, snapshotAt: string, canary: models$0.CanaryCohortMetrics, control: models$0.CanaryCohortMetrics): $CancellablePromise<void> {
+    return $Call.ByID(1940273168, ruleID, versionID, snapshotAt, canary, control);
+}
+
+/**
  * RecordError captures and deduplicates an application/runtime error by SHA-256 fingerprint in error_memory.
  */
 export function RecordError($in: models$0.RecordErrorInput): $CancellablePromise<models$0.ErrorMemoryRecord> {
     return $Call.ByID(1603333848, $in).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType18($result);
     });
 }
 
@@ -202,7 +316,16 @@ export function ResolveIncident($in: models$0.ResolveIncidentInput): $Cancellabl
 }
 
 /**
- * RollbackRule reverts an automation rule to disabled/previous version and records rollback_action_log.
+ * RestoreRuleVersion restores a previously approved & tested immutable version to env-prod with atomic audit & rollback log.
+ */
+export function RestoreRuleVersion(ruleID: string, versionID: string, reason: string, adminOverride: boolean): $CancellablePromise<models$0.RuleRiskAssessment> {
+    return $Call.ByID(257434683, ruleID, versionID, reason, adminOverride).then(($result: any) => {
+        return $$createType6($result);
+    });
+}
+
+/**
+ * RollbackRule performs an atomic emergency disable of an automation rule, marks active canary & prod deployments ROLLED_BACK, and records rollback_action_log.
  */
 export function RollbackRule(ruleID: string, reason: string): $CancellablePromise<void> {
     return $Call.ByID(2033995197, ruleID, reason);
@@ -213,12 +336,12 @@ export function RollbackRule(ruleID: string, reason: string): $CancellablePromis
  */
 export function RunBackgroundJobNow(jobID: string): $CancellablePromise<models$0.JobExecutionRecord> {
     return $Call.ByID(2715190017, jobID).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType24($result);
     });
 }
 
 /**
- * RunDailyOperationsTick runs timeout recovery (circuit breaker), alert correlation/suppression, burst detection, stabilization, and 30m forecasting.
+ * RunDailyOperationsTick runs timeout recovery (circuit breaker), due scheduled jobs, alert correlation/suppression, burst detection, stabilization, and 30m forecasting.
  * Safe to invoke from the background scheduler.
  */
 export function RunDailyOperationsTick(actor: string): $CancellablePromise<void> {
@@ -230,7 +353,7 @@ export function RunDailyOperationsTick(actor: string): $CancellablePromise<void>
  */
 export function RunExceptionScanInternal(actor: string): $CancellablePromise<models$0.ExceptionDetectionResult> {
     return $Call.ByID(2209681477, actor).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -239,16 +362,16 @@ export function RunExceptionScanInternal(actor: string): $CancellablePromise<mod
  */
 export function SaveBugNote($in: models$0.SaveBugNoteInput): $CancellablePromise<models$0.BugNote> {
     return $Call.ByID(3776622628, $in).then(($result: any) => {
-        return $$createType9($result);
+        return $$createType16($result);
     });
 }
 
 /**
- * SaveRule creates or updates a decision rule and appends a sequential workflow_rule_versions entry.
+ * SaveRule creates or updates a decision rule and appends an immutable sequential workflow_rule_versions entry.
  */
 export function SaveRule(input: models$0.SaveWorkflowRuleInput): $CancellablePromise<models$0.WorkflowRule> {
     return $Call.ByID(3918124020, input).then(($result: any) => {
-        return $$createType19($result);
+        return $$createType29($result);
     });
 }
 
@@ -271,16 +394,16 @@ export function ToggleBackgroundJob(jobID: string, enabled: boolean): $Cancellab
  */
 export function TransitionException(caseID: string, newStatus: string, noteText: string): $CancellablePromise<models$0.ExceptionCase> {
     return $Call.ByID(4033886569, caseID, newStatus, noteText).then(($result: any) => {
-        return $$createType13($result);
+        return $$createType20($result);
     });
 }
 
 /**
- * UpdateCostLimits updates automation cycle cost & execution caps.
+ * UpdateCostLimits validates and updates automation cycle cost & execution caps.
  */
 export function UpdateCostLimits($in: models$0.AutomationCostLimit): $CancellablePromise<models$0.AutomationCostLimit> {
     return $Call.ByID(2625630979, $in).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType9($result);
     });
 }
 
@@ -291,25 +414,44 @@ export function UpdateErrorStatus(id: string, status: string, aiSummary: string)
     return $Call.ByID(2389577314, id, status, aiSummary);
 }
 
+/**
+ * UpdateRollbackThresholds validates and updates canary_rollback_thresholds.
+ */
+export function UpdateRollbackThresholds($in: models$0.CanaryRollbackThreshold): $CancellablePromise<models$0.CanaryRollbackThreshold> {
+    return $Call.ByID(1354355750, $in).then(($result: any) => {
+        return $$createType12($result);
+    });
+}
+
 // Private type creation functions
 const $$createType0 = models$0.IncidentNote.createFrom;
 const $$createType1 = models$0.CanaryStatus.createFrom;
-const $$createType2 = models$0.ExceptionDetectionResult.createFrom;
-const $$createType3 = models$0.RuleRiskAssessment.createFrom;
-const $$createType4 = models$0.DiagnosticsExportResult.createFrom;
-const $$createType5 = models$0.AutomationCostLimit.createFrom;
-const $$createType6 = models$0.OperationsOverview.createFrom;
-const $$createType7 = models$0.BackgroundJob.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = models$0.BugNote.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = models$0.ErrorMemoryRecord.createFrom;
-const $$createType12 = $Create.Array($$createType11);
-const $$createType13 = models$0.ExceptionCase.createFrom;
-const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = models$0.WorkflowIncident.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = models$0.JobExecutionRecord.createFrom;
-const $$createType18 = $Create.Array($$createType17);
-const $$createType19 = models$0.WorkflowRule.createFrom;
-const $$createType20 = $Create.Array($$createType19);
+const $$createType2 = models$0.RuleVersionComparison.createFrom;
+const $$createType3 = models$0.ExceptionDetectionResult.createFrom;
+const $$createType4 = models$0.RuleDryRunResult.createFrom;
+const $$createType5 = models$0.AutoRollbackResult.createFrom;
+const $$createType6 = models$0.RuleRiskAssessment.createFrom;
+const $$createType7 = models$0.DiagnosticsExportResult.createFrom;
+const $$createType8 = models$0.CanaryMonitoringSummary.createFrom;
+const $$createType9 = models$0.AutomationCostLimit.createFrom;
+const $$createType10 = models$0.DeploymentHealthOverview.createFrom;
+const $$createType11 = models$0.OperationsOverview.createFrom;
+const $$createType12 = models$0.CanaryRollbackThreshold.createFrom;
+const $$createType13 = models$0.WorkflowRuleVersion.createFrom;
+const $$createType14 = models$0.BackgroundJob.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = models$0.BugNote.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = models$0.ErrorMemoryRecord.createFrom;
+const $$createType19 = $Create.Array($$createType18);
+const $$createType20 = models$0.ExceptionCase.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = models$0.WorkflowIncident.createFrom;
+const $$createType23 = $Create.Array($$createType22);
+const $$createType24 = models$0.JobExecutionRecord.createFrom;
+const $$createType25 = $Create.Array($$createType24);
+const $$createType26 = models$0.OperationalAlert.createFrom;
+const $$createType27 = $Create.Array($$createType26);
+const $$createType28 = $Create.Array($$createType13);
+const $$createType29 = models$0.WorkflowRule.createFrom;
+const $$createType30 = $Create.Array($$createType29);

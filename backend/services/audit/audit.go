@@ -59,11 +59,24 @@ func (s *Service) SetPermissionGate(gate func(perm string) error) {
 
 // RecordTableAudit appends an immutable before/after record into audit_logs, redacting secret keys.
 func (s *Service) RecordTableAudit(tableName, rowID, action, userID string, beforeObj, afterObj, metadata any) error {
+	return s.recordTableAuditWithExec(s.db.Exec, tableName, rowID, action, userID, beforeObj, afterObj, metadata)
+}
+
+// RecordTableAuditTx appends an immutable before/after record into audit_logs inside an active SQL transaction.
+func (s *Service) RecordTableAuditTx(tx *sql.Tx, tableName, rowID, action, userID string, beforeObj, afterObj, metadata any) error {
+	return s.recordTableAuditWithExec(tx.Exec, tableName, rowID, action, userID, beforeObj, afterObj, metadata)
+}
+
+func (s *Service) recordTableAuditWithExec(
+	execFn func(query string, args ...any) (sql.Result, error),
+	tableName, rowID, action, userID string,
+	beforeObj, afterObj, metadata any,
+) error {
 	beforeStr := marshalRedacted(beforeObj)
 	afterStr := marshalRedacted(afterObj)
 	metaStr := marshalRedacted(metadata)
 
-	_, err := s.db.Exec(`
+	_, err := execFn(`
 		INSERT INTO audit_logs (table_name, "tableName", row_id, action, user_id, before_json, after_json, metadata)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		tableName, tableName, rowID, strings.ToUpper(action), userID, beforeStr, afterStr, metaStr,

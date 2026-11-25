@@ -22,8 +22,8 @@ func TestReconciledAuthoritativeTableInventory(t *testing.T) {
 		t.Fatalf("migrations.Run failed: %v", err)
 	}
 
-	if res.CurrentVersion != 20 {
-		t.Fatalf("expected 20 applied migrations, got %d", res.CurrentVersion)
+	if res.CurrentVersion != 24 {
+		t.Fatalf("expected 24 applied migrations, got %d", res.CurrentVersion)
 	}
 
 	rows, err := db.QueryContext(ctx, `
@@ -51,9 +51,9 @@ func TestReconciledAuthoritativeTableInventory(t *testing.T) {
 		}
 	}
 
-	// Verify exact count: 172 tables, 1 view
-	if len(tables) != 172 {
-		t.Errorf("expected exactly 172 tables, got %d", len(tables))
+	// Verify exact count: 174 tables, 1 view
+	if len(tables) != 174 {
+		t.Errorf("expected exactly 174 tables, got %d", len(tables))
 	}
 	if len(views) != 1 || views[0] != "report_view" {
 		t.Errorf("expected exactly 1 view ('report_view'), got %v", views)

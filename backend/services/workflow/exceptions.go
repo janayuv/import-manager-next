@@ -163,15 +163,37 @@ func (s *Service) RunExceptionScanInternal(ctx context.Context, actor string) (m
 			out.CreatedCount++
 		}
 
-		// Self-heal stale IN_PROGRESS > 14d back to OPEN
-		res, err := tx.ExecContext(ctx,
-			`UPDATE exception_cases SET status = 'OPEN', assigned_to = NULL, updated_at = ?
+		// Self-heal stale IN_PROGRESS > 14d back to OPEN and advance lifecycle_generation
+		staleRows, sErr := tx.QueryContext(ctx,
+			`SELECT id FROM exception_cases
 			 WHERE status = 'IN_PROGRESS' AND COALESCE(assigned_at, updated_at) < ?`,
-			nowStr, fourteenDaysAgo,
+			fourteenDaysAgo,
 		)
-		if err == nil {
-			n, _ := res.RowsAffected()
-			out.SelfHealedCount = int(n)
+		if sErr == nil {
+			var staleIDs []string
+			for staleRows.Next() {
+				var sid string
+				if staleRows.Scan(&sid) == nil {
+					staleIDs = append(staleIDs, sid)
+				}
+			}
+			_ = staleRows.Close()
+
+			for _, sid := range staleIDs {
+				if _, uErr := tx.ExecContext(ctx,
+					`UPDATE exception_cases
+					 SET status = 'OPEN', assigned_to = NULL, lifecycle_generation = lifecycle_generation + 1, updated_at = ?
+					 WHERE id = ? AND status = 'IN_PROGRESS'`,
+					nowStr, sid,
+				); uErr == nil {
+					_, _ = tx.ExecContext(ctx,
+						`INSERT INTO exception_lifecycle_events (id, exception_case_id, old_status, new_status, actor, created_at)
+						 VALUES (?, ?, 'IN_PROGRESS', 'OPEN', 'self_heal', ?)`,
+						newID("exev"), sid, nowStr,
+					)
+					out.SelfHealedCount++
+				}
+			}
 		}
 
 		// Mark SLA breaches & log escalations cleanly
@@ -291,8 +313,14 @@ func (s *Service) TransitionException(caseID, newStatus, noteText string) (model
 			)
 		} else {
 			if _, err := tx.Exec(
-				`UPDATE exception_cases SET status = ?, assigned_to = COALESCE(NULLIF(assigned_to, ''), ?), assigned_at = COALESCE(assigned_at, ?), updated_at = ? WHERE id = ?`,
-				target, sess.UserID, nowStr, nowStr, caseID,
+				`UPDATE exception_cases
+				 SET status = ?,
+				     assigned_to = COALESCE(NULLIF(assigned_to, ''), ?),
+				     assigned_at = COALESCE(assigned_at, ?),
+				     lifecycle_generation = CASE WHEN status = 'IN_PROGRESS' AND ? = 'OPEN' THEN lifecycle_generation + 1 ELSE lifecycle_generation END,
+				     updated_at = ?
+				 WHERE id = ?`,
+				target, sess.UserID, nowStr, target, nowStr, caseID,
 			); err != nil {
 				return err
 			}

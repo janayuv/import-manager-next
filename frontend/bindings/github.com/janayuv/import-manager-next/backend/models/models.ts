@@ -275,6 +275,56 @@ export class AppSettingsProfile {
 }
 
 /**
+ * AutoRollbackResult reports the outcome of two-stage automatic canary evaluation & recovery.
+ */
+export class AutoRollbackResult {
+    "ruleId": string;
+    "failedVersionId": string;
+    "triggered": boolean;
+    "breachReasons": string[];
+    "stage1Disabled": boolean;
+    "stage2Restored": boolean;
+    "restoredVersionId"?: string;
+    "alertId"?: string;
+
+    /** Creates a new AutoRollbackResult instance. */
+    constructor($$source: Partial<AutoRollbackResult> = {}) {
+        if (!("ruleId" in $$source)) {
+            this["ruleId"] = "";
+        }
+        if (!("failedVersionId" in $$source)) {
+            this["failedVersionId"] = "";
+        }
+        if (!("triggered" in $$source)) {
+            this["triggered"] = false;
+        }
+        if (!("breachReasons" in $$source)) {
+            this["breachReasons"] = [];
+        }
+        if (!("stage1Disabled" in $$source)) {
+            this["stage1Disabled"] = false;
+        }
+        if (!("stage2Restored" in $$source)) {
+            this["stage2Restored"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AutoRollbackResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): AutoRollbackResult {
+        const $$createField3_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("breachReasons" in $$parsedSource) {
+            $$parsedSource["breachReasons"] = $$createField3_0($$parsedSource["breachReasons"]);
+        }
+        return new AutoRollbackResult($$parsedSource as Partial<AutoRollbackResult>);
+    }
+}
+
+/**
  * AutomationCostLimit mirrors automation_cost_limits.
  */
 export class AutomationCostLimit {
@@ -666,7 +716,7 @@ export class BOECalcParams {
      * Creates a new BOECalcParams instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalcParams {
-        const $$createField26_0 = $$createType5;
+        const $$createField26_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lineItems" in $$parsedSource) {
             $$parsedSource["lineItems"] = $$createField26_0($$parsedSource["lineItems"]);
@@ -706,9 +756,9 @@ export class BOECalculationContext {
      * Creates a new BOECalculationContext instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalculationContext {
-        const $$createField0_0 = $$createType6;
-        const $$createField1_0 = $$createType7;
-        const $$createField2_0 = $$createType8;
+        const $$createField0_0 = $$createType7;
+        const $$createField1_0 = $$createType8;
+        const $$createField2_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("shipment" in $$parsedSource) {
             $$parsedSource["shipment"] = $$createField0_0($$parsedSource["shipment"]);
@@ -814,10 +864,10 @@ export class BOECalculationDetail {
      * Creates a new BOECalculationDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalculationDetail {
-        const $$createField15_0 = $$createType7;
-        const $$createField16_0 = $$createType8;
-        const $$createField17_0 = $$createType10;
-        const $$createField18_0 = $$createType11;
+        const $$createField15_0 = $$createType8;
+        const $$createField16_0 = $$createType9;
+        const $$createField17_0 = $$createType11;
+        const $$createField18_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("params" in $$parsedSource) {
             $$parsedSource["params"] = $$createField15_0($$parsedSource["params"]);
@@ -1034,8 +1084,8 @@ export class BOECalculationResult {
      * Creates a new BOECalculationResult instance from a string or object.
      */
     static createFrom($$source: any = {}): BOECalculationResult {
-        const $$createField0_0 = $$createType13;
-        const $$createField20_0 = $$createType14;
+        const $$createField0_0 = $$createType14;
+        const $$createField20_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -1295,10 +1345,10 @@ export class BOEEvalContext {
      * Creates a new BOEEvalContext instance from a string or object.
      */
     static createFrom($$source: any = {}): BOEEvalContext {
-        const $$createField0_0 = $$createType15;
-        const $$createField1_0 = $$createType16;
-        const $$createField9_0 = $$createType18;
-        const $$createField10_0 = $$createType20;
+        const $$createField0_0 = $$createType16;
+        const $$createField1_0 = $$createType17;
+        const $$createField9_0 = $$createType19;
+        const $$createField10_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("boeDetail" in $$parsedSource) {
             $$parsedSource["boeDetail"] = $$createField0_0($$parsedSource["boeDetail"]);
@@ -1347,8 +1397,8 @@ export class BOEOverrideImportResult {
      * Creates a new BOEOverrideImportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): BOEOverrideImportResult {
-        const $$createField0_0 = $$createType5;
-        const $$createField3_0 = $$createType22;
+        const $$createField0_0 = $$createType6;
+        const $$createField3_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -1427,6 +1477,11 @@ export class BackgroundJob {
     "lastStatus"?: string;
     "lastStartedAt"?: string;
     "lastCompletedAt"?: string;
+    "lastErrorMessage"?: string;
+    "guardStopped"?: boolean;
+    "recoveryAttempts24h"?: number;
+    "dependsOn"?: string[];
+    "nextExpectedAt"?: string;
 
     /** Creates a new BackgroundJob instance. */
     constructor($$source: Partial<BackgroundJob> = {}) {
@@ -1462,7 +1517,11 @@ export class BackgroundJob {
      * Creates a new BackgroundJob instance from a string or object.
      */
     static createFrom($$source: any = {}): BackgroundJob {
+        const $$createField14_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("dependsOn" in $$parsedSource) {
+            $$parsedSource["dependsOn"] = $$createField14_0($$parsedSource["dependsOn"]);
+        }
         return new BackgroundJob($$parsedSource as Partial<BackgroundJob>);
     }
 }
@@ -1735,7 +1794,7 @@ export class BrowseTableResponse {
      * Creates a new BrowseTableResponse instance from a string or object.
      */
     static createFrom($$source: any = {}): BrowseTableResponse {
-        const $$createField3_0 = $$createType23;
+        const $$createField3_0 = $$createType4;
         const $$createField7_0 = $$createType25;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("columns" in $$parsedSource) {
@@ -1833,7 +1892,7 @@ export class BulkDeleteRequest {
      * Creates a new BulkDeleteRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): BulkDeleteRequest {
-        const $$createField1_0 = $$createType23;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recordIds" in $$parsedSource) {
             $$parsedSource["recordIds"] = $$createField1_0($$parsedSource["recordIds"]);
@@ -2027,8 +2086,8 @@ export class CSVImportResult {
      * Creates a new CSVImportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): CSVImportResult {
-        const $$createField3_0 = $$createType22;
-        const $$createField4_0 = $$createType22;
+        const $$createField3_0 = $$createType23;
+        const $$createField4_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("errors" in $$parsedSource) {
             $$parsedSource["errors"] = $$createField3_0($$parsedSource["errors"]);
@@ -2069,6 +2128,190 @@ export class CSVImportRowError {
 }
 
 /**
+ * CanaryCohortMetrics captures execution, cost, and latency metrics for one cohort (canary or control).
+ */
+export class CanaryCohortMetrics {
+    "attemptedCount": number;
+    "successCount": number;
+    "failureCount": number;
+    "skippedCount": number;
+    "costUnits": number;
+    "avgDurationMs": number;
+    "failureRate": number;
+    "executionCount": number;
+
+    /** Creates a new CanaryCohortMetrics instance. */
+    constructor($$source: Partial<CanaryCohortMetrics> = {}) {
+        if (!("attemptedCount" in $$source)) {
+            this["attemptedCount"] = 0;
+        }
+        if (!("successCount" in $$source)) {
+            this["successCount"] = 0;
+        }
+        if (!("failureCount" in $$source)) {
+            this["failureCount"] = 0;
+        }
+        if (!("skippedCount" in $$source)) {
+            this["skippedCount"] = 0;
+        }
+        if (!("costUnits" in $$source)) {
+            this["costUnits"] = 0;
+        }
+        if (!("avgDurationMs" in $$source)) {
+            this["avgDurationMs"] = 0;
+        }
+        if (!("failureRate" in $$source)) {
+            this["failureRate"] = 0;
+        }
+        if (!("executionCount" in $$source)) {
+            this["executionCount"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CanaryCohortMetrics instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CanaryCohortMetrics {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CanaryCohortMetrics($$parsedSource as Partial<CanaryCohortMetrics>);
+    }
+}
+
+/**
+ * CanaryMonitoringSummary aggregates canary vs control telemetry and threshold health for a rule version.
+ */
+export class CanaryMonitoringSummary {
+    "ruleId": string;
+    "versionId": string;
+    "sampleSizePercentage": number;
+    "rolloutStage": number;
+    "deploymentStatus": string;
+    "windowMinutes": number;
+    "canary": CanaryCohortMetrics;
+    "control": CanaryCohortMetrics;
+    "costDeltaUnits": number;
+    "costIncreasePct": number;
+    "durationDeltaMs": number;
+    "durationIncreasePct": number;
+
+    /**
+     * HEALTHY | DEGRADED | INSUFFICIENT_SAMPLES | ROLLED_BACK | COMPLETED
+     */
+    "healthStatus": string;
+
+    /** Creates a new CanaryMonitoringSummary instance. */
+    constructor($$source: Partial<CanaryMonitoringSummary> = {}) {
+        if (!("ruleId" in $$source)) {
+            this["ruleId"] = "";
+        }
+        if (!("versionId" in $$source)) {
+            this["versionId"] = "";
+        }
+        if (!("sampleSizePercentage" in $$source)) {
+            this["sampleSizePercentage"] = 0;
+        }
+        if (!("rolloutStage" in $$source)) {
+            this["rolloutStage"] = 0;
+        }
+        if (!("deploymentStatus" in $$source)) {
+            this["deploymentStatus"] = "";
+        }
+        if (!("windowMinutes" in $$source)) {
+            this["windowMinutes"] = 0;
+        }
+        if (!("canary" in $$source)) {
+            this["canary"] = (new CanaryCohortMetrics());
+        }
+        if (!("control" in $$source)) {
+            this["control"] = (new CanaryCohortMetrics());
+        }
+        if (!("costDeltaUnits" in $$source)) {
+            this["costDeltaUnits"] = 0;
+        }
+        if (!("costIncreasePct" in $$source)) {
+            this["costIncreasePct"] = 0;
+        }
+        if (!("durationDeltaMs" in $$source)) {
+            this["durationDeltaMs"] = 0;
+        }
+        if (!("durationIncreasePct" in $$source)) {
+            this["durationIncreasePct"] = 0;
+        }
+        if (!("healthStatus" in $$source)) {
+            this["healthStatus"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CanaryMonitoringSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CanaryMonitoringSummary {
+        const $$createField6_0 = $$createType28;
+        const $$createField7_0 = $$createType28;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("canary" in $$parsedSource) {
+            $$parsedSource["canary"] = $$createField6_0($$parsedSource["canary"]);
+        }
+        if ("control" in $$parsedSource) {
+            $$parsedSource["control"] = $$createField7_0($$parsedSource["control"]);
+        }
+        return new CanaryMonitoringSummary($$parsedSource as Partial<CanaryMonitoringSummary>);
+    }
+}
+
+/**
+ * CanaryRollbackThreshold mirrors canary_rollback_thresholds.
+ */
+export class CanaryRollbackThreshold {
+    "id": string;
+    "minSampleSize": number;
+    "maxFailureRate": number;
+    "maxCostIncreasePct": number;
+    "maxDurationIncreasePct": number;
+    "monitoringWindowMinutes": number;
+    "updatedAt": string;
+
+    /** Creates a new CanaryRollbackThreshold instance. */
+    constructor($$source: Partial<CanaryRollbackThreshold> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("minSampleSize" in $$source)) {
+            this["minSampleSize"] = 0;
+        }
+        if (!("maxFailureRate" in $$source)) {
+            this["maxFailureRate"] = 0;
+        }
+        if (!("maxCostIncreasePct" in $$source)) {
+            this["maxCostIncreasePct"] = 0;
+        }
+        if (!("maxDurationIncreasePct" in $$source)) {
+            this["maxDurationIncreasePct"] = 0;
+        }
+        if (!("monitoringWindowMinutes" in $$source)) {
+            this["monitoringWindowMinutes"] = 0;
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CanaryRollbackThreshold instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CanaryRollbackThreshold {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CanaryRollbackThreshold($$parsedSource as Partial<CanaryRollbackThreshold>);
+    }
+}
+
+/**
  * CanaryStatus reports FNV-1a deterministic canary rollout configuration for a rule.
  */
 export class CanaryStatus {
@@ -2076,8 +2319,11 @@ export class CanaryStatus {
     "ruleId": string;
     "versionId": string;
     "sampleSizePercentage": number;
+    "rolloutStage": number;
     "deploymentStatus": string;
     "createdAt": string;
+    "updatedAt"?: string;
+    "completedAt"?: string;
 
     /** Creates a new CanaryStatus instance. */
     constructor($$source: Partial<CanaryStatus> = {}) {
@@ -2092,6 +2338,9 @@ export class CanaryStatus {
         }
         if (!("sampleSizePercentage" in $$source)) {
             this["sampleSizePercentage"] = 0;
+        }
+        if (!("rolloutStage" in $$source)) {
+            this["rolloutStage"] = 0;
         }
         if (!("deploymentStatus" in $$source)) {
             this["deploymentStatus"] = "";
@@ -2389,7 +2638,7 @@ export class ContainerMovementAction {
      * Creates a new ContainerMovementAction instance from a string or object.
      */
     static createFrom($$source: any = {}): ContainerMovementAction {
-        const $$createField1_0 = $$createType23;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("containerIds" in $$parsedSource) {
             $$parsedSource["containerIds"] = $$createField1_0($$parsedSource["containerIds"]);
@@ -2890,13 +3139,13 @@ export class DashboardOverview {
      * Creates a new DashboardOverview instance from a string or object.
      */
     static createFrom($$source: any = {}): DashboardOverview {
-        const $$createField3_0 = $$createType23;
-        const $$createField4_0 = $$createType28;
-        const $$createField5_0 = $$createType30;
-        const $$createField6_0 = $$createType32;
-        const $$createField7_0 = $$createType34;
-        const $$createField8_0 = $$createType36;
-        const $$createField9_0 = $$createType38;
+        const $$createField3_0 = $$createType4;
+        const $$createField4_0 = $$createType29;
+        const $$createField5_0 = $$createType31;
+        const $$createField6_0 = $$createType33;
+        const $$createField7_0 = $$createType35;
+        const $$createField8_0 = $$createType37;
+        const $$createField9_0 = $$createType39;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("availableFys" in $$parsedSource) {
             $$parsedSource["availableFys"] = $$createField3_0($$parsedSource["availableFys"]);
@@ -3054,8 +3303,8 @@ export class DatabaseOverviewStats {
      * Creates a new DatabaseOverviewStats instance from a string or object.
      */
     static createFrom($$source: any = {}): DatabaseOverviewStats {
-        const $$createField10_0 = $$createType39;
-        const $$createField11_0 = $$createType39;
+        const $$createField10_0 = $$createType40;
+        const $$createField11_0 = $$createType40;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tableCounts" in $$parsedSource) {
             $$parsedSource["tableCounts"] = $$createField10_0($$parsedSource["tableCounts"]);
@@ -3104,6 +3353,102 @@ export class DependencyCount {
 }
 
 /**
+ * DeploymentHealthOverview provides a read-only consolidated snapshot of rule deployments, health, alerts, and rollbacks.
+ */
+export class DeploymentHealthOverview {
+    "totalRules": number;
+    "activeProductionRules": number;
+    "rulesAwaitingApproval": number;
+    "activeCanaryDeployments": number;
+    "completedCanaryDeployments": number;
+    "failedOrRolledBackDeployments": number;
+    "currentProductionRuleId"?: string;
+    "currentProductionVersionId"?: string;
+    "currentProductionVersionNum"?: number;
+    "latestDeploymentTimestamp"?: string;
+
+    /**
+     * HEALTHY | WARNING | CRITICAL | DISABLED | UNKNOWN
+     */
+    "overallHealth": string;
+    "healthSummaryReason": string;
+    "windowMinutes": number;
+    "thresholds": CanaryRollbackThreshold;
+    "ruleDeployments": RuleDeploymentHealth[];
+    "recentAlerts": OperationalAlert[];
+    "recentRollbacks": RollbackEventRecord[];
+
+    /** Creates a new DeploymentHealthOverview instance. */
+    constructor($$source: Partial<DeploymentHealthOverview> = {}) {
+        if (!("totalRules" in $$source)) {
+            this["totalRules"] = 0;
+        }
+        if (!("activeProductionRules" in $$source)) {
+            this["activeProductionRules"] = 0;
+        }
+        if (!("rulesAwaitingApproval" in $$source)) {
+            this["rulesAwaitingApproval"] = 0;
+        }
+        if (!("activeCanaryDeployments" in $$source)) {
+            this["activeCanaryDeployments"] = 0;
+        }
+        if (!("completedCanaryDeployments" in $$source)) {
+            this["completedCanaryDeployments"] = 0;
+        }
+        if (!("failedOrRolledBackDeployments" in $$source)) {
+            this["failedOrRolledBackDeployments"] = 0;
+        }
+        if (!("overallHealth" in $$source)) {
+            this["overallHealth"] = "";
+        }
+        if (!("healthSummaryReason" in $$source)) {
+            this["healthSummaryReason"] = "";
+        }
+        if (!("windowMinutes" in $$source)) {
+            this["windowMinutes"] = 0;
+        }
+        if (!("thresholds" in $$source)) {
+            this["thresholds"] = (new CanaryRollbackThreshold());
+        }
+        if (!("ruleDeployments" in $$source)) {
+            this["ruleDeployments"] = [];
+        }
+        if (!("recentAlerts" in $$source)) {
+            this["recentAlerts"] = [];
+        }
+        if (!("recentRollbacks" in $$source)) {
+            this["recentRollbacks"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DeploymentHealthOverview instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DeploymentHealthOverview {
+        const $$createField13_0 = $$createType41;
+        const $$createField14_0 = $$createType43;
+        const $$createField15_0 = $$createType45;
+        const $$createField16_0 = $$createType47;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("thresholds" in $$parsedSource) {
+            $$parsedSource["thresholds"] = $$createField13_0($$parsedSource["thresholds"]);
+        }
+        if ("ruleDeployments" in $$parsedSource) {
+            $$parsedSource["ruleDeployments"] = $$createField14_0($$parsedSource["ruleDeployments"]);
+        }
+        if ("recentAlerts" in $$parsedSource) {
+            $$parsedSource["recentAlerts"] = $$createField15_0($$parsedSource["recentAlerts"]);
+        }
+        if ("recentRollbacks" in $$parsedSource) {
+            $$parsedSource["recentRollbacks"] = $$createField16_0($$parsedSource["recentRollbacks"]);
+        }
+        return new DeploymentHealthOverview($$parsedSource as Partial<DeploymentHealthOverview>);
+    }
+}
+
+/**
  * DiagnosticsExportResult reports path & summary of the generated diagnostics bundle zip.
  */
 export class DiagnosticsExportResult {
@@ -3134,12 +3479,96 @@ export class DiagnosticsExportResult {
      * Creates a new DiagnosticsExportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): DiagnosticsExportResult {
-        const $$createField3_0 = $$createType23;
+        const $$createField3_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("includedSections" in $$parsedSource) {
             $$parsedSource["includedSections"] = $$createField3_0($$parsedSource["includedSections"]);
         }
         return new DiagnosticsExportResult($$parsedSource as Partial<DiagnosticsExportResult>);
+    }
+}
+
+/**
+ * DryRunComparisonDelta compares simulated execution impact of base vs target versions under equivalent assumptions.
+ */
+export class DryRunComparisonDelta {
+    "assumedCanaryPercent": number;
+    "evaluatedOpenCases": number;
+    "baseMatchingRecords": number;
+    "targetMatchingRecords": number;
+    "matchingRecordsDelta": number;
+    "baseAffectedRecords": number;
+    "targetAffectedRecords": number;
+    "affectedRecordsDelta": number;
+    "baseEstimatedCost": number;
+    "targetEstimatedCost": number;
+    "estimatedCostDelta": number;
+    "baseSkippedRecords": number;
+    "targetSkippedRecords": number;
+    "skippedRecordsDelta": number;
+    "baseWithinBudget": boolean;
+    "targetWithinBudget": boolean;
+
+    /** Creates a new DryRunComparisonDelta instance. */
+    constructor($$source: Partial<DryRunComparisonDelta> = {}) {
+        if (!("assumedCanaryPercent" in $$source)) {
+            this["assumedCanaryPercent"] = 0;
+        }
+        if (!("evaluatedOpenCases" in $$source)) {
+            this["evaluatedOpenCases"] = 0;
+        }
+        if (!("baseMatchingRecords" in $$source)) {
+            this["baseMatchingRecords"] = 0;
+        }
+        if (!("targetMatchingRecords" in $$source)) {
+            this["targetMatchingRecords"] = 0;
+        }
+        if (!("matchingRecordsDelta" in $$source)) {
+            this["matchingRecordsDelta"] = 0;
+        }
+        if (!("baseAffectedRecords" in $$source)) {
+            this["baseAffectedRecords"] = 0;
+        }
+        if (!("targetAffectedRecords" in $$source)) {
+            this["targetAffectedRecords"] = 0;
+        }
+        if (!("affectedRecordsDelta" in $$source)) {
+            this["affectedRecordsDelta"] = 0;
+        }
+        if (!("baseEstimatedCost" in $$source)) {
+            this["baseEstimatedCost"] = 0;
+        }
+        if (!("targetEstimatedCost" in $$source)) {
+            this["targetEstimatedCost"] = 0;
+        }
+        if (!("estimatedCostDelta" in $$source)) {
+            this["estimatedCostDelta"] = 0;
+        }
+        if (!("baseSkippedRecords" in $$source)) {
+            this["baseSkippedRecords"] = 0;
+        }
+        if (!("targetSkippedRecords" in $$source)) {
+            this["targetSkippedRecords"] = 0;
+        }
+        if (!("skippedRecordsDelta" in $$source)) {
+            this["skippedRecordsDelta"] = 0;
+        }
+        if (!("baseWithinBudget" in $$source)) {
+            this["baseWithinBudget"] = false;
+        }
+        if (!("targetWithinBudget" in $$source)) {
+            this["targetWithinBudget"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DryRunComparisonDelta instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DryRunComparisonDelta {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DryRunComparisonDelta($$parsedSource as Partial<DryRunComparisonDelta>);
     }
 }
 
@@ -3595,7 +4024,7 @@ export class ExpenseInvoice {
      * Creates a new ExpenseInvoice instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoice {
-        const $$createField26_0 = $$createType41;
+        const $$createField26_0 = $$createType49;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField26_0($$parsedSource["lines"]);
@@ -3667,7 +4096,7 @@ export class ExpenseInvoiceCalculation {
      * Creates a new ExpenseInvoiceCalculation instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoiceCalculation {
-        const $$createField0_0 = $$createType43;
+        const $$createField0_0 = $$createType51;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField0_0($$parsedSource["lines"]);
@@ -3752,7 +4181,7 @@ export class ExpenseInvoiceRequest {
      * Creates a new ExpenseInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseInvoiceRequest {
-        const $$createField15_0 = $$createType45;
+        const $$createField15_0 = $$createType53;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField15_0($$parsedSource["lines"]);
@@ -4304,8 +4733,8 @@ export class ExpenseReportResult {
      * Creates a new ExpenseReportResult instance from a string or object.
      */
     static createFrom($$source: any = {}): ExpenseReportResult {
-        const $$createField1_0 = $$createType47;
-        const $$createField2_0 = $$createType49;
+        const $$createField1_0 = $$createType55;
+        const $$createField2_0 = $$createType57;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("detailedRows" in $$parsedSource) {
             $$parsedSource["detailedRows"] = $$createField1_0($$parsedSource["detailedRows"]);
@@ -4723,8 +5152,8 @@ export class InvoiceDetail {
      * Creates a new InvoiceDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): InvoiceDetail {
-        const $$createField0_0 = $$createType50;
-        const $$createField1_0 = $$createType52;
+        const $$createField0_0 = $$createType58;
+        const $$createField1_0 = $$createType60;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("invoice" in $$parsedSource) {
             $$parsedSource["invoice"] = $$createField0_0($$parsedSource["invoice"]);
@@ -5248,7 +5677,7 @@ export class ItemPage {
      * Creates a new ItemPage instance from a string or object.
      */
     static createFrom($$source: any = {}): ItemPage {
-        const $$createField0_0 = $$createType54;
+        const $$createField0_0 = $$createType62;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -5429,8 +5858,8 @@ export class LandedCostReport {
      * Creates a new LandedCostReport instance from a string or object.
      */
     static createFrom($$source: any = {}): LandedCostReport {
-        const $$createField0_0 = $$createType56;
-        const $$createField1_0 = $$createType57;
+        const $$createField0_0 = $$createType64;
+        const $$createField1_0 = $$createType65;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rows" in $$parsedSource) {
             $$parsedSource["rows"] = $$createField0_0($$parsedSource["rows"]);
@@ -5699,9 +6128,9 @@ export class LegacyInspectResult {
      * Creates a new LegacyInspectResult instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyInspectResult {
-        const $$createField6_0 = $$createType59;
-        const $$createField7_0 = $$createType60;
-        const $$createField8_0 = $$createType23;
+        const $$createField6_0 = $$createType67;
+        const $$createField7_0 = $$createType68;
+        const $$createField8_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tables" in $$parsedSource) {
             $$parsedSource["tables"] = $$createField6_0($$parsedSource["tables"]);
@@ -5777,10 +6206,10 @@ export class LegacyMigrationReport {
      * Creates a new LegacyMigrationReport instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyMigrationReport {
-        const $$createField6_0 = $$createType39;
-        const $$createField8_0 = $$createType60;
-        const $$createField9_0 = $$createType60;
-        const $$createField11_0 = $$createType23;
+        const $$createField6_0 = $$createType40;
+        const $$createField8_0 = $$createType68;
+        const $$createField9_0 = $$createType68;
+        const $$createField11_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("rowsCopiedByTable" in $$parsedSource) {
             $$parsedSource["rowsCopiedByTable"] = $$createField6_0($$parsedSource["rowsCopiedByTable"]);
@@ -5863,8 +6292,8 @@ export class LegacyTableInspect {
      * Creates a new LegacyTableInspect instance from a string or object.
      */
     static createFrom($$source: any = {}): LegacyTableInspect {
-        const $$createField4_0 = $$createType23;
-        const $$createField5_0 = $$createType23;
+        const $$createField4_0 = $$createType4;
+        const $$createField5_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("matchedCols" in $$parsedSource) {
             $$parsedSource["matchedCols"] = $$createField4_0($$parsedSource["matchedCols"]);
@@ -6127,7 +6556,7 @@ export class MissingParentGroup {
      * Creates a new MissingParentGroup instance from a string or object.
      */
     static createFrom($$source: any = {}): MissingParentGroup {
-        const $$createField1_0 = $$createType23;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("parentIds" in $$parsedSource) {
             $$parsedSource["parentIds"] = $$createField1_0($$parsedSource["parentIds"]);
@@ -6171,8 +6600,8 @@ export class ModuleDisplaySettings {
      * Creates a new ModuleDisplaySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): ModuleDisplaySettings {
-        const $$createField0_0 = $$createType23;
-        const $$createField4_0 = $$createType61;
+        const $$createField0_0 = $$createType4;
+        const $$createField4_0 = $$createType69;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("visibleFields" in $$parsedSource) {
             $$parsedSource["visibleFields"] = $$createField0_0($$parsedSource["visibleFields"]);
@@ -6181,6 +6610,64 @@ export class ModuleDisplaySettings {
             $$parsedSource["fieldCases"] = $$createField4_0($$parsedSource["fieldCases"]);
         }
         return new ModuleDisplaySettings($$parsedSource as Partial<ModuleDisplaySettings>);
+    }
+}
+
+/**
+ * OperationalAlert mirrors automation_stability_alert rows surfaced in the Automation Rules console.
+ */
+export class OperationalAlert {
+    "id": string;
+    "alertType": string;
+    "severity": string;
+    "ruleId": string;
+    "versionId": string;
+    "message": string;
+    "detailsJson": string;
+    "createdAt": string;
+    "acknowledged": boolean;
+    "acknowledgedBy"?: string;
+    "acknowledgedAt"?: string;
+
+    /** Creates a new OperationalAlert instance. */
+    constructor($$source: Partial<OperationalAlert> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("alertType" in $$source)) {
+            this["alertType"] = "";
+        }
+        if (!("severity" in $$source)) {
+            this["severity"] = "";
+        }
+        if (!("ruleId" in $$source)) {
+            this["ruleId"] = "";
+        }
+        if (!("versionId" in $$source)) {
+            this["versionId"] = "";
+        }
+        if (!("message" in $$source)) {
+            this["message"] = "";
+        }
+        if (!("detailsJson" in $$source)) {
+            this["detailsJson"] = "";
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("acknowledged" in $$source)) {
+            this["acknowledged"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new OperationalAlert instance from a string or object.
+     */
+    static createFrom($$source: any = {}): OperationalAlert {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new OperationalAlert($$parsedSource as Partial<OperationalAlert>);
     }
 }
 
@@ -6243,9 +6730,9 @@ export class OperationsOverview {
      * Creates a new OperationsOverview instance from a string or object.
      */
     static createFrom($$source: any = {}): OperationsOverview {
-        const $$createField8_0 = $$createType63;
-        const $$createField9_0 = $$createType65;
-        const $$createField10_0 = $$createType67;
+        const $$createField8_0 = $$createType71;
+        const $$createField9_0 = $$createType73;
+        const $$createField10_0 = $$createType75;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("jobs" in $$parsedSource) {
             $$parsedSource["jobs"] = $$createField8_0($$parsedSource["jobs"]);
@@ -7067,13 +7554,13 @@ export class PartPeriodAnalysisResult {
      * Creates a new PartPeriodAnalysisResult instance from a string or object.
      */
     static createFrom($$source: any = {}): PartPeriodAnalysisResult {
-        const $$createField0_0 = $$createType68;
-        const $$createField1_0 = $$createType69;
-        const $$createField2_0 = $$createType71;
-        const $$createField3_0 = $$createType73;
-        const $$createField4_0 = $$createType75;
-        const $$createField5_0 = $$createType77;
-        const $$createField6_0 = $$createType79;
+        const $$createField0_0 = $$createType76;
+        const $$createField1_0 = $$createType77;
+        const $$createField2_0 = $$createType79;
+        const $$createField3_0 = $$createType81;
+        const $$createField4_0 = $$createType83;
+        const $$createField5_0 = $$createType85;
+        const $$createField6_0 = $$createType87;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("targetItem" in $$parsedSource) {
             $$parsedSource["targetItem"] = $$createField0_0($$parsedSource["targetItem"]);
@@ -7515,7 +8002,7 @@ export class Payment {
      * Creates a new Payment instance from a string or object.
      */
     static createFrom($$source: any = {}): Payment {
-        const $$createField21_0 = $$createType81;
+        const $$createField21_0 = $$createType89;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("allocations" in $$parsedSource) {
             $$parsedSource["allocations"] = $$createField21_0($$parsedSource["allocations"]);
@@ -7752,7 +8239,7 @@ export class PaymentAnnexure {
      * Creates a new PaymentAnnexure instance from a string or object.
      */
     static createFrom($$source: any = {}): PaymentAnnexure {
-        const $$createField20_0 = $$createType83;
+        const $$createField20_0 = $$createType91;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField20_0($$parsedSource["items"]);
@@ -7890,7 +8377,7 @@ export class PaymentInput {
      * Creates a new PaymentInput instance from a string or object.
      */
     static createFrom($$source: any = {}): PaymentInput {
-        const $$createField16_0 = $$createType85;
+        const $$createField16_0 = $$createType93;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("allocations" in $$parsedSource) {
             $$parsedSource["allocations"] = $$createField16_0($$parsedSource["allocations"]);
@@ -7930,7 +8417,7 @@ export class PaymentPage {
      * Creates a new PaymentPage instance from a string or object.
      */
     static createFrom($$source: any = {}): PaymentPage {
-        const $$createField0_0 = $$createType87;
+        const $$createField0_0 = $$createType95;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -8073,8 +8560,8 @@ export class PurchaseOrder {
      * Creates a new PurchaseOrder instance from a string or object.
      */
     static createFrom($$source: any = {}): PurchaseOrder {
-        const $$createField19_0 = $$createType89;
-        const $$createField20_0 = $$createType91;
+        const $$createField19_0 = $$createType97;
+        const $$createField20_0 = $$createType99;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lineItems" in $$parsedSource) {
             $$parsedSource["lineItems"] = $$createField19_0($$parsedSource["lineItems"]);
@@ -8139,8 +8626,8 @@ export class PurchaseOrderInput {
      * Creates a new PurchaseOrderInput instance from a string or object.
      */
     static createFrom($$source: any = {}): PurchaseOrderInput {
-        const $$createField12_0 = $$createType93;
-        const $$createField13_0 = $$createType95;
+        const $$createField12_0 = $$createType101;
+        const $$createField13_0 = $$createType103;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lineItems" in $$parsedSource) {
             $$parsedSource["lineItems"] = $$createField12_0($$parsedSource["lineItems"]);
@@ -8183,7 +8670,7 @@ export class PurchaseOrderPage {
      * Creates a new PurchaseOrderPage instance from a string or object.
      */
     static createFrom($$source: any = {}): PurchaseOrderPage {
-        const $$createField0_0 = $$createType97;
+        const $$createField0_0 = $$createType105;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -8376,7 +8863,7 @@ export class RecycleBinActionResult {
      * Creates a new RecycleBinActionResult instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinActionResult {
-        const $$createField7_0 = $$createType99;
+        const $$createField7_0 = $$createType107;
         const $$createField8_0 = $$createType27;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("missingParents" in $$parsedSource) {
@@ -8444,8 +8931,8 @@ export class RecycleBinListResponse {
      * Creates a new RecycleBinListResponse instance from a string or object.
      */
     static createFrom($$source: any = {}): RecycleBinListResponse {
-        const $$createField8_0 = $$createType39;
-        const $$createField9_0 = $$createType101;
+        const $$createField8_0 = $$createType40;
+        const $$createField9_0 = $$createType109;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("perTableCounts" in $$parsedSource) {
             $$parsedSource["perTableCounts"] = $$createField8_0($$parsedSource["perTableCounts"]);
@@ -8628,7 +9115,7 @@ export class RestoreVerificationSummary {
      * Creates a new RestoreVerificationSummary instance from a string or object.
      */
     static createFrom($$source: any = {}): RestoreVerificationSummary {
-        const $$createField8_0 = $$createType39;
+        const $$createField8_0 = $$createType40;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tableCounts" in $$parsedSource) {
             $$parsedSource["tableCounts"] = $$createField8_0($$parsedSource["tableCounts"]);
@@ -8952,8 +9439,8 @@ export class RoDTEPBOEDebitSummary {
      * Creates a new RoDTEPBOEDebitSummary instance from a string or object.
      */
     static createFrom($$source: any = {}): RoDTEPBOEDebitSummary {
-        const $$createField12_0 = $$createType20;
-        const $$createField13_0 = $$createType103;
+        const $$createField12_0 = $$createType21;
+        const $$createField13_0 = $$createType111;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("allocations" in $$parsedSource) {
             $$parsedSource["allocations"] = $$createField12_0($$parsedSource["allocations"]);
@@ -9549,11 +10036,322 @@ export class RoDTEPScripInput {
 }
 
 /**
+ * RollbackEventRecord mirrors persisted rollback and recovery events from rollback_action_log.
+ */
+export class RollbackEventRecord {
+    "id": string;
+    "ruleId": string;
+    "rollbackType": string;
+    "targetEntity": string;
+    "performedBy": string;
+    "performedAt": string;
+    "detailsJson": string;
+
+    /** Creates a new RollbackEventRecord instance. */
+    constructor($$source: Partial<RollbackEventRecord> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("ruleId" in $$source)) {
+            this["ruleId"] = "";
+        }
+        if (!("rollbackType" in $$source)) {
+            this["rollbackType"] = "";
+        }
+        if (!("targetEntity" in $$source)) {
+            this["targetEntity"] = "";
+        }
+        if (!("performedBy" in $$source)) {
+            this["performedBy"] = "";
+        }
+        if (!("performedAt" in $$source)) {
+            this["performedAt"] = "";
+        }
+        if (!("detailsJson" in $$source)) {
+            this["detailsJson"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RollbackEventRecord instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RollbackEventRecord {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RollbackEventRecord($$parsedSource as Partial<RollbackEventRecord>);
+    }
+}
+
+/**
+ * RuleDeploymentHealth describes per-rule deployment state, telemetry metrics, and explained health status.
+ */
+export class RuleDeploymentHealth {
+    "ruleId": string;
+    "ruleName": string;
+    "ruleType": string;
+    "actionType": string;
+    "enabled": boolean;
+    "currentEnv": string;
+    "prodVersionId"?: string;
+    "prodVersionNum"?: number;
+    "latestVersionId"?: string;
+    "latestVersionNum"?: number;
+    "latestApprovalStatus"?: string;
+    "latestDeployedAt"?: string;
+    "canaryStatus"?: string;
+    "canaryVersionId"?: string;
+    "canaryPercent"?: number;
+    "canaryRolloutStage"?: number;
+
+    /**
+     * HEALTHY | WARNING | CRITICAL | DISABLED | UNKNOWN
+     */
+    "healthStatus": string;
+    "healthReasons": string[];
+    "attemptedCount": number;
+    "successCount": number;
+    "failureCount": number;
+    "skippedCount": number;
+    "failureRate": number;
+    "costUnits": number;
+    "avgDurationMs": number;
+    "costIncreasePct": number;
+    "durationIncreasePct": number;
+    "openAlertCount": number;
+    "acknowledgedAlertCount": number;
+    "hasRecentRollback": boolean;
+
+    /** Creates a new RuleDeploymentHealth instance. */
+    constructor($$source: Partial<RuleDeploymentHealth> = {}) {
+        if (!("ruleId" in $$source)) {
+            this["ruleId"] = "";
+        }
+        if (!("ruleName" in $$source)) {
+            this["ruleName"] = "";
+        }
+        if (!("ruleType" in $$source)) {
+            this["ruleType"] = "";
+        }
+        if (!("actionType" in $$source)) {
+            this["actionType"] = "";
+        }
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+        if (!("currentEnv" in $$source)) {
+            this["currentEnv"] = "";
+        }
+        if (!("healthStatus" in $$source)) {
+            this["healthStatus"] = "";
+        }
+        if (!("healthReasons" in $$source)) {
+            this["healthReasons"] = [];
+        }
+        if (!("attemptedCount" in $$source)) {
+            this["attemptedCount"] = 0;
+        }
+        if (!("successCount" in $$source)) {
+            this["successCount"] = 0;
+        }
+        if (!("failureCount" in $$source)) {
+            this["failureCount"] = 0;
+        }
+        if (!("skippedCount" in $$source)) {
+            this["skippedCount"] = 0;
+        }
+        if (!("failureRate" in $$source)) {
+            this["failureRate"] = 0;
+        }
+        if (!("costUnits" in $$source)) {
+            this["costUnits"] = 0;
+        }
+        if (!("avgDurationMs" in $$source)) {
+            this["avgDurationMs"] = 0;
+        }
+        if (!("costIncreasePct" in $$source)) {
+            this["costIncreasePct"] = 0;
+        }
+        if (!("durationIncreasePct" in $$source)) {
+            this["durationIncreasePct"] = 0;
+        }
+        if (!("openAlertCount" in $$source)) {
+            this["openAlertCount"] = 0;
+        }
+        if (!("acknowledgedAlertCount" in $$source)) {
+            this["acknowledgedAlertCount"] = 0;
+        }
+        if (!("hasRecentRollback" in $$source)) {
+            this["hasRecentRollback"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuleDeploymentHealth instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RuleDeploymentHealth {
+        const $$createField17_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("healthReasons" in $$parsedSource) {
+            $$parsedSource["healthReasons"] = $$createField17_0($$parsedSource["healthReasons"]);
+        }
+        return new RuleDeploymentHealth($$parsedSource as Partial<RuleDeploymentHealth>);
+    }
+}
+
+/**
+ * RuleDryRunMatch previews one exception case that would be affected by a rule version.
+ */
+export class RuleDryRunMatch {
+    "exceptionCaseId": string;
+    "exceptionType": string;
+    "entityId": string;
+    "currentStatus": string;
+    "currentPriority": string;
+    "proposedAction": string;
+    "canaryIncluded": boolean;
+    "alreadyApplied": boolean;
+
+    /** Creates a new RuleDryRunMatch instance. */
+    constructor($$source: Partial<RuleDryRunMatch> = {}) {
+        if (!("exceptionCaseId" in $$source)) {
+            this["exceptionCaseId"] = "";
+        }
+        if (!("exceptionType" in $$source)) {
+            this["exceptionType"] = "";
+        }
+        if (!("entityId" in $$source)) {
+            this["entityId"] = "";
+        }
+        if (!("currentStatus" in $$source)) {
+            this["currentStatus"] = "";
+        }
+        if (!("currentPriority" in $$source)) {
+            this["currentPriority"] = "";
+        }
+        if (!("proposedAction" in $$source)) {
+            this["proposedAction"] = "";
+        }
+        if (!("canaryIncluded" in $$source)) {
+            this["canaryIncluded"] = false;
+        }
+        if (!("alreadyApplied" in $$source)) {
+            this["alreadyApplied"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuleDryRunMatch instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RuleDryRunMatch {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RuleDryRunMatch($$parsedSource as Partial<RuleDryRunMatch>);
+    }
+}
+
+/**
+ * RuleDryRunResult reports a zero-mutation simulation of a rule version against live open exceptions.
+ */
+export class RuleDryRunResult {
+    "ruleId": string;
+    "versionId": string;
+    "definitionSha256": string;
+    "actionType": string;
+    "ruleEnabled": boolean;
+    "canaryPercent": number;
+    "totalOpenCases": number;
+    "eligibleCount": number;
+    "canaryRoutedCount": number;
+    "skippedIdempotentCount": number;
+    "estimatedCostUnits": number;
+    "costBudgetCap": number;
+    "recordsBudgetCap": number;
+    "withinBudget": boolean;
+    "risk": RuleRiskAssessment;
+    "samples": RuleDryRunMatch[];
+
+    /** Creates a new RuleDryRunResult instance. */
+    constructor($$source: Partial<RuleDryRunResult> = {}) {
+        if (!("ruleId" in $$source)) {
+            this["ruleId"] = "";
+        }
+        if (!("versionId" in $$source)) {
+            this["versionId"] = "";
+        }
+        if (!("definitionSha256" in $$source)) {
+            this["definitionSha256"] = "";
+        }
+        if (!("actionType" in $$source)) {
+            this["actionType"] = "";
+        }
+        if (!("ruleEnabled" in $$source)) {
+            this["ruleEnabled"] = false;
+        }
+        if (!("canaryPercent" in $$source)) {
+            this["canaryPercent"] = 0;
+        }
+        if (!("totalOpenCases" in $$source)) {
+            this["totalOpenCases"] = 0;
+        }
+        if (!("eligibleCount" in $$source)) {
+            this["eligibleCount"] = 0;
+        }
+        if (!("canaryRoutedCount" in $$source)) {
+            this["canaryRoutedCount"] = 0;
+        }
+        if (!("skippedIdempotentCount" in $$source)) {
+            this["skippedIdempotentCount"] = 0;
+        }
+        if (!("estimatedCostUnits" in $$source)) {
+            this["estimatedCostUnits"] = 0;
+        }
+        if (!("costBudgetCap" in $$source)) {
+            this["costBudgetCap"] = 0;
+        }
+        if (!("recordsBudgetCap" in $$source)) {
+            this["recordsBudgetCap"] = 0;
+        }
+        if (!("withinBudget" in $$source)) {
+            this["withinBudget"] = false;
+        }
+        if (!("risk" in $$source)) {
+            this["risk"] = (new RuleRiskAssessment());
+        }
+        if (!("samples" in $$source)) {
+            this["samples"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuleDryRunResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RuleDryRunResult {
+        const $$createField14_0 = $$createType112;
+        const $$createField15_0 = $$createType114;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("risk" in $$parsedSource) {
+            $$parsedSource["risk"] = $$createField14_0($$parsedSource["risk"]);
+        }
+        if ("samples" in $$parsedSource) {
+            $$parsedSource["samples"] = $$createField15_0($$parsedSource["samples"]);
+        }
+        return new RuleDryRunResult($$parsedSource as Partial<RuleDryRunResult>);
+    }
+}
+
+/**
  * RuleRiskAssessment scores deployment blast-radius risk prior to PROD rollout.
  */
 export class RuleRiskAssessment {
     "ruleId": string;
     "versionId": string;
+    "definitionSha256"?: string;
     "score": number;
 
     /**
@@ -9591,12 +10389,229 @@ export class RuleRiskAssessment {
      * Creates a new RuleRiskAssessment instance from a string or object.
      */
     static createFrom($$source: any = {}): RuleRiskAssessment {
-        const $$createField5_0 = $$createType23;
+        const $$createField6_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("factors" in $$parsedSource) {
-            $$parsedSource["factors"] = $$createField5_0($$parsedSource["factors"]);
+            $$parsedSource["factors"] = $$createField6_0($$parsedSource["factors"]);
         }
         return new RuleRiskAssessment($$parsedSource as Partial<RuleRiskAssessment>);
+    }
+}
+
+/**
+ * RuleVersionComparison compares two immutable versions of the same rule, their risk, and read-only dry-run impact.
+ */
+export class RuleVersionComparison {
+    "ruleId": string;
+    "base": RuleVersionSummary;
+    "target": RuleVersionSummary;
+    "changedFields": string[];
+    "fieldDiffs": RuleVersionFieldDiff[];
+    "importantChanges": string[];
+    "riskScoreDelta": number;
+    "riskLevelChanged": boolean;
+    "riskDifferenceSummary": string;
+    "dryRunImpact": DryRunComparisonDelta;
+    "comparedAt": string;
+
+    /** Creates a new RuleVersionComparison instance. */
+    constructor($$source: Partial<RuleVersionComparison> = {}) {
+        if (!("ruleId" in $$source)) {
+            this["ruleId"] = "";
+        }
+        if (!("base" in $$source)) {
+            this["base"] = (new RuleVersionSummary());
+        }
+        if (!("target" in $$source)) {
+            this["target"] = (new RuleVersionSummary());
+        }
+        if (!("changedFields" in $$source)) {
+            this["changedFields"] = [];
+        }
+        if (!("fieldDiffs" in $$source)) {
+            this["fieldDiffs"] = [];
+        }
+        if (!("importantChanges" in $$source)) {
+            this["importantChanges"] = [];
+        }
+        if (!("riskScoreDelta" in $$source)) {
+            this["riskScoreDelta"] = 0;
+        }
+        if (!("riskLevelChanged" in $$source)) {
+            this["riskLevelChanged"] = false;
+        }
+        if (!("riskDifferenceSummary" in $$source)) {
+            this["riskDifferenceSummary"] = "";
+        }
+        if (!("dryRunImpact" in $$source)) {
+            this["dryRunImpact"] = (new DryRunComparisonDelta());
+        }
+        if (!("comparedAt" in $$source)) {
+            this["comparedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuleVersionComparison instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RuleVersionComparison {
+        const $$createField1_0 = $$createType115;
+        const $$createField2_0 = $$createType115;
+        const $$createField3_0 = $$createType4;
+        const $$createField4_0 = $$createType117;
+        const $$createField5_0 = $$createType4;
+        const $$createField9_0 = $$createType118;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("base" in $$parsedSource) {
+            $$parsedSource["base"] = $$createField1_0($$parsedSource["base"]);
+        }
+        if ("target" in $$parsedSource) {
+            $$parsedSource["target"] = $$createField2_0($$parsedSource["target"]);
+        }
+        if ("changedFields" in $$parsedSource) {
+            $$parsedSource["changedFields"] = $$createField3_0($$parsedSource["changedFields"]);
+        }
+        if ("fieldDiffs" in $$parsedSource) {
+            $$parsedSource["fieldDiffs"] = $$createField4_0($$parsedSource["fieldDiffs"]);
+        }
+        if ("importantChanges" in $$parsedSource) {
+            $$parsedSource["importantChanges"] = $$createField5_0($$parsedSource["importantChanges"]);
+        }
+        if ("dryRunImpact" in $$parsedSource) {
+            $$parsedSource["dryRunImpact"] = $$createField9_0($$parsedSource["dryRunImpact"]);
+        }
+        return new RuleVersionComparison($$parsedSource as Partial<RuleVersionComparison>);
+    }
+}
+
+/**
+ * RuleVersionFieldDiff represents a single attribute difference between base and target rule versions.
+ */
+export class RuleVersionFieldDiff {
+    "field": string;
+    "baseValue": string;
+    "targetValue": string;
+    "changed": boolean;
+    "impactNote"?: string;
+
+    /** Creates a new RuleVersionFieldDiff instance. */
+    constructor($$source: Partial<RuleVersionFieldDiff> = {}) {
+        if (!("field" in $$source)) {
+            this["field"] = "";
+        }
+        if (!("baseValue" in $$source)) {
+            this["baseValue"] = "";
+        }
+        if (!("targetValue" in $$source)) {
+            this["targetValue"] = "";
+        }
+        if (!("changed" in $$source)) {
+            this["changed"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuleVersionFieldDiff instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RuleVersionFieldDiff {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RuleVersionFieldDiff($$parsedSource as Partial<RuleVersionFieldDiff>);
+    }
+}
+
+/**
+ * RuleVersionSummary describes one immutable version's attributes, approval, deployment state, and risk profile.
+ */
+export class RuleVersionSummary {
+    "versionId": string;
+    "versionNumber": number;
+    "ruleName": string;
+    "ruleType": string;
+    "actionType": string;
+    "conditionExpression": string;
+    "priority": number;
+    "enabled": boolean;
+    "definitionSha256": string;
+    "riskLevel": string;
+    "riskScore": number;
+    "blocksProd": boolean;
+    "riskFactors": string[];
+    "approvalStatus": string;
+    "deploymentStatus": string;
+    "createdAt": string;
+    "createdBy": string;
+
+    /** Creates a new RuleVersionSummary instance. */
+    constructor($$source: Partial<RuleVersionSummary> = {}) {
+        if (!("versionId" in $$source)) {
+            this["versionId"] = "";
+        }
+        if (!("versionNumber" in $$source)) {
+            this["versionNumber"] = 0;
+        }
+        if (!("ruleName" in $$source)) {
+            this["ruleName"] = "";
+        }
+        if (!("ruleType" in $$source)) {
+            this["ruleType"] = "";
+        }
+        if (!("actionType" in $$source)) {
+            this["actionType"] = "";
+        }
+        if (!("conditionExpression" in $$source)) {
+            this["conditionExpression"] = "";
+        }
+        if (!("priority" in $$source)) {
+            this["priority"] = 0;
+        }
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+        if (!("definitionSha256" in $$source)) {
+            this["definitionSha256"] = "";
+        }
+        if (!("riskLevel" in $$source)) {
+            this["riskLevel"] = "";
+        }
+        if (!("riskScore" in $$source)) {
+            this["riskScore"] = 0;
+        }
+        if (!("blocksProd" in $$source)) {
+            this["blocksProd"] = false;
+        }
+        if (!("riskFactors" in $$source)) {
+            this["riskFactors"] = [];
+        }
+        if (!("approvalStatus" in $$source)) {
+            this["approvalStatus"] = "";
+        }
+        if (!("deploymentStatus" in $$source)) {
+            this["deploymentStatus"] = "";
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("createdBy" in $$source)) {
+            this["createdBy"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuleVersionSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RuleVersionSummary {
+        const $$createField12_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("riskFactors" in $$parsedSource) {
+            $$parsedSource["riskFactors"] = $$createField12_0($$parsedSource["riskFactors"]);
+        }
+        return new RuleVersionSummary($$parsedSource as Partial<RuleVersionSummary>);
     }
 }
 
@@ -9724,7 +10739,7 @@ export class SaveInvoiceRequest {
      * Creates a new SaveInvoiceRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): SaveInvoiceRequest {
-        const $$createField6_0 = $$createType105;
+        const $$createField6_0 = $$createType120;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField6_0($$parsedSource["lines"]);
@@ -10356,11 +11371,11 @@ export class ShipmentDetail {
      * Creates a new ShipmentDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentDetail {
-        const $$createField0_0 = $$createType6;
-        const $$createField1_0 = $$createType106;
-        const $$createField2_0 = $$createType108;
-        const $$createField3_0 = $$createType110;
-        const $$createField4_0 = $$createType112;
+        const $$createField0_0 = $$createType7;
+        const $$createField1_0 = $$createType121;
+        const $$createField2_0 = $$createType123;
+        const $$createField3_0 = $$createType125;
+        const $$createField4_0 = $$createType127;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("shipment" in $$parsedSource) {
             $$parsedSource["shipment"] = $$createField0_0($$parsedSource["shipment"]);
@@ -10480,7 +11495,7 @@ export class ShipmentInput {
      * Creates a new ShipmentInput instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentInput {
-        const $$createField29_0 = $$createType114;
+        const $$createField29_0 = $$createType129;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("containers" in $$parsedSource) {
             $$parsedSource["containers"] = $$createField29_0($$parsedSource["containers"]);
@@ -10608,7 +11623,7 @@ export class ShipmentPage {
      * Creates a new ShipmentPage instance from a string or object.
      */
     static createFrom($$source: any = {}): ShipmentPage {
-        const $$createField0_0 = $$createType115;
+        const $$createField0_0 = $$createType130;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -10824,7 +11839,7 @@ export class SupplierHistorySummary {
      * Creates a new SupplierHistorySummary instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierHistorySummary {
-        const $$createField4_0 = $$createType117;
+        const $$createField4_0 = $$createType132;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recentRecords" in $$parsedSource) {
             $$parsedSource["recentRecords"] = $$createField4_0($$parsedSource["recentRecords"]);
@@ -10937,7 +11952,7 @@ export class SupplierPage {
      * Creates a new SupplierPage instance from a string or object.
      */
     static createFrom($$source: any = {}): SupplierPage {
-        const $$createField0_0 = $$createType119;
+        const $$createField0_0 = $$createType134;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
@@ -11132,9 +12147,9 @@ export class TransitShipmentReport {
      * Creates a new TransitShipmentReport instance from a string or object.
      */
     static createFrom($$source: any = {}): TransitShipmentReport {
-        const $$createField0_0 = $$createType120;
-        const $$createField1_0 = $$createType122;
-        const $$createField2_0 = $$createType124;
+        const $$createField0_0 = $$createType135;
+        const $$createField1_0 = $$createType137;
+        const $$createField2_0 = $$createType139;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("summary" in $$parsedSource) {
             $$parsedSource["summary"] = $$createField0_0($$parsedSource["summary"]);
@@ -11551,6 +12566,10 @@ export class WorkflowRule {
     "tenantId": string;
     "latestVersionId"?: string;
     "latestVersionNum"?: number;
+    "latestVersionSha256"?: string;
+    "latestApprovalStatus"?: string;
+    "prodVersionId"?: string;
+    "prodVersionNum"?: number;
     "currentEnv"?: string;
     "canaryPercent"?: number;
     "createdAt": string;
@@ -11601,129 +12620,236 @@ export class WorkflowRule {
     }
 }
 
+/**
+ * WorkflowRuleVersion represents an immutable historical snapshot in workflow_rule_versions.
+ */
+export class WorkflowRuleVersion {
+    "versionId": string;
+    "ruleId": string;
+    "tenantId": string;
+    "environmentId": string;
+    "versionNumber": number;
+    "ruleName": string;
+    "ruleType": string;
+    "conditionExpression": string;
+    "actionType": string;
+    "priority": number;
+    "enabled": boolean;
+    "ruleDefinitionJson": string;
+    "definitionSha256": string;
+    "createdBy": string;
+    "createdAt": string;
+    "isActive": boolean;
+    "changeReason": string;
+    "approvalStatus"?: string;
+    "approvedBy"?: string;
+    "approvedAt"?: string;
+    "approvedSha256"?: string;
+
+    /** Creates a new WorkflowRuleVersion instance. */
+    constructor($$source: Partial<WorkflowRuleVersion> = {}) {
+        if (!("versionId" in $$source)) {
+            this["versionId"] = "";
+        }
+        if (!("ruleId" in $$source)) {
+            this["ruleId"] = "";
+        }
+        if (!("tenantId" in $$source)) {
+            this["tenantId"] = "";
+        }
+        if (!("environmentId" in $$source)) {
+            this["environmentId"] = "";
+        }
+        if (!("versionNumber" in $$source)) {
+            this["versionNumber"] = 0;
+        }
+        if (!("ruleName" in $$source)) {
+            this["ruleName"] = "";
+        }
+        if (!("ruleType" in $$source)) {
+            this["ruleType"] = "";
+        }
+        if (!("conditionExpression" in $$source)) {
+            this["conditionExpression"] = "";
+        }
+        if (!("actionType" in $$source)) {
+            this["actionType"] = "";
+        }
+        if (!("priority" in $$source)) {
+            this["priority"] = 0;
+        }
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+        if (!("ruleDefinitionJson" in $$source)) {
+            this["ruleDefinitionJson"] = "";
+        }
+        if (!("definitionSha256" in $$source)) {
+            this["definitionSha256"] = "";
+        }
+        if (!("createdBy" in $$source)) {
+            this["createdBy"] = "";
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+        if (!("isActive" in $$source)) {
+            this["isActive"] = false;
+        }
+        if (!("changeReason" in $$source)) {
+            this["changeReason"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new WorkflowRuleVersion instance from a string or object.
+     */
+    static createFrom($$source: any = {}): WorkflowRuleVersion {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new WorkflowRuleVersion($$parsedSource as Partial<WorkflowRuleVersion>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = ReconciledInvoiceItem.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = ModuleDisplaySettings.createFrom;
 const $$createType3 = $Create.Map($Create.Any, $$createType2);
-const $$createType4 = BOECalculationItemInput.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = Shipment.createFrom;
-const $$createType7 = BOECalcParams.createFrom;
-const $$createType8 = BOECalculationResult.createFrom;
-const $$createType9 = BOEAttachment.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = BOEReconciliationDiff.createFrom;
-const $$createType12 = BOECalcLineResult.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = IncotermRule.createFrom;
-const $$createType15 = BOEDetail.createFrom;
-const $$createType16 = $Create.Nullable($$createType8);
-const $$createType17 = RoDTEPScrip.createFrom;
-const $$createType18 = $Create.Array($$createType17);
-const $$createType19 = RoDTEPAllocation.createFrom;
-const $$createType20 = $Create.Array($$createType19);
-const $$createType21 = CSVImportRowError.createFrom;
-const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = $Create.Array($Create.Any);
+const $$createType4 = $Create.Array($Create.Any);
+const $$createType5 = BOECalculationItemInput.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = Shipment.createFrom;
+const $$createType8 = BOECalcParams.createFrom;
+const $$createType9 = BOECalculationResult.createFrom;
+const $$createType10 = BOEAttachment.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = BOEReconciliationDiff.createFrom;
+const $$createType13 = BOECalcLineResult.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = IncotermRule.createFrom;
+const $$createType16 = BOEDetail.createFrom;
+const $$createType17 = $Create.Nullable($$createType9);
+const $$createType18 = RoDTEPScrip.createFrom;
+const $$createType19 = $Create.Array($$createType18);
+const $$createType20 = RoDTEPAllocation.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = CSVImportRowError.createFrom;
+const $$createType23 = $Create.Array($$createType22);
 const $$createType24 = $Create.Map($Create.Any, $Create.Any);
 const $$createType25 = $Create.Array($$createType24);
 const $$createType26 = DependencyCount.createFrom;
 const $$createType27 = $Create.Array($$createType26);
-const $$createType28 = DashboardKPIs.createFrom;
-const $$createType29 = DashboardMonthlyTrend.createFrom;
-const $$createType30 = $Create.Array($$createType29);
-const $$createType31 = DashboardSupplierSummary.createFrom;
-const $$createType32 = $Create.Array($$createType31);
-const $$createType33 = DashboardStatusCount.createFrom;
-const $$createType34 = $Create.Array($$createType33);
-const $$createType35 = DashboardActivityItem.createFrom;
-const $$createType36 = $Create.Array($$createType35);
-const $$createType37 = DashboardAlertItem.createFrom;
-const $$createType38 = $Create.Array($$createType37);
-const $$createType39 = $Create.Map($Create.Any, $Create.Any);
-const $$createType40 = ExpenseLine.createFrom;
-const $$createType41 = $Create.Array($$createType40);
-const $$createType42 = ExpenseLineCalculation.createFrom;
+const $$createType28 = CanaryCohortMetrics.createFrom;
+const $$createType29 = DashboardKPIs.createFrom;
+const $$createType30 = DashboardMonthlyTrend.createFrom;
+const $$createType31 = $Create.Array($$createType30);
+const $$createType32 = DashboardSupplierSummary.createFrom;
+const $$createType33 = $Create.Array($$createType32);
+const $$createType34 = DashboardStatusCount.createFrom;
+const $$createType35 = $Create.Array($$createType34);
+const $$createType36 = DashboardActivityItem.createFrom;
+const $$createType37 = $Create.Array($$createType36);
+const $$createType38 = DashboardAlertItem.createFrom;
+const $$createType39 = $Create.Array($$createType38);
+const $$createType40 = $Create.Map($Create.Any, $Create.Any);
+const $$createType41 = CanaryRollbackThreshold.createFrom;
+const $$createType42 = RuleDeploymentHealth.createFrom;
 const $$createType43 = $Create.Array($$createType42);
-const $$createType44 = ExpenseLineInput.createFrom;
+const $$createType44 = OperationalAlert.createFrom;
 const $$createType45 = $Create.Array($$createType44);
-const $$createType46 = ExpenseReportDetailedRow.createFrom;
+const $$createType46 = RollbackEventRecord.createFrom;
 const $$createType47 = $Create.Array($$createType46);
-const $$createType48 = ExpenseReportGroup.createFrom;
+const $$createType48 = ExpenseLine.createFrom;
 const $$createType49 = $Create.Array($$createType48);
-const $$createType50 = InvoiceSummary.createFrom;
-const $$createType51 = InvoiceLineItem.createFrom;
-const $$createType52 = $Create.Array($$createType51);
-const $$createType53 = Item.createFrom;
-const $$createType54 = $Create.Array($$createType53);
-const $$createType55 = LandedCostRow.createFrom;
-const $$createType56 = $Create.Array($$createType55);
-const $$createType57 = LandedCostSummary.createFrom;
-const $$createType58 = LegacyTableInspect.createFrom;
-const $$createType59 = $Create.Array($$createType58);
-const $$createType60 = LegacyFinancialSummary.createFrom;
-const $$createType61 = $Create.Map($Create.Any, $Create.Any);
-const $$createType62 = BackgroundJob.createFrom;
-const $$createType63 = $Create.Array($$createType62);
-const $$createType64 = FailureForecast.createFrom;
-const $$createType65 = $Create.Array($$createType64);
-const $$createType66 = WorkflowIncident.createFrom;
+const $$createType50 = ExpenseLineCalculation.createFrom;
+const $$createType51 = $Create.Array($$createType50);
+const $$createType52 = ExpenseLineInput.createFrom;
+const $$createType53 = $Create.Array($$createType52);
+const $$createType54 = ExpenseReportDetailedRow.createFrom;
+const $$createType55 = $Create.Array($$createType54);
+const $$createType56 = ExpenseReportGroup.createFrom;
+const $$createType57 = $Create.Array($$createType56);
+const $$createType58 = InvoiceSummary.createFrom;
+const $$createType59 = InvoiceLineItem.createFrom;
+const $$createType60 = $Create.Array($$createType59);
+const $$createType61 = Item.createFrom;
+const $$createType62 = $Create.Array($$createType61);
+const $$createType63 = LandedCostRow.createFrom;
+const $$createType64 = $Create.Array($$createType63);
+const $$createType65 = LandedCostSummary.createFrom;
+const $$createType66 = LegacyTableInspect.createFrom;
 const $$createType67 = $Create.Array($$createType66);
-const $$createType68 = PartItemMasterInfo.createFrom;
-const $$createType69 = PartPeriodSummary.createFrom;
-const $$createType70 = PartShipmentRow.createFrom;
+const $$createType68 = LegacyFinancialSummary.createFrom;
+const $$createType69 = $Create.Map($Create.Any, $Create.Any);
+const $$createType70 = BackgroundJob.createFrom;
 const $$createType71 = $Create.Array($$createType70);
-const $$createType72 = PartBOERow.createFrom;
+const $$createType72 = FailureForecast.createFrom;
 const $$createType73 = $Create.Array($$createType72);
-const $$createType74 = PartExpenseRow.createFrom;
+const $$createType74 = WorkflowIncident.createFrom;
 const $$createType75 = $Create.Array($$createType74);
-const $$createType76 = PartTrendPoint.createFrom;
-const $$createType77 = $Create.Array($$createType76);
-const $$createType78 = PartLookupItem.createFrom;
+const $$createType76 = PartItemMasterInfo.createFrom;
+const $$createType77 = PartPeriodSummary.createFrom;
+const $$createType78 = PartShipmentRow.createFrom;
 const $$createType79 = $Create.Array($$createType78);
-const $$createType80 = PaymentAllocation.createFrom;
+const $$createType80 = PartBOERow.createFrom;
 const $$createType81 = $Create.Array($$createType80);
-const $$createType82 = PaymentAnnexureItem.createFrom;
+const $$createType82 = PartExpenseRow.createFrom;
 const $$createType83 = $Create.Array($$createType82);
-const $$createType84 = PaymentAllocationInput.createFrom;
+const $$createType84 = PartTrendPoint.createFrom;
 const $$createType85 = $Create.Array($$createType84);
-const $$createType86 = Payment.createFrom;
+const $$createType86 = PartLookupItem.createFrom;
 const $$createType87 = $Create.Array($$createType86);
-const $$createType88 = POLineItem.createFrom;
+const $$createType88 = PaymentAllocation.createFrom;
 const $$createType89 = $Create.Array($$createType88);
-const $$createType90 = POPaymentMilestone.createFrom;
+const $$createType90 = PaymentAnnexureItem.createFrom;
 const $$createType91 = $Create.Array($$createType90);
-const $$createType92 = POLineItemInput.createFrom;
+const $$createType92 = PaymentAllocationInput.createFrom;
 const $$createType93 = $Create.Array($$createType92);
-const $$createType94 = POMilestoneInput.createFrom;
+const $$createType94 = Payment.createFrom;
 const $$createType95 = $Create.Array($$createType94);
-const $$createType96 = PurchaseOrder.createFrom;
+const $$createType96 = POLineItem.createFrom;
 const $$createType97 = $Create.Array($$createType96);
-const $$createType98 = MissingParentGroup.createFrom;
+const $$createType98 = POPaymentMilestone.createFrom;
 const $$createType99 = $Create.Array($$createType98);
-const $$createType100 = RecycleBinRecord.createFrom;
+const $$createType100 = POLineItemInput.createFrom;
 const $$createType101 = $Create.Array($$createType100);
-const $$createType102 = RoDTEPDebitLedger.createFrom;
+const $$createType102 = POMilestoneInput.createFrom;
 const $$createType103 = $Create.Array($$createType102);
-const $$createType104 = InvoiceLineInput.createFrom;
+const $$createType104 = PurchaseOrder.createFrom;
 const $$createType105 = $Create.Array($$createType104);
-const $$createType106 = $Create.Array($$createType50);
-const $$createType107 = ShipmentLinkedBOE.createFrom;
-const $$createType108 = $Create.Array($$createType107);
-const $$createType109 = ShipmentLinkedExpense.createFrom;
-const $$createType110 = $Create.Array($$createType109);
-const $$createType111 = ShipmentContainer.createFrom;
-const $$createType112 = $Create.Array($$createType111);
-const $$createType113 = ShipmentContainerInput.createFrom;
+const $$createType106 = MissingParentGroup.createFrom;
+const $$createType107 = $Create.Array($$createType106);
+const $$createType108 = RecycleBinRecord.createFrom;
+const $$createType109 = $Create.Array($$createType108);
+const $$createType110 = RoDTEPDebitLedger.createFrom;
+const $$createType111 = $Create.Array($$createType110);
+const $$createType112 = RuleRiskAssessment.createFrom;
+const $$createType113 = RuleDryRunMatch.createFrom;
 const $$createType114 = $Create.Array($$createType113);
-const $$createType115 = $Create.Array($$createType6);
-const $$createType116 = SupplierHistoryItem.createFrom;
+const $$createType115 = RuleVersionSummary.createFrom;
+const $$createType116 = RuleVersionFieldDiff.createFrom;
 const $$createType117 = $Create.Array($$createType116);
-const $$createType118 = Supplier.createFrom;
-const $$createType119 = $Create.Array($$createType118);
-const $$createType120 = TransitShipmentSummary.createFrom;
-const $$createType121 = TransitStatusCount.createFrom;
-const $$createType122 = $Create.Array($$createType121);
-const $$createType123 = TransitShipmentItem.createFrom;
-const $$createType124 = $Create.Array($$createType123);
+const $$createType118 = DryRunComparisonDelta.createFrom;
+const $$createType119 = InvoiceLineInput.createFrom;
+const $$createType120 = $Create.Array($$createType119);
+const $$createType121 = $Create.Array($$createType58);
+const $$createType122 = ShipmentLinkedBOE.createFrom;
+const $$createType123 = $Create.Array($$createType122);
+const $$createType124 = ShipmentLinkedExpense.createFrom;
+const $$createType125 = $Create.Array($$createType124);
+const $$createType126 = ShipmentContainer.createFrom;
+const $$createType127 = $Create.Array($$createType126);
+const $$createType128 = ShipmentContainerInput.createFrom;
+const $$createType129 = $Create.Array($$createType128);
+const $$createType130 = $Create.Array($$createType7);
+const $$createType131 = SupplierHistoryItem.createFrom;
+const $$createType132 = $Create.Array($$createType131);
+const $$createType133 = Supplier.createFrom;
+const $$createType134 = $Create.Array($$createType133);
+const $$createType135 = TransitShipmentSummary.createFrom;
+const $$createType136 = TransitStatusCount.createFrom;
+const $$createType137 = $Create.Array($$createType136);
+const $$createType138 = TransitShipmentItem.createFrom;
+const $$createType139 = $Create.Array($$createType138);

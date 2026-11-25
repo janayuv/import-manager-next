@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"sync"
 
 	"github.com/janayuv/import-manager-next/backend/database/connection"
 	"github.com/janayuv/import-manager-next/backend/services/audit"
@@ -20,6 +21,9 @@ type Service struct {
 	exportsDir  string
 	logsDir     string
 	appVersion  string
+
+	runningMu   sync.Mutex
+	runningJobs map[string]bool
 }
 
 // NewService constructs a Workflow & Observability Service instance.
@@ -40,7 +44,27 @@ func NewService(
 		exportsDir:  exportsDir,
 		logsDir:     logsDir,
 		appVersion:  appVersion,
+		runningJobs: make(map[string]bool),
 	}
+}
+
+func (s *Service) acquireJobLock(jobID string) (func(), bool) {
+	s.runningMu.Lock()
+	if s.runningJobs == nil {
+		s.runningJobs = make(map[string]bool)
+	}
+	if s.runningJobs[jobID] {
+		s.runningMu.Unlock()
+		return nil, false
+	}
+	s.runningJobs[jobID] = true
+	s.runningMu.Unlock()
+
+	return func() {
+		s.runningMu.Lock()
+		delete(s.runningJobs, jobID)
+		s.runningMu.Unlock()
+	}, true
 }
 
 // SetDB rebinds the service to an active database handle.

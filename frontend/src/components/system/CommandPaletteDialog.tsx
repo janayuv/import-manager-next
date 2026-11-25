@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowUpCircle,
   BarChart3,
+  Bot,
   Box,
   Calculator,
   Command,
@@ -301,6 +302,15 @@ export function CommandPaletteDialog({
         icon: Truck,
         keywords: ['sla', 'exceptions', 'incidents', 'health'],
         action: () => nav('/admin/operations-center'),
+      },
+      {
+        id: 'nav-automation-center',
+        title: 'Automation Center & Jobs',
+        subtitle: 'Manage canonical background jobs, schedules, recovery guards and execution logs',
+        category: 'Tools & Actions',
+        icon: Bot,
+        keywords: ['automation center', 'jobs', 'scheduler', 'background', 'retries'],
+        action: () => nav('/admin/automation-center'),
       },
       {
         id: 'nav-automation',

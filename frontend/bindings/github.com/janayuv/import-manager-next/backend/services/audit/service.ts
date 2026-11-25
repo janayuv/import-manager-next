@@ -44,6 +44,13 @@ export function RecordTableAudit(tableName: string, rowID: string, action: strin
 }
 
 /**
+ * RecordTableAuditTx appends an immutable before/after record into audit_logs inside an active SQL transaction.
+ */
+export function RecordTableAuditTx(tx: sql$0.Tx | null, tableName: string, rowID: string, action: string, userID: string, beforeObj: any, afterObj: any, metadata: any): $CancellablePromise<void> {
+    return $Call.ByID(1756005337, tx, tableName, rowID, action, userID, beforeObj, afterObj, metadata);
+}
+
+/**
  * RecordUserActivity appends an entry into user_activity_audit_logs with normalized severity.
  */
 export function RecordUserActivity(userID: string, actionName: string, entityType: string, entityID: string, status: string, severity: string, details: any): $CancellablePromise<void> {

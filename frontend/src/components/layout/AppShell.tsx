@@ -123,12 +123,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Automation & Diagnostics',
     items: [
-      { to: '/admin/operations-center', label: 'Operations Center', icon: Truck },
-      { to: '/admin/automation-center', label: 'Automation Center', icon: Bot },
-      { to: '/admin/automation-rules', label: 'Automation Rules', icon: SlidersHorizontal },
-      { to: '/admin/system-health', label: 'System Health', icon: ShieldAlert },
-      { to: '/admin/system-tools', label: 'System Tools', icon: Wrench },
-      { to: '/admin/error-center', label: 'Error Center', icon: AlertTriangle },
+      { to: '/admin/operations-center', label: 'Operations Center', icon: Truck, permission: 'automation.ops_center' },
+      { to: '/admin/automation-center', label: 'Automation Center', icon: Bot, permission: 'automation.view' },
+      { to: '/admin/automation-rules', label: 'Automation Rules', icon: SlidersHorizontal, permission: 'automation.view' },
+      { to: '/admin/system-health', label: 'System Health', icon: ShieldAlert, permission: 'admin.system_health' },
+      { to: '/admin/system-tools', label: 'System Tools', icon: Wrench, permission: 'admin.system_tools' },
+      { to: '/admin/error-center', label: 'Error Center', icon: AlertTriangle, permission: 'admin.system_health' },
     ],
   },
 ];
