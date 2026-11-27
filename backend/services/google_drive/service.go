@@ -219,7 +219,9 @@ func (s *Service) serveLoopbackCallback(ln net.Listener, expectedState string) {
 		defer func() {
 			go func() {
 				time.Sleep(150 * time.Millisecond)
-				_ = srv.Shutdown(context.Background())
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = srv.Shutdown(ctx)
 			}()
 		}()
 		code := r.URL.Query().Get("code")
@@ -247,7 +249,9 @@ func (s *Service) serveLoopbackCallback(ln net.Listener, expectedState string) {
 
 	go func() {
 		time.Sleep(3 * time.Minute)
-		_ = srv.Shutdown(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
 	}()
 	_ = srv.Serve(ln)
 }
@@ -264,7 +268,9 @@ func (s *Service) CompleteOAuthCode(code, state string) (models.GoogleDriveStatu
 	if expected != "" && state != "" && state != expected {
 		return models.GoogleDriveStatus{}, gdriveErr("state mismatch during OAuth exchange", nil)
 	}
-	if err := s.exchangeCodeAndPersist(context.Background(), code); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := s.exchangeCodeAndPersist(ctx, code); err != nil {
 		return models.GoogleDriveStatus{}, err
 	}
 	_ = s.audit.RecordTableAudit("google_drive", "oauth", "CONNECT", sess.UserID, nil, map[string]string{"connected": "true"}, nil)
@@ -480,7 +486,8 @@ func (s *Service) ensureBackupFolder(ctx context.Context, tok storedTokens) (str
 // UploadBackup uploads a local encrypted backup file into Google Drive's ImportManagerBackups folder
 // and enforces retention of at most 30 cloud backups.
 func (s *Service) UploadBackup(localFilePath string) (models.GoogleDriveRemoteFile, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 	sess, err := s.security.RequirePermission(security.PermBackupCreate)
 	if err != nil {
 		return models.GoogleDriveRemoteFile{}, err
@@ -573,7 +580,8 @@ func (s *Service) UploadBackup(localFilePath string) (models.GoogleDriveRemoteFi
 
 // ListBackups lists encrypted backups inside the ImportManagerBackups Google Drive folder.
 func (s *Service) ListBackups() ([]models.GoogleDriveRemoteFile, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	if _, err := s.security.RequireAnyPermission(security.PermBackupCreate, security.PermBackupRestore); err != nil {
 		return nil, err
 	}
@@ -656,7 +664,8 @@ func (s *Service) enforceRetention(ctx context.Context, tok storedTokens, folder
 
 // DownloadBackup downloads a cloud backup (accepts raw fileId or "gdrive:<fileId>") into local backupsDir.
 func (s *Service) DownloadBackup(fileIDOrLocator, targetFilename string) (string, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 	sess, err := s.security.RequirePermission(security.PermBackupRestore)
 	if err != nil {
 		return "", err
@@ -708,7 +717,8 @@ func (s *Service) DownloadBackup(fileIDOrLocator, targetFilename string) (string
 
 // DeleteBackup deletes a cloud backup file from Google Drive (accepts raw fileId or "gdrive:<fileId>").
 func (s *Service) DeleteBackup(fileIDOrLocator string) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	sess, err := s.security.RequirePermission(security.PermBackupCreate)
 	if err != nil {
 		return err

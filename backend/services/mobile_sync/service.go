@@ -2,6 +2,8 @@ package mobile_sync
 
 import (
 	"context"
+	"crypto/subtle"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -26,12 +27,14 @@ import (
 )
 
 const (
-	DefaultMobileSyncPort = 8766
-	SessionTTLHours       = 24
+	DefaultMobileSyncPort       = 8766
+	SessionTTLHours             = 24
+	mobileSyncEnabledSettingKey = "mobile_sync.enabled"
 )
 
 // ServerInfo represents the status of the mobile sync companion server.
 type ServerInfo struct {
+	Enabled   bool     `json:"enabled"`
 	IsRunning bool     `json:"isRunning"`
 	Port      int      `json:"port"`
 	Addresses []string `json:"addresses"`
@@ -80,6 +83,7 @@ type failedLoginRecord struct {
 // to authenticate with Email/Username and Password, and download the latest .imbk2 backup.
 type Service struct {
 	mu           sync.RWMutex
+	db           *sql.DB
 	server       *http.Server
 	listener     net.Listener
 	port         int
@@ -123,6 +127,111 @@ func NewService(
 	return svc
 }
 
+// ControlService exposes only safe opt-in controls and status queries to the Wails frontend.
+type ControlService struct {
+	svc *Service
+}
+
+// NewControlService constructs a Wails-bound facade for mobile sync opt-in and status.
+func NewControlService(svc *Service) *ControlService {
+	return &ControlService{svc: svc}
+}
+
+// GetServerInfo returns details of the currently running mobile sync server.
+func (c *ControlService) GetServerInfo() (ServerInfo, error) {
+	return c.svc.GetServerInfo()
+}
+
+// GetActiveDeviceCount returns the number of active mobile companion session tokens.
+func (c *ControlService) GetActiveDeviceCount() int {
+	return c.svc.GetActiveDeviceCount()
+}
+
+// IsEnabled reports whether mobile sync has been opted into.
+func (c *ControlService) IsEnabled() bool {
+	return c.svc.IsEnabled()
+}
+
+// SetEnabled toggles and persists the opt-in mobile sync server.
+func (c *ControlService) SetEnabled(enabled bool) (ServerInfo, error) {
+	return c.svc.SetEnabled(enabled)
+}
+
+// SetDB binds the database handle used to persist the opt-in mobile sync setting.
+// When the active company changes, previously issued mobile tokens are revoked, because they
+// were authenticated against the old company's users and must not grant access to the new one.
+func (s *Service) SetDB(db *sql.DB) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db != nil && s.db != db {
+		s.activeTokens = make(map[string]tokenRecord)
+	}
+	s.db = db
+}
+
+// ApplyEnabledSetting starts or stops the listener so it matches the opt-in setting stored in
+// the currently bound (active company) database. Call it after SetDB when the company changes.
+func (s *Service) ApplyEnabledSetting() error {
+	if s.IsEnabled() {
+		return s.Start(DefaultMobileSyncPort)
+	}
+	return s.Stop()
+}
+
+// IsEnabled reports whether mobile sync has been explicitly opted into via app_settings.
+func (s *Service) IsEnabled() bool {
+	s.mu.RLock()
+	db := s.db
+	s.mu.RUnlock()
+	if db == nil {
+		return false
+	}
+	var val string
+	if err := db.QueryRow(`SELECT value FROM app_settings WHERE key = ?`, mobileSyncEnabledSettingKey).Scan(&val); err != nil {
+		return false
+	}
+	clean := strings.ToLower(strings.TrimSpace(val))
+	return clean == "true" || clean == "1"
+}
+
+// SetEnabled persists the mobile sync opt-in setting and starts or stops the local listener accordingly.
+func (s *Service) SetEnabled(enabled bool) (ServerInfo, error) {
+	if s.securitySvc != nil {
+		if _, err := s.securitySvc.RequireAnyPermission(security.PermAdminSystemTools, security.PermBackupSettings); err != nil {
+			return ServerInfo{}, err
+		}
+	}
+
+	s.mu.RLock()
+	db := s.db
+	s.mu.RUnlock()
+	if db != nil {
+		val := "false"
+		if enabled {
+			val = "true"
+		}
+		if _, err := db.Exec(`
+			INSERT INTO app_settings (key, value, updated_at)
+			VALUES (?, ?, datetime('now', 'utc'))
+			ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+			mobileSyncEnabledSettingKey, val,
+		); err != nil {
+			return ServerInfo{}, fmt.Errorf("persist mobile sync setting: %w", err)
+		}
+	}
+
+	if enabled {
+		if err := s.Start(DefaultMobileSyncPort); err != nil {
+			return ServerInfo{}, err
+		}
+	} else {
+		if err := s.Stop(); err != nil {
+			return ServerInfo{}, err
+		}
+	}
+	return s.GetServerInfo()
+}
+
 // Start initiates the mobile sync HTTP listener on port 8766 (or fallback range).
 func (s *Service) Start(preferredPort int) error {
 	s.mu.Lock()
@@ -162,10 +271,8 @@ func (s *Service) Start(preferredPort int) error {
 	mux.HandleFunc("/api/mobile/login", s.handleLogin)
 	mux.HandleFunc("/api/mobile/sync/latest", s.handleSyncLatest)
 
-	handler := s.corsMiddleware(mux)
-
 	srv := &http.Server{
-		Handler:      handler,
+		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 	}
@@ -206,10 +313,13 @@ func (s *Service) Stop() error {
 
 // GetServerInfo returns details of the currently running mobile sync server.
 func (s *Service) GetServerInfo() (ServerInfo, error) {
+	enabled := s.IsEnabled()
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	return ServerInfo{
+		Enabled:   enabled || s.isRunning,
 		IsRunning: s.isRunning,
 		Port:      s.port,
 		Addresses: s.addresses,
@@ -231,19 +341,56 @@ func (s *Service) GetActiveDeviceCount() int {
 	return count
 }
 
-func (s *Service) corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Auth-Token, X-Requested-With, X-Passphrase")
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition, X-Backup-Filename, X-Backup-Size")
+func clientIP(r *http.Request) string {
+	remoteIP := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return remoteIP
+}
 
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+func (s *Service) isLockedOut(remoteIP string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, exists := s.failedLogins[remoteIP]
+	if !exists {
+		return false
+	}
+	if time.Now().Before(rec.LockoutUntil) {
+		return true
+	}
+	if !rec.LockoutUntil.IsZero() {
+		delete(s.failedLogins, remoteIP)
+	}
+	return false
+}
+
+func (s *Service) recordFailedLogin(remoteIP string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec := s.failedLogins[remoteIP]
+	rec.Count++
+	if rec.Count >= 5 {
+		rec.LockoutUntil = time.Now().Add(15 * time.Minute)
+	}
+	s.failedLogins[remoteIP] = rec
+}
+
+func (s *Service) clearFailedLogin(remoteIP string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.failedLogins, remoteIP)
+}
+
+func (s *Service) verifyBackupPassphrase(candidate string) bool {
+	if s.secrets == nil || candidate == "" {
+		return false
+	}
+	savedPass, err := s.secrets.GetSecret(crypto.BackupPassphraseAccount)
+	if err != nil || savedPass == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(savedPass), []byte(candidate)) == 1
 }
 
 func (s *Service) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -303,22 +450,13 @@ func (s *Service) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	remoteIP := r.RemoteAddr
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		remoteIP = host
+	remoteIP := clientIP(r)
+	if s.isLockedOut(remoteIP) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Too many failed login attempts. Please try again later."})
+		return
 	}
-
-	s.mu.Lock()
-	if rec, exists := s.failedLogins[remoteIP]; exists {
-		if time.Now().Before(rec.LockoutUntil) {
-			s.mu.Unlock()
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusTooManyRequests)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Too many failed login attempts. Please try again later."})
-			return
-		}
-	}
-	s.mu.Unlock()
 
 	// 1. Try standard user authentication
 	authenticated := false
@@ -335,25 +473,15 @@ func (s *Service) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Allow backup passphrase authentication as a fallback
-	if !authenticated && s.secrets != nil {
-		savedPass, err := s.secrets.GetSecret(crypto.BackupPassphraseAccount)
-		if err == nil && savedPass != "" && savedPass == password {
-			authenticated = true
-			username = identifier
-			userID = "usr_backup_passphrase"
-			role = "admin"
-		}
+	if !authenticated && s.verifyBackupPassphrase(password) {
+		authenticated = true
+		username = identifier
+		userID = "usr_backup_passphrase"
+		role = "admin"
 	}
 
 	if !authenticated {
-		s.mu.Lock()
-		rec := s.failedLogins[remoteIP]
-		rec.Count++
-		if rec.Count >= 5 {
-			rec.LockoutUntil = time.Now().Add(15 * time.Minute)
-		}
-		s.failedLogins[remoteIP] = rec
-		s.mu.Unlock()
+		s.recordFailedLogin(remoteIP)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -361,9 +489,7 @@ func (s *Service) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mu.Lock()
-	delete(s.failedLogins, remoteIP)
-	s.mu.Unlock()
+	s.clearFailedLogin(remoteIP)
 
 	token := uuid.NewString()
 	expiresAt := time.Now().Add(SessionTTLHours * time.Hour)
@@ -412,14 +538,26 @@ func (s *Service) handleSyncLatest(w http.ResponseWriter, r *http.Request) {
 	// 1. Authenticate token
 	token := s.extractToken(r)
 	if !s.validateToken(token) {
+		remoteIP := clientIP(r)
+		if s.isLockedOut(remoteIP) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Too many failed login attempts. Please try again later."})
+			return
+		}
+
 		// Also check Basic Auth as fallback
 		user, pass, ok := r.BasicAuth()
 		if !ok || !s.authenticateBasic(user, pass) {
+			if ok {
+				s.recordFailedLogin(remoteIP)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized. Please login first."})
 			return
 		}
+		s.clearFailedLogin(remoteIP)
 	}
 
 	// 2. Locate or generate latest .imbk2 backup
@@ -495,44 +633,56 @@ func (s *Service) authenticateBasic(identifier, password string) bool {
 			return true
 		}
 	}
-	if s.secrets != nil {
-		if savedPass, err := s.secrets.GetSecret(crypto.BackupPassphraseAccount); err == nil && savedPass != "" && savedPass == password {
-			return true
-		}
-	}
-	return false
+	return s.verifyBackupPassphrase(password)
 }
 
 func (s *Service) getLatestBackupFileName() string {
-	files, err := filepath.Glob(filepath.Join(s.backupsDir, "*.imbk2"))
-	if err != nil || len(files) == 0 {
+	_, filename, ok := s.latestCompanyBackup()
+	if !ok {
 		return ""
 	}
-	sort.Slice(files, func(i, j int) bool {
-		fi, errI := os.Stat(files[i])
-		fj, errJ := os.Stat(files[j])
-		if errI != nil || errJ != nil {
-			return files[i] > files[j]
+	return filename
+}
+
+// latestCompanyBackup returns the newest completed .imbk2 backup recorded in the active
+// company's database whose file still exists. All companies share one backups folder, so the
+// folder itself is never scanned: that could hand a phone another company's backup.
+func (s *Service) latestCompanyBackup() (path string, filename string, ok bool) {
+	s.mu.RLock()
+	db := s.db
+	s.mu.RUnlock()
+	if db == nil {
+		return "", "", false
+	}
+
+	rows, err := db.Query(`
+		SELECT path FROM backups
+		WHERE COALESCE(status, 'completed') = 'completed' AND COALESCE(path, '') <> ''
+		ORDER BY datetime(created_at) DESC, id DESC
+		LIMIT 50`)
+	if err != nil {
+		return "", "", false
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var p string
+		if rows.Scan(&p) != nil {
+			continue
 		}
-		return fi.ModTime().After(fj.ModTime())
-	})
-	return filepath.Base(files[0])
+		if !strings.EqualFold(filepath.Ext(p), ".imbk2") {
+			continue
+		}
+		if st, statErr := os.Stat(p); statErr == nil && st.Mode().IsRegular() && st.Size() > 0 {
+			return p, filepath.Base(p), true
+		}
+	}
+	return "", "", false
 }
 
 func (s *Service) getOrGenerateLatestBackup() (path string, filename string, err error) {
-	files, globErr := filepath.Glob(filepath.Join(s.backupsDir, "*.imbk2"))
-	if globErr == nil && len(files) > 0 {
-		sort.Slice(files, func(i, j int) bool {
-			fi, errI := os.Stat(files[i])
-			fj, errJ := os.Stat(files[j])
-			if errI != nil || errJ != nil {
-				return files[i] > files[j]
-			}
-			return fi.ModTime().After(fj.ModTime())
-		})
-		path = files[0]
-		filename = filepath.Base(path)
-		return path, filename, nil
+	if p, f, ok := s.latestCompanyBackup(); ok {
+		return p, f, nil
 	}
 
 	// If no backup exists, create on-demand snapshot

@@ -81,7 +81,9 @@ func (s *Scheduler) RunOnce() {
 		_ = s.workflowSvc.RunDailyOperationsTick("scheduler")
 	}
 	if s.backupRunner != nil {
-		_, _ = s.backupRunner.CheckAndRunDueSchedules(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		_, _ = s.backupRunner.CheckAndRunDueSchedules(ctx)
 	}
 }
 

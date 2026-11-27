@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
+import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/sync_status.dart';
@@ -13,15 +15,13 @@ class GDriveService {
   static const String _clientSecretPrefKey = 'gdrive_client_secret';
   static const String _accountEmailPrefKey = 'gdrive_account_email';
 
-  // Integration defaults from environment if passed at build time via --dart-define
+  // Only non-secret public OAuth client ID may be supplied at build time;
+  // client secrets and refresh tokens must never be embedded into APKs.
   static const String defaultClientId =
       String.fromEnvironment('GDRIVE_CLIENT_ID', defaultValue: '');
-  static const String defaultClientSecret =
-      String.fromEnvironment('GDRIVE_CLIENT_SECRET', defaultValue: '');
-  static const String defaultRefreshToken =
-      String.fromEnvironment('GDRIVE_REFRESH_TOKEN', defaultValue: '');
-  static const String defaultAccountEmail =
-      String.fromEnvironment('GDRIVE_ACCOUNT_EMAIL', defaultValue: '');
+  static const String defaultClientSecret = '';
+  static const String defaultRefreshToken = '';
+  static const String defaultAccountEmail = '';
 
   String? _accessToken;
   String? _refreshToken;
@@ -73,9 +73,7 @@ class GDriveService {
       : defaultAccountEmail;
 
   bool get hasOAuthCredentials =>
-      effectiveRefreshToken.isNotEmpty &&
-      effectiveClientId.isNotEmpty &&
-      effectiveClientSecret.isNotEmpty;
+      effectiveRefreshToken.isNotEmpty && effectiveClientId.isNotEmpty;
 
   /// Returns true if the cached token is expired or will expire within 60 seconds
   bool get isTokenExpired {
@@ -113,7 +111,7 @@ class GDriveService {
 
   Future<void> setClientCredentials({
     required String clientId,
-    required String clientSecret,
+    String clientSecret = '',
     String? email,
   }) async {
     _clientId = clientId.trim();
@@ -123,10 +121,84 @@ class GDriveService {
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_clientIdPrefKey, _clientId!);
-    await prefs.setString(_clientSecretPrefKey, _clientSecret!);
+    if (_clientSecret!.isNotEmpty) {
+      await prefs.setString(_clientSecretPrefKey, _clientSecret!);
+    } else {
+      await prefs.remove(_clientSecretPrefKey);
+    }
     if (_accountEmail != null) {
       await prefs.setString(_accountEmailPrefKey, _accountEmail!);
     }
+  }
+
+  /// Generates a cryptographically random RFC 7636 PKCE code verifier.
+  static String generateCodeVerifier() {
+    final rng = Random.secure();
+    final bytes = List<int>.generate(32, (_) => rng.nextInt(256));
+    return base64UrlEncode(bytes).replaceAll('=', '');
+  }
+
+  /// Computes the S256 PKCE code challenge for [verifier].
+  static Future<String> computeCodeChallengeS256(String verifier) async {
+    final digest = await Sha256().hash(utf8.encode(verifier));
+    return base64UrlEncode(digest.bytes).replaceAll('=', '');
+  }
+
+  /// Builds a secretless Google OAuth 2.0 Authorization Code + PKCE URL.
+  static Future<Uri> buildPkceAuthorizationUrl({
+    required String clientId,
+    required String redirectUri,
+    required String codeVerifier,
+    String scope = 'https://www.googleapis.com/auth/drive.readonly',
+  }) async {
+    final challenge = await computeCodeChallengeS256(codeVerifier);
+    return Uri.https('accounts.google.com', '/o/oauth2/v2/auth', {
+      'client_id': clientId.trim(),
+      'redirect_uri': redirectUri.trim(),
+      'response_type': 'code',
+      'scope': scope,
+      'code_challenge': challenge,
+      'code_challenge_method': 'S256',
+      'access_type': 'offline',
+      'prompt': 'consent',
+    });
+  }
+
+  /// Exchanges an OAuth 2.0 authorization code using PKCE (no client secret required).
+  Future<void> exchangeAuthCodeWithPkce({
+    required String clientId,
+    required String code,
+    required String redirectUri,
+    required String codeVerifier,
+    String? email,
+  }) async {
+    final response = await http.post(
+      Uri.parse('https://oauth2.googleapis.com/token'),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: {
+        'client_id': clientId.trim(),
+        'code': code.trim(),
+        'redirect_uri': redirectUri.trim(),
+        'code_verifier': codeVerifier,
+        'grant_type': 'authorization_code',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception('OAuth PKCE exchange failed (${response.statusCode}): ${response.body}');
+    }
+    final data = json.decode(response.body) as Map<String, dynamic>;
+    final accessToken = data['access_token'] as String?;
+    final refreshToken = data['refresh_token'] as String?;
+    final expiresIn = (data['expires_in'] as num?)?.toInt() ?? 3600;
+    if (accessToken == null || accessToken.isEmpty) {
+      throw Exception('No access_token returned by Google OAuth server');
+    }
+    await setClientCredentials(clientId: clientId, email: email);
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await setRefreshToken(refreshToken);
+    }
+    final expiryMs = DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000);
+    await setAccessToken(accessToken, expiryMs: expiryMs);
   }
 
   /// Ensures a valid, unexpired Google Drive access token is available.
@@ -162,10 +234,19 @@ class GDriveService {
         ? clientSecret
         : effectiveClientSecret;
 
-    if (rToken.isEmpty || cId.isEmpty || cSec.isEmpty) {
+    if (rToken.isEmpty || cId.isEmpty) {
       throw Exception(
-        'OAuth credentials not configured. Please tap "Pick Backup File" or configure Google Drive credentials.',
+        'OAuth credentials not configured. Please sign in or configure a Google OAuth Client ID.',
       );
+    }
+
+    final body = <String, String>{
+      'client_id': cId,
+      'refresh_token': rToken,
+      'grant_type': 'refresh_token',
+    };
+    if (cSec.isNotEmpty) {
+      body['client_secret'] = cSec;
     }
 
     final url = Uri.parse('https://oauth2.googleapis.com/token');
@@ -174,12 +255,7 @@ class GDriveService {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: {
-        'client_id': cId,
-        'client_secret': cSec,
-        'refresh_token': rToken,
-        'grant_type': 'refresh_token',
-      },
+      body: body,
     );
 
     if (response.statusCode != 200) {

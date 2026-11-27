@@ -19,7 +19,8 @@ import * as http$0 from "../../../../../../net/http/models.js";
 import * as $models from "./models.js";
 
 /**
- * ApplyUpdate launches the downloaded installer executable in background after verifying file safety.
+ * ApplyUpdate launches the downloaded installer executable in background after verifying admin permission,
+ * path containment inside the updates directory, and SHA-256 integrity.
  */
 export function ApplyUpdate(installerPath: string): $CancellablePromise<void> {
     return $Call.ByID(2618780526, installerPath);
@@ -35,7 +36,8 @@ export function CheckForUpdate(): $CancellablePromise<$models.UpdateCheckResult>
 }
 
 /**
- * DownloadUpdate downloads the update executable from downloadURL to the updates folder.
+ * DownloadUpdate downloads the update executable from a trusted GitHub URL to the updates folder
+ * and verifies its SHA-256 digest against SHA256SUMS.txt before finalizing it.
  */
 export function DownloadUpdate(downloadURL: string, assetName: string): $CancellablePromise<string> {
     return $Call.ByID(3008066276, downloadURL, assetName);

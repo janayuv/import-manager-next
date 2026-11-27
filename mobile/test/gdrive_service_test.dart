@@ -19,23 +19,32 @@ void main() {
     expect(service.effectiveRefreshToken.isEmpty, isTrue);
   });
 
-  test('GDriveService recognizes configured OAuth credentials', () async {
+  test('GDriveService supports secretless PKCE credentials and authorization URL', () async {
     final service = GDriveService();
     await service.init();
 
     await service.setClientCredentials(
-      clientId: 'mock_client_id',
-      clientSecret: 'mock_client_secret',
+      clientId: 'pkce_public_client_id',
       email: 'user@example.com',
     );
     await service.setRefreshToken('mock_refresh_token');
 
     expect(service.hasOAuthCredentials, isTrue);
-    expect(service.effectiveClientId, equals('mock_client_id'));
-    expect(service.effectiveClientSecret, equals('mock_client_secret'));
+    expect(service.effectiveClientId, equals('pkce_public_client_id'));
+    expect(service.effectiveClientSecret, isEmpty);
     expect(service.effectiveRefreshToken, equals('mock_refresh_token'));
     expect(service.effectiveAccountEmail, equals('user@example.com'));
     expect(service.isAuthenticated, isTrue);
+
+    final verifier = GDriveService.generateCodeVerifier();
+    final authUri = await GDriveService.buildPkceAuthorizationUrl(
+      clientId: 'pkce_public_client_id',
+      redirectUri: 'com.importmanager:/oauth2redirect',
+      codeVerifier: verifier,
+    );
+    expect(authUri.queryParameters['code_challenge_method'], equals('S256'));
+    expect(authUri.queryParameters['code_challenge'], isNotEmpty);
+    expect(authUri.queryParameters.containsKey('client_secret'), isFalse);
   });
 
   test('GDriveService token expiry detection', () async {

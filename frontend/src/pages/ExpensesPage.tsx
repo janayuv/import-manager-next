@@ -16,7 +16,6 @@ import {
   RotateCcw,
   Search,
   Settings2,
-  ShieldAlert,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -24,14 +23,6 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
@@ -52,10 +43,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
-import { CsvImportDialog } from '@/components/master/CsvImportDialog';
 import { ManageExpenseTypesDialog } from '@/components/master/ManageExpenseTypesDialog';
 import { ManageServiceProvidersDialog } from '@/components/master/ManageServiceProvidersDialog';
+import { ExpenseCatalogAndLedgerTabs } from '@/components/expenses/ExpenseCatalogAndLedgerTabs';
+import { ExpenseBulkImportDialog, ExpensePasteLinesDialog } from '@/components/expenses/ExpenseBulkAndPasteDialogs';
 import {
   analyzeDraftLines,
   draftLinesToInputs,
@@ -2691,38 +2682,16 @@ export function ExpensesPage() {
             </div>
           </div>
 
-          {/* Paste Expense Lines Dialog */}
-          <Dialog
+          <ExpensePasteLinesDialog
             open={pasteOpen}
             onOpenChange={(open) => {
               setPasteOpen(open);
               if (!open) setPasteTargetBillKey(null);
             }}
-          >
-            <DialogContent className="max-w-xl">
-              <DialogHeader>
-                <DialogTitle>Paste Expense Lines from Excel / Tally</DialogTitle>
-                <DialogDescription>
-                  Paste tab- or comma-separated lines. Format: <span className="font-mono">Expense Type, Basic Amount, [Remarks]</span> or <span className="font-mono">Expense Type, Basic, CGST%, SGST%, IGST%, TDS%, [Remarks]</span>.
-                </DialogDescription>
-              </DialogHeader>
-              <Textarea
-                rows={7}
-                className="font-mono text-xs"
-                placeholder={"Customs Clearance\t15000\tBOE processing\nTransport Charges\t6250\tLocal cartage"}
-                value={pasteText}
-                onChange={(e) => setPasteText(e.target.value)}
-              />
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setPasteOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleApplyPaste} disabled={!pasteText.trim()}>
-                  Import Pasted Lines
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            pasteText={pasteText}
+            setPasteText={setPasteText}
+            onApplyPaste={handleApplyPaste}
+          />
         </div>
       ) : (
         <>
@@ -3509,532 +3478,48 @@ export function ExpensesPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="providers">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Service Providers (CHA / Forwarders)</CardTitle>
-                <CardDescription>Manage GSTIN and contact details for expense vendors.</CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setManageSpOpen(true)}
-                >
-                  <Settings2 className="h-4 w-4 mr-1" />
-                  Manage Providers
-                </Button>
-                {canWrite && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setEditingSp(null);
-                      setSpForm({
-                        name: '',
-                        gstin: '',
-                        state: '',
-                        contactPerson: '',
-                        contactEmail: '',
-                        contactPhone: '',
-                      });
-                      setSpOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Provider
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Provider Name</TableHead>
-                    <TableHead>GSTIN</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {providers.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{p.gstin || '—'}</TableCell>
-                      <TableCell>{p.state || '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {p.contactPerson || p.contactEmail || p.contactPhone || '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          {canWrite && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setEditingSp(p);
-                                setSpForm({
-                                  name: p.name,
-                                  gstin: p.gstin,
-                                  state: p.state,
-                                  contactPerson: p.contactPerson,
-                                  contactEmail: p.contactEmail,
-                                  contactPhone: p.contactPhone,
-                                });
-                                setSpOpen(true);
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              aria-label={`Delete ${p.name}`}
-                              onClick={() =>
-                                void expenseService
-                                  .deleteServiceProvider(p.id)
-                                  .then(loadAll)
-                                  .then(() => toast.success(`Service provider "${p.name}" removed`))
-                                  .catch((err) => toast.error(err instanceof Error ? err.message : String(err)))
-                              }
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="types">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Expense Types &amp; Statutory Tax Defaults</CardTitle>
-                <CardDescription>Default CGST/SGST/IGST/TDS rates stored in basis points (100 bp = 1%).</CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setTargetLineIdx(null);
-                    setManageEtOpen(true);
-                  }}
-                >
-                  <Settings2 className="h-4 w-4 mr-1" />
-                  Manage Types
-                </Button>
-                {canWrite && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setEditingEt(null);
-                      setEtForm({
-                        name: '',
-                        defaultCgstRateBp: 900,
-                        defaultSgstRateBp: 900,
-                        defaultIgstRateBp: 0,
-                        defaultTdsRateBp: 200,
-                        isActive: true,
-                      });
-                      setEtOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Expense Type
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>CGST</TableHead>
-                    <TableHead>SGST</TableHead>
-                    <TableHead>IGST</TableHead>
-                    <TableHead>TDS</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {types.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="font-medium">{t.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{(t.defaultCgstRateBp / 100).toFixed(2)}%</TableCell>
-                      <TableCell className="font-mono text-xs">{(t.defaultSgstRateBp / 100).toFixed(2)}%</TableCell>
-                      <TableCell className="font-mono text-xs">{(t.defaultIgstRateBp / 100).toFixed(2)}%</TableCell>
-                      <TableCell className="font-mono text-xs">{(t.defaultTdsRateBp / 100).toFixed(2)}%</TableCell>
-                      <TableCell>
-                        <Badge variant={t.isActive ? 'success' : 'secondary'}>
-                          {t.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          {canWrite && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setEditingEt(t);
-                                setEtForm({
-                                  name: t.name,
-                                  defaultCgstRateBp: t.defaultCgstRateBp,
-                                  defaultSgstRateBp: t.defaultSgstRateBp,
-                                  defaultIgstRateBp: t.defaultIgstRateBp,
-                                  defaultTdsRateBp: t.defaultTdsRateBp,
-                                  isActive: t.isActive,
-                                });
-                                setEtOpen(true);
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              aria-label={`Delete ${t.name}`}
-                              onClick={() =>
-                                void expenseService
-                                  .deleteExpenseType(t.id)
-                                  .then(loadAll)
-                                  .then(() => toast.success(`Expense type "${t.name}" removed`))
-                                  .catch((err) => toast.error(err instanceof Error ? err.message : String(err)))
-                              }
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="ledger" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="w-56">
-                <Select value={ledgerShipmentFilter} onValueChange={setLedgerShipmentFilter}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="All Shipments" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All Shipments</SelectItem>
-                    {shipments.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.id} ({s.invoiceNumber})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => void loadLedger()} disabled={ledgerLoading}>
-                <RefreshCw className={`h-4 w-4 mr-1 ${ledgerLoading ? 'animate-spin' : ''}`} />
-                Refresh Ledger
-              </Button>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {ledgerRecords.length} immutable allocation records
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-xs space-y-1">
-            <div className="flex items-center gap-2 font-semibold text-primary">
-              <ShieldAlert className="h-4 w-4" />
-              <span>Immutable Statutory Landed Cost Allocation Ledger</span>
-            </div>
-            <p className="text-muted-foreground">
-              Records are appended on every expense invoice creation, modification, and landed cost computation.
-              Every line item allocation is protected by database triggers against tampering or deletion.
-            </p>
-          </div>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Historical Expense Allocations</CardTitle>
-              <CardDescription>
-                Auditable pro-rata distribution of commercial invoice costs, duty, freight, insurance, and CHA expenses across line items.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow className="text-xs">
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Shipment / BOE</TableHead>
-                    <TableHead>Reason</TableHead>
-                    <TableHead>Expense Category</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Part / Line Item</TableHead>
-                    <TableHead className="text-right">Allocation %</TableHead>
-                    <TableHead className="text-right">Allocated Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ledgerLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
-                        Loading allocation history...
-                      </TableCell>
-                    </TableRow>
-                  ) : ledgerRecords.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
-                        No expense allocation records found. Add an expense invoice to a shipment to generate allocations.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    ledgerRecords.map((rec) => (
-                      <TableRow key={rec.id} className="text-xs">
-                        <TableCell className="font-mono text-[11px] text-muted-foreground">
-                          {rec.calculatedAt}
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{rec.shipmentId}</div>
-                          {rec.boeId && (
-                            <div className="text-[10px] text-muted-foreground">BOE: {rec.boeId}</div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[10px] font-mono">
-                            {rec.recalculationReason}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">{rec.expenseCategory}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-[10px]">
-                            {rec.allocationMethod}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-[11px]">
-                          {rec.partNumber || rec.itemId || '—'}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {rec.allocationPercentage ? `${rec.allocationPercentage.toFixed(2)}%` : '—'}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-semibold text-primary">
-                          ₹{formatPaiseINR(rec.allocatedAmountPaise)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <ExpenseCatalogAndLedgerTabs
+          canWrite={canWrite}
+          canDelete={canDelete}
+          providers={providers}
+          types={types}
+          shipments={shipments}
+          ledgerRecords={ledgerRecords}
+          ledgerLoading={ledgerLoading}
+          ledgerShipmentFilter={ledgerShipmentFilter}
+          setLedgerShipmentFilter={setLedgerShipmentFilter}
+          loadLedger={loadLedger}
+          loadAll={loadAll}
+          setManageSpOpen={setManageSpOpen}
+          setManageEtOpen={setManageEtOpen}
+          setTargetLineIdx={setTargetLineIdx}
+          spOpen={spOpen}
+          setSpOpen={setSpOpen}
+          editingSp={editingSp}
+          setEditingSp={setEditingSp}
+          spForm={spForm}
+          setSpForm={setSpForm}
+          handleSaveProvider={handleSaveProvider}
+          etOpen={etOpen}
+          setEtOpen={setEtOpen}
+          editingEt={editingEt}
+          setEditingEt={setEditingEt}
+          etForm={etForm}
+          setEtForm={setEtForm}
+          handleSaveType={handleSaveType}
+        />
       </Tabs>
     </>
   )}
 
-      {/* Service Provider Dialog */}
-      <Dialog open={spOpen} onOpenChange={setSpOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingSp ? 'Edit Service Provider' : 'Add Service Provider'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="spName">Name *</Label>
-              <Input
-                id="spName"
-                value={spForm.name}
-                onChange={(e) => setSpForm({ ...spForm, name: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="spGstin">GSTIN</Label>
-                <Input
-                  id="spGstin"
-                  value={spForm.gstin}
-                  onChange={(e) => setSpForm({ ...spForm, gstin: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="spState">State</Label>
-                <Input
-                  id="spState"
-                  value={spForm.state}
-                  onChange={(e) => setSpForm({ ...spForm, state: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="spEmail">Contact Email</Label>
-                <Input
-                  id="spEmail"
-                  value={spForm.contactEmail}
-                  onChange={(e) => setSpForm({ ...spForm, contactEmail: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="spPhone">Phone</Label>
-                <Input
-                  id="spPhone"
-                  value={spForm.contactPhone}
-                  onChange={(e) => setSpForm({ ...spForm, contactPhone: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSpOpen(false)}>Cancel</Button>
-            <Button onClick={() => void handleSaveProvider()}>Save Provider</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Expense Type Dialog */}
-      <Dialog open={etOpen} onOpenChange={setEtOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingEt ? 'Edit Expense Type' : 'Add Expense Type'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="etName">Name *</Label>
-              <Input
-                id="etName"
-                value={etForm.name}
-                onChange={(e) => setEtForm({ ...etForm, name: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Default CGST (bp)</Label>
-                <Input
-                  type="number"
-                  value={etForm.defaultCgstRateBp}
-                  onChange={(e) =>
-                    setEtForm({ ...etForm, defaultCgstRateBp: Number.parseInt(e.target.value, 10) || 0 })
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Default SGST (bp)</Label>
-                <Input
-                  type="number"
-                  value={etForm.defaultSgstRateBp}
-                  onChange={(e) =>
-                    setEtForm({ ...etForm, defaultSgstRateBp: Number.parseInt(e.target.value, 10) || 0 })
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Default IGST (bp)</Label>
-                <Input
-                  type="number"
-                  value={etForm.defaultIgstRateBp}
-                  onChange={(e) =>
-                    setEtForm({ ...etForm, defaultIgstRateBp: Number.parseInt(e.target.value, 10) || 0 })
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Default TDS (bp)</Label>
-                <Input
-                  type="number"
-                  value={etForm.defaultTdsRateBp}
-                  onChange={(e) =>
-                    setEtForm({ ...etForm, defaultTdsRateBp: Number.parseInt(e.target.value, 10) || 0 })
-                  }
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2 pt-1">
-              <Switch
-                checked={etForm.isActive}
-                onCheckedChange={(v) => setEtForm({ ...etForm, isActive: v })}
-              />
-              <Label>Active</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEtOpen(false)}>Cancel</Button>
-            <Button onClick={() => void handleSaveType()}>Save Expense Type</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <CsvImportDialog
+      <ExpenseBulkImportDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
-        title="Bulk Expense CSV Import"
-        description="Import expenses across multiple shipments via CSV or select a default target shipment."
-        templateFilename="expenses_bulk_template.csv"
-        onDownloadTemplate={() => expenseService.downloadBulkTemplateCsv()}
-        onImport={(content) => {
-          if (bulkShipmentId && bulkShipmentId !== '__MULTIPLE__') {
-            const selectedShipment = shipments.find((s) => s.id === bulkShipmentId);
-            if (selectedShipment?.isFrozen) {
-              toast.error('The selected default shipment is frozen and cannot accept new expense entries.');
-              return Promise.reject(new Error('The selected default shipment is frozen and cannot accept new expense entries.'));
-            }
-          }
-          const targetId = bulkShipmentId === '__MULTIPLE__' ? '' : bulkShipmentId;
-          return expenseService.importBulkCsv(targetId, content);
-        }}
+        bulkShipmentId={bulkShipmentId}
+        setBulkShipmentId={setBulkShipmentId}
+        shipments={shipments}
         onCompleted={loadAll}
-      >
-        <div className="space-y-1.5 rounded-lg border border-border/80 bg-muted/40 p-3">
-          <Label className="text-xs font-semibold flex items-center justify-between">
-            <span>Target Shipment for Uploaded Expenses</span>
-            {bulkShipmentId && bulkShipmentId !== '__MULTIPLE__' ? (
-              <span className="text-[11px] font-normal text-muted-foreground">
-                {shipments.find((s) => s.id === bulkShipmentId)?.isFrozen
-                  ? '⚠️ Selected shipment is frozen (Locked)'
-                  : '✓ Active shipment ready'}
-              </span>
-            ) : (
-              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                ✓ Multi-Shipment Mode (Specified per CSV row)
-              </span>
-            )}
-          </Label>
-          <Select value={bulkShipmentId} onValueChange={setBulkShipmentId}>
-            <SelectTrigger className="w-full bg-background h-9 text-xs">
-              <SelectValue placeholder="Select target shipment or choose Multi-Shipment..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__MULTIPLE__">
-                🌐 Multiple Shipments (Specified via 'Shipment Invoice No' in CSV)
-              </SelectItem>
-              {shipments.map((s) => (
-                <SelectItem key={s.id} value={s.id} disabled={s.isFrozen}>
-                  {s.invoiceNumber} — {s.supplierName || 'No Supplier'} {s.isFrozen ? '(Frozen - Locked)' : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-[11px] text-muted-foreground">
-            {bulkShipmentId === '__MULTIPLE__'
-              ? 'Each row in the CSV file must specify its target shipment in the "Shipment Invoice No" column.'
-              : 'Expenses without a "Shipment Invoice No" in the CSV will be assigned to this shipment. Rows specifying their own shipment will route to their designated shipment.'}
-          </p>
-        </div>
-      </CsvImportDialog>
+      />
 
       <ManageServiceProvidersDialog
         open={manageSpOpen}

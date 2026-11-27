@@ -7,6 +7,8 @@ import (
 
 	"github.com/janayuv/import-manager-next/backend/app/bootstrap"
 	"github.com/janayuv/import-manager-next/backend/app/lifecycle"
+	"github.com/janayuv/import-manager-next/backend/services/audit"
+	"github.com/janayuv/import-manager-next/backend/services/mobile_sync"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -35,7 +37,7 @@ func main() {
 			application.NewService(appService),
 			application.NewService(rt.Memory),
 			application.NewService(rt.Security),
-			application.NewService(rt.Audit),
+			application.NewService(audit.NewQueryService(rt.Audit)),
 			application.NewService(rt.Options),
 			application.NewService(rt.Suppliers),
 			application.NewService(rt.Items),
@@ -60,7 +62,7 @@ func main() {
 			application.NewService(rt.Workflow),
 			application.NewService(rt.Updater),
 			application.NewService(rt.Company),
-			application.NewService(rt.MobileSync),
+			application.NewService(mobile_sync.NewControlService(rt.MobileSync)),
 			application.NewService(rt.HealthService),
 		},
 		Assets: application.AssetOptions{

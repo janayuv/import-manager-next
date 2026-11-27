@@ -17,6 +17,8 @@ export class UpdateCheckResult {
     "publishedAt": string;
     "releaseURL": string;
     "downloadURL": string;
+    "checksumURL"?: string;
+    "expectedSha256"?: string;
     "assetName": string;
     "assetSize": number;
     "checkedAt": string;

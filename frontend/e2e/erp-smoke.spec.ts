@@ -37,6 +37,39 @@ test.describe('Import Manager Desktop WebView UI E2E', () => {
         });
 
       switch (methodID) {
+        // AppService.ListCompanies
+        case 1144895953:
+          return json([
+            {
+              id: 'comp_default',
+              name: 'Primary Company',
+              shortCode: 'PRIMARY',
+              isDefault: true,
+              isActive: true,
+            },
+          ]);
+        // AppService.GetActiveCompany
+        case 1832970423:
+          return json({
+            id: 'comp_default',
+            name: 'Primary Company',
+            shortCode: 'PRIMARY',
+            isDefault: true,
+            isActive: true,
+          });
+        // SettingsService.GetProfile
+        case 3417793254:
+          return json({
+            schemaVersion: 1,
+            theme: 'default',
+            mode: 'system',
+            lineTotalDecimals: 2,
+            invoiceTotalDecimals: 2,
+            numberFormat: 'en-IN',
+            dateFormat: 'DD/MM/YYYY',
+            textFormat: 'preserve',
+            modules: {},
+          });
         // SecurityService.GetAuthSetupStatus
         case 1720446079:
           return json({

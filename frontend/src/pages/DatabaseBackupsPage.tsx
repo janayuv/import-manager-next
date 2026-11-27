@@ -45,6 +45,7 @@ import {
   backupService,
   databaseAdminService,
   googleDriveService,
+  mobileSyncService,
   type BackupRecord,
   type BackupSchedule,
   type BrowseTableResponse,
@@ -54,6 +55,7 @@ import {
   type GoogleDriveStatus,
   type LegacyInspectResult,
   type LegacyMigrationReport,
+  type MobileSyncServerInfo,
   type RestoreVerificationSummary,
 } from '@/services/data-ops-service';
 
@@ -65,6 +67,8 @@ export function DatabaseBackupsPage() {
   const [schedules, setSchedules] = useState<BackupSchedule[]>([]);
   const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [driveFiles, setDriveFiles] = useState<GoogleDriveRemoteFile[]>([]);
+  const [mobileSyncInfo, setMobileSyncInfo] = useState<MobileSyncServerInfo | null>(null);
+  const [togglingMobileSync, setTogglingMobileSync] = useState<boolean>(false);
   const [hasSavedPass, setHasSavedPass] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -126,13 +130,16 @@ export function DatabaseBackupsPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [ov, tbls, bkList, schList, drvStat, savedPass] = await Promise.all([
+      const [ov, tbls, bkList, schList, drvStat, savedPass, syncInfo] = await Promise.all([
         databaseAdminService.getOverviewStats(),
         databaseAdminService.listBrowseableTables(),
         backupService.listBackups(),
         backupService.listSchedules().catch(() => [] as BackupSchedule[]),
         googleDriveService.getStatus().catch(() => null),
         backupService.hasSavedBackupPassphrase().catch(() => false),
+        mobileSyncService?.getServerInfo
+          ? mobileSyncService.getServerInfo().catch(() => null)
+          : Promise.resolve(null),
       ]);
       setStats(ov);
       setTables(tbls ?? []);
@@ -140,6 +147,7 @@ export function DatabaseBackupsPage() {
       setSchedules(schList ?? []);
       setDriveStatus(drvStat);
       setHasSavedPass(savedPass);
+      setMobileSyncInfo(syncInfo);
       if (drvStat?.connected) {
         googleDriveService
           .listBackups()
@@ -999,44 +1007,80 @@ export function DatabaseBackupsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Smartphone className="h-4 w-4 text-emerald-400" /> Mobile Companion Sync Server (Email &amp; Password Connect)
-              </CardTitle>
-              <CardDescription>
-                Direct Wi-Fi synchronization for your Android companion app on port 8766. No Google Drive required.
-              </CardDescription>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Smartphone className="h-4 w-4 text-emerald-400" /> Mobile Companion Sync Server (Opt-In)
+                  </CardTitle>
+                  <CardDescription>
+                    Direct Wi-Fi synchronization for your Android companion app on port 8766. Off by default; enable only when syncing on a trusted LAN.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="mobile-sync-toggle" className="text-xs text-muted-foreground">
+                    {mobileSyncInfo?.isRunning ? 'Enabled' : 'Disabled'}
+                  </Label>
+                  <Switch
+                    id="mobile-sync-toggle"
+                    checked={Boolean(mobileSyncInfo?.isRunning)}
+                    disabled={togglingMobileSync}
+                    onCheckedChange={async (checked) => {
+                      setTogglingMobileSync(true);
+                      try {
+                        const info = await mobileSyncService.setEnabled(checked);
+                        setMobileSyncInfo(info);
+                        toast.success(info.isRunning ? 'Mobile Companion Sync Server enabled' : 'Mobile Companion Sync Server disabled');
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : 'Failed to toggle Mobile Companion Sync');
+                      } finally {
+                        setTogglingMobileSync(false);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 font-semibold text-emerald-300">
-                    <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Companion Sync Server Active: <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-200">http://&lt;desktop-ip&gt;:8766</code>
+              {mobileSyncInfo?.isRunning ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 font-semibold text-emerald-300">
+                      <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Companion Sync Server Active:{' '}
+                      <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-200">
+                        {mobileSyncInfo.addresses?.[0] || `http://<desktop-ip>:${mobileSyncInfo.port || 8766}`}
+                      </code>
+                    </div>
+                    <p className="text-muted-foreground">
+                      Connect on your Android device using your <strong>Desktop Username / Email</strong> and <strong>Password</strong>.
+                    </p>
                   </div>
-                  <p className="text-muted-foreground">
-                    Connect on your OnePlus 11 using your <strong>Desktop Username / Email</strong> and <strong>Password</strong> (or Backup Passphrase).
-                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
+                    onClick={() => {
+                      const targetUrl = mobileSyncInfo.addresses?.[0] || `http://192.168.1.100:${mobileSyncInfo.port || 8766}`;
+                      navigator.clipboard.writeText(targetUrl);
+                      toast.success(`Sync address copied (${targetUrl})`);
+                    }}
+                  >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy Sync URL
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
-                  onClick={() => {
-                    navigator.clipboard.writeText('http://192.168.1.100:8766');
-                    toast.success('Default sync address copied (replace with your local IP if different)');
-                  }}
-                >
-                  <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy Sync URL
-                </Button>
-              </div>
+              ) : (
+                <div className="rounded border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                  Mobile Companion Sync Server is currently <strong>disabled</strong>. Turn on the switch above only while syncing over your local network.
+                </div>
+              )}
 
               <div className="rounded-md border p-3 text-xs text-muted-foreground space-y-1 bg-muted/20">
                 <p className="font-medium text-foreground">How to sync with Android without Google Drive:</p>
                 <ol className="list-decimal pl-4 space-y-0.5">
-                  <li>Ensure your PC and phone are on the same Wi-Fi network.</li>
+                  <li>Ensure your PC and phone are on the same trusted Wi-Fi network, and enable the switch above.</li>
                   <li>In the Android app, select <strong>&quot;Email &amp; Password&quot;</strong> in Sync &amp; Backup settings.</li>
                   <li>Enter your PC&apos;s IP address (e.g. <code>http://192.168.1.X:8766</code>), your username/email, and password.</li>
-                  <li>Tap <strong>&quot;Connect &amp; Sync Live Data&quot;</strong> — your phone updates in seconds!</li>
+                  <li>Tap <strong>&quot;Connect &amp; Sync Live Data&quot;</strong> — then disable the switch when done.</li>
                 </ol>
               </div>
             </CardContent>

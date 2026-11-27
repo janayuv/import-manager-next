@@ -2,6 +2,8 @@ import * as BackupBindings from '../../bindings/github.com/janayuv/import-manage
 import * as DriveBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/google_drive/service.js';
 import * as RecycleBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/recycle_bin/service.js';
 import * as DBAdminBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/database_management/service.js';
+import * as MobileSyncBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/mobile_sync/controlservice.js';
+import type { ServerInfo as MobileSyncServerInfo } from '../../bindings/github.com/janayuv/import-manager-next/backend/services/mobile_sync/models.js';
 import type {
   BackupHealthStatus,
   BackupRecord,
@@ -59,6 +61,7 @@ export type {
   SaveBackupScheduleInput,
   UpdateTableCellRequest,
 };
+export type { MobileSyncServerInfo };
 
 export const backupService = {
   createBackup(req: CreateBackupRequest): Promise<BackupRecord> {
@@ -186,5 +189,14 @@ export const databaseAdminService = {
   },
   runLegacyMigration(req: LegacyMigrationRequest): Promise<LegacyMigrationReport> {
     return DBAdminBindings.RunLegacyMigration(req);
+  },
+};
+
+export const mobileSyncService = {
+  getServerInfo(): Promise<MobileSyncServerInfo> {
+    return MobileSyncBindings.GetServerInfo();
+  },
+  setEnabled(enabled: boolean): Promise<MobileSyncServerInfo> {
+    return MobileSyncBindings.SetEnabled(enabled);
   },
 };

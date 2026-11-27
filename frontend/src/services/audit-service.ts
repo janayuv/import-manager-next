@@ -1,4 +1,4 @@
-import * as AuditBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/audit/service.js';
+import * as AuditBindings from '../../bindings/github.com/janayuv/import-manager-next/backend/services/audit/queryservice.js';
 import type {
   AuditEntry,
   UserActivityEntry,

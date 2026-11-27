@@ -139,6 +139,22 @@ vi.mock('@/services/data-ops-service', () => ({
     permanentlyDeleteRecords: vi.fn(),
     purgeExpired: vi.fn(),
   },
+  mobileSyncService: {
+    getServerInfo: vi.fn().mockResolvedValue({
+      enabled: false,
+      isRunning: false,
+      port: 8766,
+      addresses: [],
+      version: '1.9.5',
+    }),
+    setEnabled: vi.fn().mockResolvedValue({
+      enabled: true,
+      isRunning: true,
+      port: 8766,
+      addresses: ['http://192.168.1.100:8766'],
+      version: '1.9.5',
+    }),
+  },
 }));
 
 describe('Stage 9 Data Ops Pages', () => {

@@ -9,7 +9,9 @@ import (
 	"github.com/janayuv/import-manager-next/backend/database/connection"
 	"github.com/janayuv/import-manager-next/backend/database/migrations"
 	"github.com/janayuv/import-manager-next/backend/models"
+	"github.com/janayuv/import-manager-next/backend/services/audit"
 	"github.com/janayuv/import-manager-next/backend/services/company"
+	"github.com/janayuv/import-manager-next/backend/services/security"
 )
 
 func TestCompanyServiceLifecycle(t *testing.T) {
@@ -257,5 +259,75 @@ func TestCreateCompanyWithSwitchImmediatelyAndRebind(t *testing.T) {
 
 	if svc.GetActiveID() != created.ID {
 		t.Fatalf("expected active company ID to be %s, got %s", created.ID, svc.GetActiveID())
+	}
+}
+
+func TestCompanyServicePermissions(t *testing.T) {
+	t.Setenv("IMPORT_MANAGER_KEYRING_FILE", filepath.Join(t.TempDir(), "keyring.json"))
+	tmpDir := t.TempDir()
+	defaultDBPath := filepath.Join(tmpDir, "import_manager.db")
+	dbKey := "test-db-key-perms"
+
+	mgr, err := connection.OpenEncrypted(defaultDBPath, dbKey)
+	if err != nil {
+		t.Fatalf("open default db: %v", err)
+	}
+	defer mgr.Close()
+
+	if _, err := migrations.Run(context.Background(), mgr.DB(), "1.8.2", nil); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
+
+	aud := audit.NewService(mgr.DB())
+	sec := security.NewService(mgr.DB(), false, aud)
+	if _, err := sec.CompleteAdminSetup("admin", "Admin!Pass#2026"); err != nil {
+		t.Fatalf("CompleteAdminSetup: %v", err)
+	}
+
+	svc, err := company.NewService(tmpDir, defaultDBPath, dbKey, "1.8.2", mgr.DB(), sec, aud, func(newPath, _ string) (*sql.DB, error) {
+		return mgr.DB(), nil
+	})
+	if err != nil {
+		t.Fatalf("init company service: %v", err)
+	}
+
+	// Unauthenticated must be rejected on all mutating/switching methods
+	_ = sec.Logout()
+	if _, err := svc.CreateCompany(models.CreateCompanyInput{Name: "Blocked Co", ShortCode: "BLCK"}); err == nil {
+		t.Fatalf("expected unauthenticated CreateCompany to fail")
+	}
+	if _, err := svc.UpdateCompany(models.UpdateCompanyInput{ID: "comp_default", Name: "Blocked"}); err == nil {
+		t.Fatalf("expected unauthenticated UpdateCompany to fail")
+	}
+	if _, err := svc.SwitchCompany("comp_default"); err == nil {
+		t.Fatalf("expected unauthenticated SwitchCompany to fail")
+	}
+	if err := svc.DeleteCompany("comp_default"); err == nil {
+		t.Fatalf("expected unauthenticated DeleteCompany to fail")
+	}
+
+	// Operator (PermDataRead + PermDataWrite, no PermAdminSystemTools) cannot create/update/delete companies
+	if _, err := sec.Authenticate("admin", "Admin!Pass#2026", false); err != nil {
+		t.Fatalf("Authenticate admin: %v", err)
+	}
+	if err := sec.AssignUserRole("admin", "operator"); err != nil {
+		t.Fatalf("AssignUserRole: %v", err)
+	}
+	_ = sec.Logout()
+	if _, err := sec.Authenticate("admin", "Admin!Pass#2026", false); err != nil {
+		t.Fatalf("Authenticate operator: %v", err)
+	}
+	if _, err := svc.CreateCompany(models.CreateCompanyInput{Name: "Op Co", ShortCode: "OPCO"}); err == nil {
+		t.Fatalf("expected operator CreateCompany to fail")
+	}
+	if _, err := svc.UpdateCompany(models.UpdateCompanyInput{ID: "comp_default", Name: "Op Update"}); err == nil {
+		t.Fatalf("expected operator UpdateCompany to fail")
+	}
+	if err := svc.DeleteCompany("comp_default"); err == nil {
+		t.Fatalf("expected operator DeleteCompany to fail")
+	}
+	// Operator with PermDataRead can switch to an existing company
+	if _, err := svc.SwitchCompany("comp_default"); err != nil {
+		t.Fatalf("expected operator SwitchCompany to succeed, got %v", err)
 	}
 }

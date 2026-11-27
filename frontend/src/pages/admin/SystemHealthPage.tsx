@@ -324,7 +324,7 @@ export function SystemHealthPage() {
                 <div>
                   <div className="text-sm font-medium">Mobile Companion Sync</div>
                   <div className="text-xs text-muted-foreground">
-                    Port: {health?.mobileSyncPort ?? 8085} • Connected Devices: {health?.mobileConnectedDevices ?? 0}
+                    Port: {health?.mobileSyncRunning ? (health?.mobileSyncPort ?? 8766) : 'Disabled'} • Connected Devices: {health?.mobileConnectedDevices ?? 0}
                   </div>
                 </div>
               </div>

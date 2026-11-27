@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/janayuv/import-manager-next/backend/models"
+	"github.com/janayuv/import-manager-next/backend/pkg/finance/money"
 	"github.com/janayuv/import-manager-next/backend/services/security"
 	"github.com/janayuv/import-manager-next/backend/validation"
 )
@@ -479,9 +480,9 @@ func (s *Service) queryPartBOEs(
 		totAssess := shipmentTotalAssessableMap[b.ShipmentID]
 		totInterest := shipmentBOEInterestMap[b.ShipmentID]
 		if totAssess > 0 && b.AssessableValue > 0 {
-			b.BOEInterest = math.Round((totInterest*(b.AssessableValue/totAssess))*100) / 100
+			b.BOEInterest = money.ProrateINR(totInterest, b.AssessableValue, totAssess)
 		}
-		b.TotalDuty = math.Round((b.BCDAmount+b.SWSAmount+b.IGSTAmount+b.BOEInterest)*100) / 100
+		b.TotalDuty = money.SumINR(b.BCDAmount, b.SWSAmount, b.IGSTAmount, b.BOEInterest)
 
 		shipmentAssessableMap[b.ShipmentID] = b.AssessableValue
 		boeLines = append(boeLines, b)
@@ -558,32 +559,23 @@ func (s *Service) queryPartExpenses(
 			return nil, shipmentAllocatedExpensesMap, err
 		}
 
-		ex.ShipmentExpenseBasicINR = math.Round(float64(amtPaise)/100.0*100) / 100
-		ex.ShipmentExpenseGSTINR = math.Round(float64(gstPaise)/100.0*100) / 100
-		ex.ShipmentExpenseTotalINR = math.Round(float64(totPaise)/100.0*100) / 100
+		ex.ShipmentExpenseBasicINR = money.NewINR(amtPaise).MajorUnitsFloat()
+		ex.ShipmentExpenseGSTINR = money.NewINR(gstPaise).MajorUnitsFloat()
+		ex.ShipmentExpenseTotalINR = money.NewINR(totPaise).MajorUnitsFloat()
 
-		// Proportional Allocation Ratio
-		var ratio float64
+		// Proportional Allocation Ratio in integer paise via pkg/finance/money
 		partAssess := shipmentAssessableMap[ex.ShipmentID]
 		totAssess := shipmentTotalAssessableMap[ex.ShipmentID]
-		if totAssess > 0 && partAssess > 0 {
-			ratio = partAssess / totAssess
-		} else {
-			// Fallback: ratio is 1.0 or based on line value
-			ratio = 1.0
-		}
-		if ratio > 1.0 {
-			ratio = 1.0
-		} else if ratio < 0.0 {
-			ratio = 0.0
-		}
+		allocBasicPaise, ratio := money.ProratePaise(amtPaise, partAssess, totAssess)
+		allocGSTPaise, _ := money.ProratePaise(gstPaise, partAssess, totAssess)
+		allocTotPaise, _ := money.ProratePaise(totPaise, partAssess, totAssess)
 
-		ex.AllocationRatio = math.Round(ratio*10000) / 10000
-		ex.AllocatedBasicINR = math.Round(ex.ShipmentExpenseBasicINR*ratio*100) / 100
-		ex.AllocatedGSTINR = math.Round(ex.ShipmentExpenseGSTINR*ratio*100) / 100
-		ex.AllocatedTotalINR = math.Round(ex.ShipmentExpenseTotalINR*ratio*100) / 100
+		ex.AllocationRatio = ratio
+		ex.AllocatedBasicINR = money.NewINR(allocBasicPaise).MajorUnitsFloat()
+		ex.AllocatedGSTINR = money.NewINR(allocGSTPaise).MajorUnitsFloat()
+		ex.AllocatedTotalINR = money.NewINR(allocTotPaise).MajorUnitsFloat()
 
-		shipmentAllocatedExpensesMap[ex.ShipmentID] += ex.AllocatedBasicINR
+		shipmentAllocatedExpensesMap[ex.ShipmentID] = money.SumINR(shipmentAllocatedExpensesMap[ex.ShipmentID], ex.AllocatedBasicINR)
 		expenses = append(expenses, ex)
 	}
 
@@ -615,22 +607,22 @@ func (s *Service) buildPartTrends(
 		materialVal := boeMaterialMap[sh.ShipmentID]
 		if materialVal <= 0 {
 			if rate, ok := boeRateMap[sh.ShipmentID]; ok && rate > 0 && sh.LineTotal > 0 {
-				materialVal = math.Round(sh.LineTotal*rate*100) / 100
+				materialVal = money.RoundINR(sh.LineTotal * rate)
 			} else if assessable > 0 {
 				materialVal = assessable
 			}
 		}
 		duties := boeDutyMap[sh.ShipmentID]
 		expenses := shipmentAllocatedExpensesMap[sh.ShipmentID]
-		landedCost := materialVal + duties + expenses
+		landedCost := money.SumINR(materialVal, duties, expenses)
 
 		var materialPerUnit, assessPerUnit, dutyPerUnit, expPerUnit, ldcPerUnit float64
 		if qty > 0 {
-			materialPerUnit = math.Round((materialVal/qty)*100) / 100
-			assessPerUnit = math.Round((assessable/qty)*100) / 100
-			dutyPerUnit = math.Round((duties/qty)*100) / 100
-			expPerUnit = math.Round((expenses/qty)*100) / 100
-			ldcPerUnit = math.Round((landedCost/qty)*100) / 100
+			materialPerUnit = money.PerUnitINR(materialVal, qty)
+			assessPerUnit = money.PerUnitINR(assessable, qty)
+			dutyPerUnit = money.PerUnitINR(duties, qty)
+			expPerUnit = money.PerUnitINR(expenses, qty)
+			ldcPerUnit = money.PerUnitINR(landedCost, qty)
 		}
 
 		trends = append(trends, models.PartTrendPoint{
@@ -706,10 +698,10 @@ func (s *Service) buildPartSummary(
 	if baseCost <= 0 {
 		baseCost = summary.TotalAssessableValueINR
 	}
-	summary.TotalLandedCostExIGST = baseCost + summary.TotalBCDAmount + summary.TotalSWSAmount + summary.TotalBOEInterest + summary.TotalAllocatedExpensesINR
+	summary.TotalLandedCostExIGST = money.SumINR(baseCost, summary.TotalBCDAmount, summary.TotalSWSAmount, summary.TotalBOEInterest, summary.TotalAllocatedExpensesINR)
 
 	if summary.TotalQuantity > 0 {
-		summary.AvgLandedCostPerUnit = math.Round((summary.TotalLandedCostExIGST/summary.TotalQuantity)*100) / 100
+		summary.AvgLandedCostPerUnit = money.PerUnitINR(summary.TotalLandedCostExIGST, summary.TotalQuantity)
 	}
 
 	minLDC := math.MaxFloat64

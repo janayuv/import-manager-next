@@ -28,8 +28,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         companyService.listCompanies(),
         companyService.getActiveCompany(),
       ]);
-      setCompanies(list);
-      setCurrentCompany(active);
+      setCompanies(Array.isArray(list) ? list : []);
+      setCurrentCompany(active ?? null);
     } catch (err) {
       console.error('Failed to load companies:', err);
     } finally {

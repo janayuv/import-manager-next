@@ -9,6 +9,7 @@ import { Create as $Create } from "@wailsio/runtime";
  * ServerInfo represents the status of the mobile sync companion server.
  */
 export class ServerInfo {
+    "enabled": boolean;
     "isRunning": boolean;
     "port": number;
     "addresses": string[];
@@ -16,6 +17,9 @@ export class ServerInfo {
 
     /** Creates a new ServerInfo instance. */
     constructor($$source: Partial<ServerInfo> = {}) {
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
         if (!("isRunning" in $$source)) {
             this["isRunning"] = false;
         }
@@ -36,10 +40,10 @@ export class ServerInfo {
      * Creates a new ServerInfo instance from a string or object.
      */
     static createFrom($$source: any = {}): ServerInfo {
-        const $$createField2_0 = $$createType0;
+        const $$createField3_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("addresses" in $$parsedSource) {
-            $$parsedSource["addresses"] = $$createField2_0($$parsedSource["addresses"]);
+            $$parsedSource["addresses"] = $$createField3_0($$parsedSource["addresses"]);
         }
         return new ServerInfo($$parsedSource as Partial<ServerInfo>);
     }

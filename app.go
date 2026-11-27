@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"time"
 
 	"github.com/janayuv/import-manager-next/backend/app/bootstrap"
 	"github.com/janayuv/import-manager-next/backend/database/connection"
@@ -92,17 +93,23 @@ func (s *AppService) CheckDatabaseHealth() (connection.HealthInfo, error) {
 
 // ListSchemaMigrations returns applied migration history with SHA-256 checksums and execution timings.
 func (s *AppService) ListSchemaMigrations() ([]migrations.AppliedRecord, error) {
-	return migrations.ListApplied(context.Background(), s.rt.DB.DB())
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return migrations.ListApplied(ctx, s.rt.DB.DB())
 }
 
 // CheckForUpdate queries GitHub for client updates.
 func (s *AppService) CheckForUpdate() (updater.UpdateCheckResult, error) {
-	return s.rt.Updater.CheckForUpdate(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return s.rt.Updater.CheckForUpdate(ctx)
 }
 
 // DownloadUpdate downloads the update binary/installer from GitHub.
 func (s *AppService) DownloadUpdate(downloadURL, assetName string) (string, error) {
-	return s.rt.Updater.DownloadUpdate(context.Background(), downloadURL, assetName)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	return s.rt.Updater.DownloadUpdate(ctx, downloadURL, assetName)
 }
 
 // ApplyUpdate launches the downloaded installer.
@@ -168,7 +175,9 @@ func (s *AppService) GetSystemHealthSummary() (health.SystemHealthSummary, error
 	if s.rt.HealthService == nil {
 		return health.SystemHealthSummary{}, errors.New("health service not initialized")
 	}
-	return s.rt.HealthService.GetHealthSummary(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.rt.HealthService.GetHealthSummary(ctx)
 }
 
 // RunManualIntegrityCheck executes a PRAGMA integrity_check.
@@ -176,7 +185,9 @@ func (s *AppService) RunManualIntegrityCheck() (string, error) {
 	if s.rt.HealthService == nil {
 		return "", errors.New("health service not initialized")
 	}
-	return s.rt.HealthService.RunManualIntegrityCheck(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	return s.rt.HealthService.RunManualIntegrityCheck(ctx)
 }
 
 // RunVerifiedBackup triggers an immediate on-demand verified backup.
@@ -184,7 +195,9 @@ func (s *AppService) RunVerifiedBackup() (models.BackupRecord, error) {
 	if s.rt.HealthService == nil {
 		return models.BackupRecord{}, errors.New("health service not initialized")
 	}
-	return s.rt.HealthService.RunVerifiedBackup(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	return s.rt.HealthService.RunVerifiedBackup(ctx)
 }
 
 // RunIdempotentJobRecovery recovers a stuck background job.
@@ -192,5 +205,7 @@ func (s *AppService) RunIdempotentJobRecovery(jobID string) error {
 	if s.rt.HealthService == nil {
 		return errors.New("health service not initialized")
 	}
-	return s.rt.HealthService.RunIdempotentJobRecovery(context.Background(), jobID)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return s.rt.HealthService.RunIdempotentJobRecovery(ctx, jobID)
 }

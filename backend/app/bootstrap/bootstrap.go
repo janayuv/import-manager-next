@@ -157,6 +157,7 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 	}
 
 	auditSvc := audit.NewService(dbMgr.DB())
+	auditSvc.SetLogger(logger)
 	securitySvc := security.NewService(dbMgr.DB(), cfg.RecoveryMode, auditSvc)
 	auditSvc.SetPermissionGate(func(perm string) error {
 		_, gErr := securitySvc.RequirePermission(perm)
@@ -269,7 +270,8 @@ func Initialize(args []string, dataDirOverride string) (*Runtime, error) {
 	rt.Company = companySvc
 
 	mobileSyncSvc := mobile_sync.NewService(securitySvc, backupSvc, companySvc, auditSvc, keyStore, cfg.Paths.BackupsDir, cfg.AppVersion, logger)
-	if !cfg.RecoveryMode {
+	mobileSyncSvc.SetDB(dbMgr.DB())
+	if !cfg.RecoveryMode && mobileSyncSvc.IsEnabled() {
 		_ = mobileSyncSvc.Start(mobile_sync.DefaultMobileSyncPort)
 	}
 	rt.MobileSync = mobileSyncSvc
@@ -437,6 +439,15 @@ func (r *Runtime) RebindServices(newDB *sql.DB, newMgr *connection.Manager, newP
 	}
 	if r.HealthService != nil {
 		r.HealthService.SetDB(newDB, newMgr, newPath)
+	}
+	if r.MobileSync != nil {
+		r.MobileSync.SetDB(newDB)
+		// The opt-in setting is stored per company: start or stop the listener to match it.
+		if !r.Config.RecoveryMode {
+			if err := r.MobileSync.ApplyEnabledSetting(); err != nil && r.Logger != nil {
+				r.Logger.Warn("mobile sync: could not apply opt-in setting after company switch", "error", err)
+			}
+		}
 	}
 }
 

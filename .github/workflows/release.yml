@@ -13,6 +13,7 @@ jobs:
       contents: write
     env:
       CGO_ENABLED: "1"
+      HAS_WINDOWS_SIGN_CERT: ${{ secrets.WINDOWS_SIGN_CERT_BASE64 != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,7 +32,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails 3 CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
       - name: Install Frontend Dependencies & Build
         working-directory: frontend
@@ -56,7 +57,7 @@ jobs:
           wails3 task windows:package
 
       - name: Sign Binary & Installer (when Authenticode secret configured)
-        if: ${{ env.SIGN_CERTIFICATE_BASE64 != '' }}
+        if: ${{ env.HAS_WINDOWS_SIGN_CERT == 'true' }}
         shell: pwsh
         env:
           SIGN_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGN_CERT_BASE64 }}
@@ -73,6 +74,7 @@ jobs:
       - name: Generate Checksums
         shell: pwsh
         run: |
+          Remove-Item "bin\SHA256SUMS.txt" -ErrorAction SilentlyContinue
           Get-ChildItem "bin\*.exe", "bin\*.zip" -ErrorAction SilentlyContinue | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)" | Out-File -Append -Encoding utf8 "bin\SHA256SUMS.txt"

@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/janayuv/import-manager-next/backend/models"
+	"github.com/janayuv/import-manager-next/backend/pkg/finance/customs/duty"
 	"github.com/janayuv/import-manager-next/backend/pkg/finance/customs/valuation"
+	"github.com/janayuv/import-manager-next/backend/pkg/finance/money"
 )
 
 const (
@@ -18,10 +20,19 @@ const (
 	StatutoryDeemedInsRate = 1.125 // 1.125% of FOB under Rule 10(2) Customs Valuation Rules 2007
 )
 
-// roundTo rounds n using half-up semantics matching JS Math.round(n * 10^d) / 10^d.
+// roundTo rounds n using pkg/finance/money integer-paise helpers for 0/1/2 decimals.
 func roundTo(n float64, decimals int) float64 {
-	factor := math.Pow(10, float64(decimals))
-	return math.Round((n+math.Copysign(1e-9, n))*factor) / factor
+	switch decimals {
+	case 0:
+		return money.RoundWholeRupeeINR(n)
+	case 1:
+		return money.RoundCustomsOneDecimalINR(n)
+	case 2:
+		return money.RoundINR(n)
+	default:
+		factor := math.Pow(10, float64(decimals))
+		return math.Round((n+math.Copysign(1e-9, n))*factor) / factor
+	}
 }
 
 // NormalizeMethod canonicalizes customs duty calculation method names.
@@ -217,24 +228,17 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 	}
 
 	type tempLineData struct {
-		item              models.BOECalculationItemInput
-		method            string
-		itemForex         float64
-		itemInr           float64
-		itemFreight       float64
-		itemOrigin        float64
-		itemInsurance     float64
-		assessable        float64
-		grossBCD          float64
-		swsVal            float64
-		igstVal           float64
-		lineDutyTotal     float64
-		discrepancy       bool
+		item          models.BOECalculationItemInput
+		method        string
+		itemForex     float64
+		itemInr       float64
+		itemFreight   float64
+		itemOrigin    float64
+		itemInsurance float64
+		assessable    float64
 	}
 
 	tempLines := make([]tempLineData, 0, len(params.LineItems))
-	var grossBCDSum, swsSum, igstSum float64
-	var rodtepEligibleGrossBCDSum float64
 
 	for _, it := range params.LineItems {
 		method, err := NormalizeMethod(it.CalculationMethod)
@@ -284,41 +288,11 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 		// Assessable Value Formula: AV = Converted INR + Freight + Insurance + Origin/Rule 10 Charges
 		assessable := roundTo(itemInr+itemFreight+itemOrigin+itemInsurance, 1)
 
-		// Determine applicable BCD rate
-		bcdRate := it.BOEBCDRate
-		if method == "Rodtep" && bcdRate == 0 {
-			// In RoDTEP, BCD is assessed at normal applicable rate; scrip debits liability afterwards.
-			bcdRate = it.ActualBCDRate
-		}
-
-		rBoeBCD := bcdRate / 100.0
-		rBoeSWS := it.BOESWSRate / 100.0
-		rBoeIGST := it.BOEIGSTRate / 100.0
-
-		// Statutory normal duty liability
-		grossBCD := roundTo(assessable*rBoeBCD, 1)
-		swsVal := roundTo(grossBCD*rBoeSWS, 1)
-		igstVal := roundTo((assessable+grossBCD+swsVal)*rBoeIGST, 1)
-		lineDutyTotal := roundTo(grossBCD+swsVal+igstVal, 1)
-
-		discrepancy := it.BOEBCDRate > 0 && it.BOEBCDRate > it.ActualBCDRate
-		if discrepancy {
-			res.HasBlockingBCDOverride = true
-		}
-
 		res.TotalValueINR = roundTo(res.TotalValueINR+itemInr, 2)
 		res.TotalFreight = roundTo(res.TotalFreight+itemFreight, 2)
 		res.TotalEXW = roundTo(res.TotalEXW+itemOrigin, 2)
 		res.TotalInsurance = roundTo(res.TotalInsurance+itemInsurance, 1)
 		res.TotalAssessableValue = roundTo(res.TotalAssessableValue+assessable, 1)
-
-		grossBCDSum = roundTo(grossBCDSum+grossBCD, 1)
-		swsSum = roundTo(swsSum+swsVal, 1)
-		igstSum = roundTo(igstSum+igstVal, 1)
-
-		if method == "Rodtep" {
-			rodtepEligibleGrossBCDSum = roundTo(rodtepEligibleGrossBCDSum+grossBCD, 1)
-		}
 
 		tempLines = append(tempLines, tempLineData{
 			item:          it,
@@ -329,44 +303,44 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 			itemOrigin:    itemOrigin,
 			itemInsurance: itemInsurance,
 			assessable:    assessable,
-			grossBCD:      grossBCD,
-			swsVal:        swsVal,
-			igstVal:       igstVal,
-			lineDutyTotal: lineDutyTotal,
-			discrepancy:   discrepancy,
 		})
 	}
 
-	// RoDTEP electronic scrip debiting against BCD liability
-	availScrip := params.RoDTEPScripBalance
-	if availScrip == 0 && rodtepEligibleGrossBCDSum > 0 {
-		// If items were marked Rodtep and scrip balance not explicitly passed in header,
-		// infer scrip balance to cover eligible Rodtep lines (preserves single-item Rodtep selection)
-		availScrip = rodtepEligibleGrossBCDSum
+	// Delegate statutory duty calculation and RoDTEP scrip apportionment to pkg/finance/customs/duty.
+	dutyInputs := make([]duty.DutyItemInput, 0, len(tempLines))
+	for _, tmp := range tempLines {
+		dutyInputs = append(dutyInputs, duty.DutyItemInput{
+			ItemID:            tmp.item.ItemID,
+			PartNumber:        tmp.item.PartNumber,
+			Description:       tmp.item.Description,
+			HSNCode:           tmp.item.HSNCode,
+			Unit:              tmp.item.Unit,
+			Quantity:          tmp.item.Quantity,
+			UnitPrice:         tmp.item.UnitPrice,
+			AssessableValue:   tmp.assessable,
+			CalculationMethod: tmp.method,
+			ActualBCDRate:     tmp.item.ActualBCDRate,
+			ActualSWSRate:     tmp.item.ActualSWSRate,
+			ActualIGSTRate:    tmp.item.ActualIGSTRate,
+			BOEBCDRate:        tmp.item.BOEBCDRate,
+			BOESWSRate:        tmp.item.BOESWSRate,
+			BOEIGSTRate:       tmp.item.BOEIGSTRate,
+		})
 	}
 
-	// Scrip utilization is capped by available scrip balance and total gross BCD liability
-	totalRoDTEPUtilized := math.Min(availScrip, grossBCDSum)
+	dutyRes, err := duty.ComputeDuties(duty.DutyCalcParams{
+		LineItems:          dutyInputs,
+		RoDTEPScripBalance: params.RoDTEPScripBalance,
+		Interest:           params.Interest,
+		RoundOffAdjustment: params.RoundOffAdjustment,
+	})
+	if err != nil {
+		return models.BOECalculationResult{}, err
+	}
+	res.HasBlockingBCDOverride = dutyRes.HasBlockingBCDOverride
 
-	// Apportion scrip utilization across lines
-	for _, tmp := range tempLines {
-		var lineScrip float64
-		if grossBCDSum > 0 && totalRoDTEPUtilized > 0 {
-			if rodtepEligibleGrossBCDSum > 0 && tmp.method == "Rodtep" {
-				// Allocate priority to lines explicitly marked Rodtep
-				lineScrip = roundTo(math.Min(tmp.grossBCD, totalRoDTEPUtilized*(tmp.grossBCD/rodtepEligibleGrossBCDSum)), 1)
-			} else if rodtepEligibleGrossBCDSum == 0 {
-				// Header-level scrip applied pro-rata to all lines
-				lineScrip = roundTo(totalRoDTEPUtilized*(tmp.grossBCD/grossBCDSum), 1)
-			}
-		}
-
-		lineBCDCash := roundTo(tmp.grossBCD-lineScrip, 1)
-		lineCashDuty := roundTo(lineBCDCash+tmp.swsVal+tmp.igstVal, 1)
-
-		// BCDValue stores cash payable BCD (0 when paid via RoDTEP scrip)
-		bcdValue := lineBCDCash
-
+	for i, tmp := range tempLines {
+		dl := dutyRes.Items[i]
 		res.Items = append(res.Items, models.BOECalcLineResult{
 			ItemID:            tmp.item.ItemID,
 			PartNumber:        tmp.item.PartNumber,
@@ -382,37 +356,36 @@ func CalculateDuties(params models.BOECalcParams) (models.BOECalculationResult, 
 			ItemInsurance:     tmp.itemInsurance,
 			ItemOriginCharges: tmp.itemOrigin,
 			AssessableValue:   tmp.assessable,
-			CalculationMethod: tmp.method,
+			CalculationMethod: dl.CalculationMethod,
 			ActualBCDRate:     tmp.item.ActualBCDRate,
 			ActualSWSRate:     tmp.item.ActualSWSRate,
 			ActualIGSTRate:    tmp.item.ActualIGSTRate,
 			BOEBCDRate:        tmp.item.BOEBCDRate,
 			BOESWSRate:        tmp.item.BOESWSRate,
 			BOEIGSTRate:       tmp.item.BOEIGSTRate,
-			GrossBCD:          tmp.grossBCD,
-			RoDTEPUtilized:    lineScrip,
-			BCDCashPayable:    lineBCDCash,
-			BCDValue:          bcdValue,
-			SWSValue:          tmp.swsVal,
-			IGSTValue:         tmp.igstVal,
-			TotalLineDuty:     tmp.lineDutyTotal,
-			TotalLineCashDuty: lineCashDuty,
-			BCDDiscrepancy:    tmp.discrepancy,
+			GrossBCD:          dl.GrossBCD,
+			RoDTEPUtilized:    dl.RoDTEPUtilized,
+			BCDCashPayable:    dl.BCDCashPayable,
+			BCDValue:          dl.BCDCashPayable,
+			SWSValue:          dl.SWSValue,
+			IGSTValue:         dl.IGSTValue,
+			TotalLineDuty:     dl.TotalLineDuty,
+			TotalLineCashDuty: dl.TotalLineCashDuty,
+			BCDDiscrepancy:    dl.BCDDiscrepancy,
 		})
 	}
 
-	// Header Totals
-	roundOff := roundTo(params.RoundOffAdjustment, 0)
-	res.RoundOffAdjustment = roundOff
-	res.GrossBCDTotal = roundTo(grossBCDSum, 0)
-	res.RoDTEPScripUtilized = roundTo(totalRoDTEPUtilized, 0)
-	res.BCDCashTotal = roundTo(grossBCDSum-totalRoDTEPUtilized, 0)
-	res.BCDTotal = res.GrossBCDTotal
-	res.SWSTotal = roundTo(swsSum, 0)
-	res.IGSTTotal = roundTo(igstSum, 0)
-	res.Interest = roundTo(params.Interest, 0)
-	res.CustomsDutyTotal = math.Max(0, roundTo(res.GrossBCDTotal+res.SWSTotal+res.IGSTTotal+res.Interest+roundOff, 0))
-	res.CashCustomsDutyTotal = math.Max(0, roundTo(res.BCDCashTotal+res.SWSTotal+res.IGSTTotal+res.Interest+roundOff, 0))
+	// Header Totals from pkg/finance/customs/duty
+	res.RoundOffAdjustment = dutyRes.RoundOffAdjustment
+	res.GrossBCDTotal = dutyRes.GrossBCDTotal
+	res.RoDTEPScripUtilized = dutyRes.RoDTEPScripUtilized
+	res.BCDCashTotal = dutyRes.BCDCashTotal
+	res.BCDTotal = dutyRes.BCDTotal
+	res.SWSTotal = dutyRes.SWSTotal
+	res.IGSTTotal = dutyRes.IGSTTotal
+	res.Interest = dutyRes.Interest
+	res.CustomsDutyTotal = dutyRes.CustomsDutyTotal
+	res.CashCustomsDutyTotal = dutyRes.CashCustomsDutyTotal
 
 	if blob, err := json.Marshal(res); err == nil {
 		res.PayloadBytes = len(blob)

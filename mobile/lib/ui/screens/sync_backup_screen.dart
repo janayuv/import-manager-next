@@ -435,7 +435,7 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
                               const SizedBox(height: 8),
                               OutlinedButton.icon(
                                 icon: const Icon(Icons.restore, size: 18),
-                                label: const Text('Reset to Default Credentials'),
+                                label: const Text('Clear Saved Credentials'),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFFCBD5E1),
                                   side: const BorderSide(color: AppColors.darkBorder),
@@ -449,7 +449,7 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
                                     Navigator.pop(ctx);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('✓ Reset to default credentials'),
+                                        content: Text('✓ Cleared saved Google Drive credentials'),
                                         backgroundColor: AppColors.delivered,
                                       ),
                                     );
@@ -484,7 +484,7 @@ class _SyncBackupScreenState extends State<SyncBackupScreen> {
                                 const SizedBox(height: 8),
                                 TextField(
                                   controller: cSecCtrl,
-                                  decoration: const InputDecoration(labelText: 'OAuth Client Secret', isDense: true),
+                                  decoration: const InputDecoration(labelText: 'OAuth Client Secret (Optional for PKCE)', isDense: true),
                                 ),
                                 const SizedBox(height: 8),
                                 TextField(

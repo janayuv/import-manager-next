@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/janayuv/import-manager-next/backend/logging"
 )
 
 // AuditEntry mirrors a row in audit_logs.
@@ -40,11 +42,33 @@ type UserActivityEntry struct {
 type Service struct {
 	db       *sql.DB
 	permGate func(perm string) error
+	logger   *logging.Logger
 }
 
 // NewService constructs an audit logging service bound to db.
 func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
+}
+
+// QueryService exposes only read-only audit query methods for Wails frontend bindings,
+// preventing frontend callers from forging audit entries via RecordUserActivity or RecordTableAudit.
+type QueryService struct {
+	svc *Service
+}
+
+// NewQueryService returns a Wails-safe read-only audit query facade backed by svc.
+func NewQueryService(svc *Service) *QueryService {
+	return &QueryService{svc: svc}
+}
+
+// QueryAuditLogs lists recent table audit rows filtered optionally by tableName and action.
+func (q *QueryService) QueryAuditLogs(tableName, action string, limit int) ([]AuditEntry, error) {
+	return q.svc.QueryAuditLogs(tableName, action, limit)
+}
+
+// QueryUserActivityLogs returns recent user activity entries filtered by optional severity.
+func (q *QueryService) QueryUserActivityLogs(severity string, limit int) ([]UserActivityEntry, error) {
+	return q.svc.QueryUserActivityLogs(severity, limit)
 }
 
 // SetDB rebinds the service to an active database handle.
@@ -55,6 +79,20 @@ func (s *Service) SetDB(db *sql.DB) {
 // SetPermissionGate injects an authorization check invoked by UI-facing query methods.
 func (s *Service) SetPermissionGate(gate func(perm string) error) {
 	s.permGate = gate
+}
+
+// SetLogger attaches a structured logger so audit write failures are never silently dropped.
+func (s *Service) SetLogger(logger *logging.Logger) {
+	s.logger = logger
+}
+
+func (s *Service) logAuditFailure(op string, err error, attrs ...any) {
+	args := append([]any{"operation", op, "error", err}, attrs...)
+	if s.logger != nil {
+		s.logger.Warn("audit write failed", args...)
+		return
+	}
+	slog.Warn("audit write failed", args...)
 }
 
 // RecordTableAudit appends an immutable before/after record into audit_logs, redacting secret keys.
@@ -82,6 +120,7 @@ func (s *Service) recordTableAuditWithExec(
 		tableName, tableName, rowID, strings.ToUpper(action), userID, beforeStr, afterStr, metaStr,
 	)
 	if err != nil {
+		s.logAuditFailure("audit_logs", err, "table", tableName, "rowId", rowID, "action", action, "userId", userID)
 		return fmt.Errorf("insert audit_logs: %w", err)
 	}
 	return nil
@@ -105,6 +144,7 @@ func (s *Service) RecordUserActivity(userID, actionName, entityType, entityID, s
 		uuid.NewString(), userID, actionName, entityType, entityID, det, status, time.Now().UTC().Format(time.RFC3339), sev,
 	)
 	if err != nil {
+		s.logAuditFailure("user_activity_audit_logs", err, "action", actionName, "entityType", entityType, "entityId", entityID, "userId", userID)
 		return fmt.Errorf("insert user_activity_audit_logs: %w", err)
 	}
 	return nil

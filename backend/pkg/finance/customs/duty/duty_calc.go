@@ -108,14 +108,14 @@ type DutyCalculationResult struct {
 	HasBlockingBCDOverride  bool             `json:"hasBlockingBcdOverride"`  // true if any line has boeBcdRate > actualBcdRate
 }
 
-// round1 rounds float to 1 decimal place matching ICEGATE line duty precision.
+// round1 rounds float to 1 decimal place matching ICEGATE line duty precision via money helpers.
 func round1(val float64) float64 {
-	return math.Round((val+math.Copysign(1e-9, val))*10.0) / 10.0
+	return money.RoundCustomsOneDecimalINR(val)
 }
 
-// roundWhole rounds float to whole integer matching ICEGATE header total precision.
+// roundWhole rounds float to whole integer matching ICEGATE header total precision via money helpers.
 func roundWhole(val float64) float64 {
-	return math.Round(val + math.Copysign(1e-9, val))
+	return money.RoundWholeRupeeINR(val)
 }
 
 // ComputeDuties calculates statutory customs duties strictly under Section 110 of the Finance Act, 2018

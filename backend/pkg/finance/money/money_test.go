@@ -128,3 +128,25 @@ func TestCheckedArithmeticOverflow(t *testing.T) {
 		t.Errorf("Expected %d, got %d", expected, tax)
 	}
 }
+
+func TestINRHelpersAndProration(t *testing.T) {
+	if got := RoundINR(123.456); got != 123.46 {
+		t.Fatalf("RoundINR(123.456) = %.2f, want 123.46", got)
+	}
+	if got := SumINR(10.10, 20.20, 30.30); got != 60.60 {
+		t.Fatalf("SumINR = %.2f, want 60.60", got)
+	}
+	if got := PerUnitINR(1000.0, 3.0); got != 333.33 {
+		t.Fatalf("PerUnitINR(1000, 3) = %.2f, want 333.33", got)
+	}
+	if got := PerUnitINR(1000.0, 0); got != 0 {
+		t.Fatalf("PerUnitINR with zero qty = %.2f, want 0", got)
+	}
+	paise, ratio := ProratePaise(100000, 250.0, 1000.0)
+	if paise != 25000 || ratio != 0.25 {
+		t.Fatalf("ProratePaise = (%d, %.4f), want (25000, 0.2500)", paise, ratio)
+	}
+	if got := ProrateINR(2500.0, 500.0, 1000.0); got != 1250.0 {
+		t.Fatalf("ProrateINR = %.2f, want 1250.00", got)
+	}
+}

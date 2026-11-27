@@ -268,6 +268,11 @@ func (s *Service) GetActiveCompany() (models.Company, error) {
 // CreateCompany provisions an isolated encrypted SQLCipher database for a new corporate entity.
 // It applies all versioned migrations, seeds clean lookup tables, and leaves operational tables fresh.
 func (s *Service) CreateCompany(input models.CreateCompanyInput) (models.Company, error) {
+	actor, err := s.requirePermission(security.PermAdminSystemTools)
+	if err != nil {
+		return models.Company{}, err
+	}
+
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
 		return models.Company{}, errors.New("company name is required")
@@ -441,7 +446,7 @@ func (s *Service) CreateCompany(input models.CreateCompanyInput) (models.Company
 	}
 
 	if s.audit != nil {
-		_ = s.audit.RecordUserActivity("admin", "COMPANY_CREATED", "company", compID, "SUCCESS", "INFO", map[string]any{
+		_ = s.audit.RecordUserActivity(actor, "COMPANY_CREATED", "company", compID, "SUCCESS", "INFO", map[string]any{
 			"name":      name,
 			"shortCode": shortCode,
 			"dbPath":    targetDBPath,
@@ -461,6 +466,11 @@ func (s *Service) CreateCompany(input models.CreateCompanyInput) (models.Company
 
 // UpdateCompany updates company identity, tax numbers, and banking details.
 func (s *Service) UpdateCompany(input models.UpdateCompanyInput) (models.Company, error) {
+	actor, err := s.requirePermission(security.PermAdminSystemTools)
+	if err != nil {
+		return models.Company{}, err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -566,7 +576,7 @@ func (s *Service) UpdateCompany(input models.UpdateCompanyInput) (models.Company
 	}
 
 	if s.audit != nil {
-		_ = s.audit.RecordUserActivity("admin", "COMPANY_UPDATED", "company", id, "SUCCESS", "INFO", map[string]any{
+		_ = s.audit.RecordUserActivity(actor, "COMPANY_UPDATED", "company", id, "SUCCESS", "INFO", map[string]any{
 			"name":      name,
 			"shortCode": shortCode,
 			"gstin":     input.GSTIN,
@@ -610,6 +620,11 @@ func (s *Service) UpdateCompany(input models.UpdateCompanyInput) (models.Company
 
 // SwitchCompany dynamically switches the active application database to the specified company.
 func (s *Service) SwitchCompany(id string) (models.Company, error) {
+	actor, err := s.requirePermission(security.PermDataRead)
+	if err != nil {
+		return models.Company{}, err
+	}
+
 	cleanID := strings.TrimSpace(id)
 	if cleanID == "" {
 		return models.Company{}, errors.New("company ID is required")
@@ -667,7 +682,7 @@ func (s *Service) SwitchCompany(id string) (models.Company, error) {
 	s.mu.Unlock()
 
 	if s.audit != nil {
-		_ = s.audit.RecordUserActivity("admin", "COMPANY_SWITCHED", "company", cleanID, "SUCCESS", "INFO", map[string]any{
+		_ = s.audit.RecordUserActivity(actor, "COMPANY_SWITCHED", "company", cleanID, "SUCCESS", "INFO", map[string]any{
 			"companyName": targetName,
 			"shortCode":   targetShortCode,
 			"dbPath":      targetPath,
@@ -694,6 +709,11 @@ func (s *Service) SwitchCompany(id string) (models.Company, error) {
 
 // DeleteCompany removes a company from registry if it is not currently active or the only one remaining.
 func (s *Service) DeleteCompany(id string) error {
+	actor, err := s.requirePermission(security.PermAdminSystemTools)
+	if err != nil {
+		return err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -741,13 +761,27 @@ func (s *Service) DeleteCompany(id string) error {
 	}
 
 	if s.audit != nil {
-		_ = s.audit.RecordUserActivity("admin", "COMPANY_DELETED", "company", cleanID, "SUCCESS", "WARNING", map[string]any{
+		_ = s.audit.RecordUserActivity(actor, "COMPANY_DELETED", "company", cleanID, "SUCCESS", "WARNING", map[string]any{
 			"name":      targetItem.Name,
 			"shortCode": targetItem.ShortCode,
 		})
 	}
 
 	return nil
+}
+
+func (s *Service) requirePermission(perm string) (string, error) {
+	if s.sec == nil {
+		return "admin", nil
+	}
+	sess, err := s.sec.RequirePermission(perm)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(sess.Username) != "" {
+		return sess.Username, nil
+	}
+	return sess.UserID, nil
 }
 
 func (s *Service) readCompanyProfileFromDB(db *sql.DB, fallbackID string) (models.Company, error) {
